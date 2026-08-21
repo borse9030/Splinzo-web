@@ -4,7 +4,7 @@ import Script from "next/script";
 import { usePathname } from "next/navigation";
 
 // List of paths where ads should NOT be shown
-const restrictedPaths = ["/", "/login", "/signup", "/contact", "/terms", "/privacy-policy", "/blog"];
+const restrictedPaths = ["/login", "/signup", "/contact", "/terms", "/privacy-policy", "/blog"];
 
 export function MonetagAd() {
   const pathname = usePathname();
