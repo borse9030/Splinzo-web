@@ -44,7 +44,7 @@ export default function PrivacyPolicy() {
         "**Group Members:** Expense data you add to a group is visible to all members of that group.",
         "**Service Providers:** We use Firebase (Google) for authentication and database services. They are bound by their own privacy policies.",
         "**Legal Requirements:** We may disclose information if required by law, court order, or to protect the rights of Splinzo and its users.",
-        "We do not share your data with advertisers.",
+        "**Advertising:** We use Google AdSense to serve ads. Third-party vendors may use cookies to serve personalized ads based on your visit to our site.",
       ],
     },
     {
@@ -60,8 +60,10 @@ export default function PrivacyPolicy() {
       title: "6. Cookies & Tracking",
       content: [
         "The Splinzo web app uses cookies to maintain your login session and store user preferences.",
-        "We do not use tracking cookies for advertising purposes.",
-        "You can disable cookies in your browser, but this may affect app functionality.",
+        "**Third-party vendors, including Google**, use cookies to serve ads based on your prior visits to our website or other websites.",
+        "Google's use of advertising cookies enables it and its partners to serve ads to you based on your visit to Splinzo and/or other sites on the Internet.",
+        "You may opt out of personalized advertising by visiting **Ads Settings** (https://www.google.com/settings/ads).",
+        "You can also disable cookies in your browser, but this may affect app functionality.",
       ],
     },
     {

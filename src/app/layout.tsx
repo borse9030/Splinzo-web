@@ -5,6 +5,7 @@ import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { ThemeProvider } from "next-themes";
+import { CookieConsent } from "@/components/common/CookieConsent";
 
 const outfit = Outfit({
   variable: "--font-outfit",
@@ -74,6 +75,7 @@ export default function RootLayout({
           <AuthProvider>
             <AuthGuard>
               {children}
+              <CookieConsent />
             </AuthGuard>
           </AuthProvider>
         </ThemeProvider>
