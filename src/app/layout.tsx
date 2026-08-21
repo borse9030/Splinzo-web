@@ -5,7 +5,7 @@ import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { ThemeProvider } from "next-themes";
-import Script from "next/script";
+import { MonetagAd } from "@/components/ads/MonetagAd";
 
 const outfit = Outfit({
   variable: "--font-outfit",
@@ -67,7 +67,7 @@ export default function RootLayout({
         className={`${outfit.variable} ${geistMono.variable} antialiased min-h-full flex flex-col`}
         style={{ fontFamily: "var(--font-outfit), 'Outfit', sans-serif" }}
       >
-        <Script src="https://n6wxm.com/vignette.min.js" data-zone="11624127" strategy="afterInteractive" />
+        <MonetagAd />
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <AuthProvider>
             <AuthGuard>
