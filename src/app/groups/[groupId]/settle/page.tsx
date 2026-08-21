@@ -9,10 +9,18 @@ import { balanceService } from "@/services/balanceService";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ArrowRight, CheckCircle2 } from "lucide-react";
+import { ArrowRight, CheckCircle2, IndianRupee, Smartphone, ShieldCheck, Copy, QrCode } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { collection, doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase/config";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { userService } from "@/services/userService";
 
 export default function SettleUpPage({
   params,
@@ -27,6 +35,9 @@ export default function SettleUpPage({
   const { payments, loading: paymentsLoading } = usePayments(resolvedParams.groupId);
 
   const [settling, setSettling] = useState<string | null>(null);
+  const [selectedSettlement, setSelectedSettlement] = useState<any>(null);
+  const [receiverDetails, setReceiverDetails] = useState<any>(null);
+  const [dialogLoading, setDialogLoading] = useState(false);
 
   const loading = groupLoading || expensesLoading || paymentsLoading;
 
@@ -47,21 +58,39 @@ export default function SettleUpPage({
   const balances = balanceService.calculateBalances(group.members, expenses, payments);
   const settlements = balanceService.suggestSettlements(balances, group.members);
 
-  const handleSettle = async (settlement: any) => {
-    setSettling(settlement.toUserId);
+  const handleOpenDialog = async (settlement: any) => {
+    setSelectedSettlement(settlement);
+    setReceiverDetails(null);
+    setDialogLoading(true);
+    try {
+      const user = await userService.getUser(settlement.toUserId);
+      if (user) {
+        setReceiverDetails(user);
+      }
+    } catch (err) {
+      console.error("Failed to load receiver details:", err);
+    } finally {
+      setDialogLoading(false);
+    }
+  };
+
+  const handleSettle = async () => {
+    if (!selectedSettlement) return;
+    setSettling(selectedSettlement.toUserId);
     try {
       const paymentRef = doc(collection(db, "payments"));
       await setDoc(paymentRef, {
         groupId: group.id,
-        fromUserId: settlement.fromUserId,
-        fromUserName: settlement.fromUserName,
-        toUserId: settlement.toUserId,
-        toUserName: settlement.toUserName,
-        amount: settlement.amount,
+        fromUserId: selectedSettlement.fromUserId,
+        fromUserName: selectedSettlement.fromUserName,
+        toUserId: selectedSettlement.toUserId,
+        toUserName: selectedSettlement.toUserName,
+        amount: selectedSettlement.amount,
         status: "pending_approval",
         createdAt: serverTimestamp(),
       });
-      // Optionally show a toast
+      // Close dialog
+      setSelectedSettlement(null);
     } catch (err) {
       console.error("Failed to record settlement:", err);
     } finally {
@@ -130,11 +159,10 @@ export default function SettleUpPage({
 
                       {iAmPaying && (
                         <Button 
-                          onClick={() => handleSettle(s)} 
-                          disabled={settling === s.toUserId}
+                          onClick={() => handleOpenDialog(s)} 
                           className="rounded-xl px-8 w-full sm:w-auto"
                         >
-                          {settling === s.toUserId ? "Recording..." : "Record Payment"}
+                          Settle & Pay
                         </Button>
                       )}
                     </div>
@@ -178,6 +206,87 @@ export default function SettleUpPage({
           </div>
         </section>
       )}
+
+      {/* Payment Dialog */}
+      <Dialog open={!!selectedSettlement} onOpenChange={(open) => !open && setSelectedSettlement(null)}>
+        <DialogContent className="sm:max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle>Make Payment</DialogTitle>
+            <DialogDescription>
+              You are settling your balance with {selectedSettlement?.toUserName}.
+            </DialogDescription>
+          </DialogHeader>
+
+          {dialogLoading ? (
+            <div className="py-6 flex justify-center"><Skeleton className="h-24 w-full" /></div>
+          ) : (
+            <div className="space-y-6 py-4">
+              <div className="flex flex-col items-center justify-center p-6 bg-gray-50 rounded-2xl border">
+                <span className="text-sm font-medium text-gray-500 mb-1">Amount to pay</span>
+                <span className="text-4xl font-extrabold text-gray-900">
+                  {group.currency === 'INR' ? '₹' : group.currency}{selectedSettlement?.amount.toFixed(2)}
+                </span>
+              </div>
+
+              {/* UPI Options */}
+              {receiverDetails && (receiverDetails.upiId || receiverDetails.paymentQrUrl) ? (
+                <div className="space-y-4">
+                  {receiverDetails.paymentQrUrl && (
+                    <div className="flex flex-col items-center justify-center space-y-2 border-2 border-dashed border-gray-200 p-4 rounded-2xl">
+                      <QrCode className="h-6 w-6 text-gray-400" />
+                      <span className="text-sm font-semibold text-gray-600">Scan QR to Pay</span>
+                      <img src={receiverDetails.paymentQrUrl} alt="Receiver QR" className="h-48 w-48 object-contain rounded-xl" />
+                    </div>
+                  )}
+
+                  {receiverDetails.upiId && (
+                    <div className="flex flex-col gap-2">
+                      <div className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border">
+                        <div className="flex items-center gap-3">
+                          <div className="h-8 w-8 bg-blue-100 rounded-full flex items-center justify-center">
+                            <Smartphone className="h-4 w-4 text-blue-600" />
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500">UPI ID</p>
+                            <p className="font-semibold text-sm">{receiverDetails.upiId}</p>
+                          </div>
+                        </div>
+                        <Button variant="ghost" size="icon" onClick={() => navigator.clipboard.writeText(receiverDetails.upiId)}>
+                          <Copy className="h-4 w-4 text-gray-500" />
+                        </Button>
+                      </div>
+
+                      <Button 
+                        asChild
+                        className="w-full rounded-xl h-12 shadow-md bg-blue-600 hover:bg-blue-700 text-white font-bold"
+                      >
+                        <a href={`upi://pay?pa=${receiverDetails.upiId}&pn=${encodeURIComponent(receiverDetails.displayName || selectedSettlement?.toUserName)}&am=${selectedSettlement?.amount}&cu=INR`} target="_blank" rel="noopener noreferrer">
+                          <IndianRupee className="h-5 w-5 mr-2" />
+                          Pay via UPI App
+                        </a>
+                      </Button>
+                      <p className="text-xs text-center text-gray-500 mt-1">Tap to open GPay, PhonePe, Paytm, etc.</p>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="p-4 bg-amber-50 text-amber-800 rounded-xl flex gap-3 text-sm">
+                  <ShieldCheck className="h-5 w-5 shrink-0" />
+                  <p>{selectedSettlement?.toUserName} has not added a UPI ID or QR code. Please settle offline.</p>
+                </div>
+              )}
+
+              <Button 
+                onClick={handleSettle} 
+                disabled={settling === selectedSettlement?.toUserId}
+                className="w-full rounded-xl h-12"
+              >
+                {settling === selectedSettlement?.toUserId ? "Recording..." : "I have paid, send for approval"}
+              </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

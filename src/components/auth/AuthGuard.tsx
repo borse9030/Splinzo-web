@@ -9,11 +9,13 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
 
+  const PUBLIC_PATHS = ["/login", "/signup", "/", "/privacy-policy", "/terms", "/contact"];
+
   useEffect(() => {
     if (!loading) {
       if (!user) {
         // Not logged in, redirect to login
-        if (pathname !== "/login" && pathname !== "/signup" && pathname !== "/") {
+        if (!PUBLIC_PATHS.includes(pathname)) {
           router.push("/login");
         }
       } else if (user && !appUser) {
@@ -38,7 +40,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   }
 
   // Prevent flashing protected content before redirect
-  if (!user && pathname !== "/login" && pathname !== "/signup" && pathname !== "/") {
+  if (!user && !PUBLIC_PATHS.includes(pathname)) {
     return null;
   }
 

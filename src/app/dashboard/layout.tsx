@@ -8,7 +8,7 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex min-h-screen" style={{ background: "#F7F7F7" }}>
+    <div className="flex min-h-screen" style={{ background: "#F9F7F2" }}>
       <Navigation />
       
       {/* Main Content Area */}

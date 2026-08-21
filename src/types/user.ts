@@ -6,5 +6,9 @@ export interface AppUser {
   displayName: string;
   email: string;
   photoUrl: string;
+  photoURL?: string;
+  defaultCurrency?: string;
+  upiId?: string;
+  paymentQrUrl?: string;
   createdAt: Timestamp;
 }

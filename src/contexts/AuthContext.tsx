@@ -35,7 +35,13 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       
       if (firebaseUser) {
         // Fetch corresponding app user from Firestore
-        const dbUser = await userService.getUser(firebaseUser.uid);
+        let dbUser = await userService.getUser(firebaseUser.uid);
+        
+        // Merge photoURL from Auth if missing in DB (common when updated from Android app)
+        if (dbUser && !dbUser.photoUrl && firebaseUser.photoURL) {
+          dbUser = { ...dbUser, photoUrl: firebaseUser.photoURL, photoURL: firebaseUser.photoURL };
+        }
+        
         setAppUser(dbUser);
       } else {
         setAppUser(null);

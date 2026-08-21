@@ -182,3 +182,151 @@
     overscroll-behavior: contain;
   }
 }
+
+/* =============================================
+   HOMEPAGE ANIMATIONS & KEYFRAMES
+   ============================================= */
+
+@keyframes float-sketch {
+  0%, 100% { transform: translateY(0px) rotate(0deg); opacity: 0.35; }
+  33%       { transform: translateY(-18px) rotate(4deg); opacity: 0.55; }
+  66%       { transform: translateY(-8px) rotate(-3deg); opacity: 0.45; }
+}
+
+@keyframes float-sketch-slow {
+  0%, 100% { transform: translateY(0px) rotate(0deg) scale(1); opacity: 0.25; }
+  50%       { transform: translateY(-24px) rotate(6deg) scale(1.05); opacity: 0.45; }
+}
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(36px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes slide-in-left {
+  from { opacity: 0; transform: translateX(-48px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(48px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes phone-screen-cycle {
+  0%, 18%  { opacity: 1; transform: translateY(0); }
+  22%, 100%{ opacity: 0; transform: translateY(-24px); }
+}
+
+@keyframes phone-screen-enter {
+  0%       { opacity: 0; transform: translateY(24px); }
+  5%, 18%  { opacity: 1; transform: translateY(0); }
+  22%, 100%{ opacity: 0; transform: translateY(-24px); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(249, 185, 18, 0.4); }
+  50%      { box-shadow: 0 0 0 16px rgba(249, 185, 18, 0); }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+@keyframes draw-line {
+  from { stroke-dashoffset: 1000; }
+  to   { stroke-dashoffset: 0; }
+}
+
+@keyframes bounce-dot {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-6px); }
+}
+
+@keyframes spin-slow {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+@keyframes counter-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes reveal-bar {
+  from { width: 0; }
+  to   { width: var(--bar-width, 100%); }
+}
+
+/* Utility animation classes */
+.animate-float-sketch       { animation: float-sketch 6s ease-in-out infinite; }
+.animate-float-sketch-slow  { animation: float-sketch-slow 9s ease-in-out infinite; }
+.animate-fade-in-up         { animation: fade-in-up 0.7s ease both; }
+.animate-fade-in            { animation: fade-in 0.6s ease both; }
+.animate-slide-in-left      { animation: slide-in-left 0.7s ease both; }
+.animate-slide-in-right     { animation: slide-in-right 0.7s ease both; }
+.animate-pulse-glow         { animation: pulse-glow 2.4s ease-in-out infinite; }
+.animate-spin-slow          { animation: spin-slow 18s linear infinite; }
+.animate-marquee            { animation: marquee 22s linear infinite; }
+.animate-bounce-dot         { animation: bounce-dot 1.2s ease-in-out infinite; }
+
+/* Animation delay utilities */
+.delay-100  { animation-delay: 0.1s; }
+.delay-200  { animation-delay: 0.2s; }
+.delay-300  { animation-delay: 0.3s; }
+.delay-400  { animation-delay: 0.4s; }
+.delay-500  { animation-delay: 0.5s; }
+.delay-600  { animation-delay: 0.6s; }
+.delay-700  { animation-delay: 0.7s; }
+.delay-800  { animation-delay: 0.8s; }
+.delay-1000 { animation-delay: 1s; }
+.delay-1200 { animation-delay: 1.2s; }
+.delay-1500 { animation-delay: 1.5s; }
+.delay-2000 { animation-delay: 2s; }
+.delay-2500 { animation-delay: 2.5s; }
+.delay-3000 { animation-delay: 3s; }
+
+/* Gradient text utility */
+.gradient-text-amber {
+  background: linear-gradient(135deg, #F9A825 0%, #FF8F00 50%, #F9B912 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Sketch art SVG stroke animation */
+.sketch-stroke {
+  stroke-dasharray: 1000;
+  stroke-dashoffset: 1000;
+  animation: draw-line 2.5s ease forwards;
+}
+
+/* Glass card */
+.glass-card {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+}
+
+/* Section fade-in using IntersectionObserver via CSS */
+.section-hidden {
+  opacity: 0;
+  transform: translateY(40px);
+  transition: opacity 0.8s ease, transform 0.8s ease;
+}
+.section-visible {
+  opacity: 1;
+  transform: translateY(0);
+}

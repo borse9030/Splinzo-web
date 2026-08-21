@@ -12,6 +12,8 @@ export interface Expense {
   splitBetweenIds: string[];
   customSplitAmounts: { [userId: string]: number } | null;
   billImageUrl: string | null;
+  imageUrl?: string | null;
+  receiptUrl?: string | null;
   category: string;
   originalAmount?: number | null;
   originalCurrency?: string | null;

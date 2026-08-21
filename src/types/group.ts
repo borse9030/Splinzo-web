@@ -4,6 +4,8 @@ export interface GroupMember {
   id: string;
   name: string;
   email: string;
+  photoUrl?: string;
+  photoURL?: string;
   role: string; // 'admin', 'member'
   joinedAt: Timestamp;
 }

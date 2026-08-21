@@ -4,6 +4,7 @@ import { Outfit } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { AuthGuard } from "@/components/auth/AuthGuard";
+import { ThemeProvider } from "next-themes";
 
 const outfit = Outfit({
   variable: "--font-outfit",
@@ -27,16 +28,18 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body
         className={`${outfit.variable} ${geistMono.variable} antialiased min-h-full flex flex-col`}
         style={{ fontFamily: "var(--font-outfit), 'Outfit', sans-serif" }}
       >
-        <AuthProvider>
-          <AuthGuard>
-            {children}
-          </AuthGuard>
-        </AuthProvider>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          <AuthProvider>
+            <AuthGuard>
+              {children}
+            </AuthGuard>
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

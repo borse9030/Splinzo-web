@@ -222,7 +222,7 @@ export default function GroupTripsPage({
                       </>
                     )}
                   </div>
-                  <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleImagePick} />
+                  <input type="file" ref={fileInputRef} className="hidden" accept="image/*,.heic,.heif" onChange={handleImagePick} />
                 </div>
 
                 <div className="space-y-2">
