@@ -18,8 +18,35 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://splinzo-web-sandy.vercel.app'),
   title: "Splinzo — Smart Expense Sharing",
   description: "The smartest way to split expenses with friends, roommates, and groups. Track who owes who and settle up effortlessly.",
+  keywords: ["expense sharing", "split bills", "group expenses", "roommate ledger", "trip budgeting app", "bill splitter"],
+  authors: [{ name: "Splinzo Team" }],
+  openGraph: {
+    title: "Splinzo — Smart Expense Sharing",
+    description: "The smartest way to split expenses with friends, roommates, and groups. Track who owes who and settle up effortlessly.",
+    url: "/",
+    siteName: "Splinzo",
+    type: "website",
+    images: [
+      {
+        url: "/icon.png",
+        width: 1200,
+        height: 630,
+        alt: "Splinzo — Smart Expense Sharing",
+      }
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Splinzo — Smart Expense Sharing",
+    description: "The smartest way to split expenses with friends, roommates, and groups.",
+    images: ["/icon.png"],
+  },
+  alternates: {
+    canonical: "/",
+  },
 };
 
 export default function RootLayout({
