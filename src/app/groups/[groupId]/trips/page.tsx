@@ -1,6 +1,7 @@
 "use client";
 
 import { use, useState, useRef } from "react";
+import Link from "next/link";
 import { useGroup } from "@/hooks/useGroup";
 import { useTrips } from "@/hooks/useTrips";
 import { Card, CardContent } from "@/components/ui/card";
@@ -136,41 +137,43 @@ export default function GroupTripsPage({
       ) : (
         <div className="grid sm:grid-cols-2 gap-5">
           {trips.map((trip) => (
-            <Card key={trip.id} className="border-none shadow-sm hover:shadow-md transition-shadow cursor-pointer overflow-hidden group rounded-2xl">
-              <div className="h-36 w-full relative overflow-hidden bg-gray-100">
-                <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent z-10" />
-                {trip.coverImageUrl ? (
-                  <img 
-                    src={trip.coverImageUrl} 
-                    alt={trip.destination}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center" style={{ background: "linear-gradient(135deg, #F9B912 0%, #FFB300 50%, #FF8F00 100%)" }}>
-                    <MapPin className="h-10 w-10 text-white/50" />
-                  </div>
-                )}
-                <div className="absolute bottom-3 left-3 z-20">
-                  <h3 className="font-extrabold text-xl text-white drop-shadow-sm">{trip.title}</h3>
-                </div>
-              </div>
-              <CardContent className="p-4 bg-white">
-                <div className="space-y-2.5">
-                  <div className="flex items-center text-sm font-medium text-gray-600">
-                    <div className="w-6 h-6 rounded-full bg-gray-50 flex items-center justify-center mr-2.5">
-                      <MapPin className="h-3.5 w-3.5 text-gray-500" style={{ color: AMBER }} />
+            <Link key={trip.id} href={`/groups/${groupId}/trips/${trip.id}`} className="block">
+              <Card className="border-none shadow-sm hover:shadow-md transition-all duration-300 cursor-pointer overflow-hidden group rounded-2xl h-full">
+                <div className="h-36 w-full relative overflow-hidden bg-gray-100">
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/10 to-transparent z-10" />
+                  {trip.coverImageUrl ? (
+                    <img 
+                      src={trip.coverImageUrl} 
+                      alt={trip.destination}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center" style={{ background: "linear-gradient(135deg, #F9B912 0%, #FFB300 50%, #FF8F00 100%)" }}>
+                      <MapPin className="h-10 w-10 text-white/50" />
                     </div>
-                    <span className="truncate">{trip.destination}</span>
-                  </div>
-                  <div className="flex items-center text-sm font-medium text-gray-600">
-                    <div className="w-6 h-6 rounded-full bg-gray-50 flex items-center justify-center mr-2.5">
-                      <Calendar className="h-3.5 w-3.5 text-gray-500" style={{ color: AMBER }} />
-                    </div>
-                    <span>{fmtDate(trip.startDate)} - {fmtDate(trip.endDate)}</span>
+                  )}
+                  <div className="absolute bottom-3 left-3 right-3 z-20 flex items-end justify-between">
+                    <h3 className="font-extrabold text-xl text-white drop-shadow-sm truncate pr-2">{trip.title}</h3>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
+                <CardContent className="p-4 bg-white">
+                  <div className="space-y-2.5">
+                    <div className="flex items-center text-sm font-medium text-gray-600">
+                      <div className="w-6 h-6 rounded-full bg-gray-50 flex items-center justify-center mr-2.5 shrink-0">
+                        <MapPin className="h-3.5 w-3.5 text-gray-500" style={{ color: AMBER }} />
+                      </div>
+                      <span className="truncate">{trip.destination}</span>
+                    </div>
+                    <div className="flex items-center text-sm font-medium text-gray-600">
+                      <div className="w-6 h-6 rounded-full bg-gray-50 flex items-center justify-center mr-2.5 shrink-0">
+                        <Calendar className="h-3.5 w-3.5 text-gray-500" style={{ color: AMBER }} />
+                      </div>
+                      <span className="truncate">{fmtDate(trip.startDate)} - {fmtDate(trip.endDate)}</span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
           ))}
         </div>
       )}
