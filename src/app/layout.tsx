@@ -5,7 +5,6 @@ import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { ThemeProvider } from "next-themes";
-import Script from "next/script";
 
 const outfit = Outfit({
   variable: "--font-outfit",
@@ -61,12 +60,11 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <Script
+        <script
           async
           src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9758730673684519"
           crossOrigin="anonymous"
-          strategy="afterInteractive"
-        />
+        ></script>
       </head>
       <body
         className={`${outfit.variable} ${geistMono.variable} antialiased min-h-full flex flex-col`}
