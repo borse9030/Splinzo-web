@@ -5,7 +5,7 @@ import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { ThemeProvider } from "next-themes";
-import { MonetagAd } from "@/components/ads/MonetagAd";
+import Script from "next/script";
 
 const outfit = Outfit({
   variable: "--font-outfit",
@@ -50,9 +50,6 @@ export const metadata: Metadata = {
   },
   verification: {
     google: "9xrsDkHKvEwqrLGex_g9ZOU-D1N9nH6h9Am8DxljcZw",
-    other: {
-      monetag: "930a404851417a9b51850d9f1a2ec935",
-    },
   },
 };
 
@@ -63,11 +60,18 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <Script
+          async
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9758730673684519"
+          crossOrigin="anonymous"
+          strategy="afterInteractive"
+        />
+      </head>
       <body
         className={`${outfit.variable} ${geistMono.variable} antialiased min-h-full flex flex-col`}
         style={{ fontFamily: "var(--font-outfit), 'Outfit', sans-serif" }}
       >
-        <MonetagAd />
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
           <AuthProvider>
             <AuthGuard>
