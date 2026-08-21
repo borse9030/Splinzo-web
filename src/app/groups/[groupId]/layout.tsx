@@ -26,7 +26,6 @@ export default function GroupLayout({
   const tabs = [
     { name: "Expenses", href: `/groups/${resolvedParams.groupId}` },
     { name: "Chat", href: `/groups/${resolvedParams.groupId}/chat` },
-    { name: "Other", href: `/groups/${resolvedParams.groupId}/other` },
     { name: "Members", href: `/groups/${resolvedParams.groupId}/members` },
     { name: "Trips", href: `/groups/${resolvedParams.groupId}/trips` },
   ];
