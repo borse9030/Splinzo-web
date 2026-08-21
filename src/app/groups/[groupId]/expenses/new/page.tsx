@@ -6,12 +6,14 @@ import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { useGroup } from "@/hooks/useGroup";
 import { expenseService } from "@/services/expenseService";
+import { storageService } from "@/services/storageService";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ChevronLeft, Receipt, Upload } from "lucide-react";
+import { ChevronLeft, Receipt, Upload, X } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useRef } from "react";
 
 export default function AddExpensePage({
   params,
@@ -35,6 +37,10 @@ export default function AddExpensePage({
   const [splitType, setSplitType] = useState<"equal" | "custom">("equal");
   const [splitBetweenIds, setSplitBetweenIds] = useState<string[]>([]);
   const [customAmounts, setCustomAmounts] = useState<{ [key: string]: number }>({});
+  
+  const [billImage, setBillImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -88,6 +94,11 @@ export default function AddExpensePage({
     setError("");
 
     try {
+      let finalImageUrl = null;
+      if (billImage) {
+        finalImageUrl = await storageService.uploadFile(billImage);
+      }
+
       await expenseService.addExpense(group.id, {
         description,
         amount: numAmount,
@@ -96,7 +107,7 @@ export default function AddExpensePage({
         createdBy: appUser.id,
         splitBetweenIds,
         customSplitAmounts: splitType === "custom" ? customAmounts : null,
-        billImageUrl: null, // Image upload to be implemented
+        billImageUrl: finalImageUrl,
         category,
       });
       
@@ -168,9 +179,45 @@ export default function AddExpensePage({
                 />
               </div>
               
-              <div className="border-2 border-dashed border-gray-200 rounded-xl p-4 flex flex-col items-center justify-center text-gray-500 hover:bg-gray-50 hover:border-gray-300 transition-colors cursor-pointer">
-                <Upload className="h-6 w-6 mb-2 text-gray-400" />
-                <span className="text-sm font-medium">Add Bill Image</span>
+              <div 
+                className="border-2 border-dashed border-gray-200 rounded-xl p-4 flex flex-col items-center justify-center text-gray-500 hover:bg-gray-50 hover:border-gray-300 transition-colors cursor-pointer relative overflow-hidden"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {imagePreview ? (
+                  <div className="relative w-full flex flex-col items-center">
+                    <img src={imagePreview} alt="Preview" className="h-32 object-contain rounded-lg mb-2" />
+                    <span className="text-xs font-medium bg-white px-2 py-1 rounded shadow-sm border">Change Image</span>
+                    <button 
+                      className="absolute top-0 right-0 bg-red-100 text-red-600 rounded-full p-1 shadow-sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setBillImage(null);
+                        setImagePreview(null);
+                        if (fileInputRef.current) fileInputRef.current.value = "";
+                      }}
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <Upload className="h-6 w-6 mb-2 text-gray-400" />
+                    <span className="text-sm font-medium">Add Bill Image</span>
+                  </>
+                )}
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  className="hidden" 
+                  ref={fileInputRef}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      setBillImage(file);
+                      setImagePreview(URL.createObjectURL(file));
+                    }
+                  }}
+                />
               </div>
             </div>
           )}
