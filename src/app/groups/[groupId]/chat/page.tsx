@@ -60,7 +60,14 @@ export default function GroupChatPage({
       orderBy("createdAt", "asc")
     );
     const unsub = onSnapshot(q, (snap) => {
-      setMessages(snap.docs.map((d) => ({ id: d.id, ...d.data() } as ChatMessage)));
+      const msgs = snap.docs.map((d) => ({ id: d.id, ...d.data() } as ChatMessage));
+      // Sort client-side: null timestamps (optimistic writes) go to the BOTTOM
+      msgs.sort((a, b) => {
+        const aT = a.createdAt?.seconds ?? Number.MAX_SAFE_INTEGER;
+        const bT = b.createdAt?.seconds ?? Number.MAX_SAFE_INTEGER;
+        return aT - bT;
+      });
+      setMessages(msgs);
       setChatLoading(false);
     });
     return () => unsub();
