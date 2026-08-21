@@ -13,7 +13,7 @@ import {
 const AMBER       = "#F9B912";
 const AMBER_DARK  = "#F9A000";
 const AMBER_LIGHT = "#FFF8E1";
-const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=com.splinzo.app";
+const PLAY_STORE_URL = "https://play.google.com/apps/testing/com.splinzo.splinzo";
 
 /* ─── SECTION ANIMATION WRAPPER ─────────────────────────── */
 function Section({ children, className = "", delay = 0 }: {
