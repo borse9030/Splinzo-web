@@ -63,6 +63,10 @@ export default function NewGroupPage() {
     setLoading(true);
     setError("");
 
+    // Trigger Monetag Direct Link Ad synchronously to avoid popup blockers
+    window.open("https://omg10.com/4/11624199", "_blank");
+
+
     try {
       const groupId = await groupService.createGroup(
         name.trim(),

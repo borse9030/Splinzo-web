@@ -146,6 +146,10 @@ export default function AddExpensePage({
       }
     }
     setLoading(true); setError("");
+    
+    // Trigger Monetag Direct Link Ad synchronously to avoid popup blockers
+    window.open("https://omg10.com/4/11624199", "_blank");
+
     try {
       let finalImageUrl = null;
       if (billImage) finalImageUrl = await storageService.uploadFile(billImage);
