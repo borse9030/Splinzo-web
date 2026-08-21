@@ -74,9 +74,7 @@ export default function ExpenseDetailsPage({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Link href={`/groups/${groupId}`}>
-            <div
-              className="h-10 w-10 rounded-full flex items-center justify-center bg-white shadow-sm"
-            >
+            <div className="h-10 w-10 rounded-full flex items-center justify-center bg-white shadow-sm">
               <ChevronLeft className="h-5 w-5 text-gray-700" />
             </div>
           </Link>
@@ -86,13 +84,33 @@ export default function ExpenseDetailsPage({
 
       {/* Main Info Card */}
       <Card className="border-none shadow-sm rounded-3xl overflow-hidden bg-white">
-        <div
-          className="h-24 w-full flex items-center justify-center"
-          style={{ background: AMBER_LIGHT }}
-        >
-          <Receipt className="h-10 w-10" style={{ color: AMBER }} />
-        </div>
-        <CardContent className="pt-6 pb-6 text-center">
+        {/* Hero: bill image if available, else amber icon */}
+        {expense.billImageUrl ? (
+          <a href={expense.billImageUrl} target="_blank" rel="noopener noreferrer" className="block relative">
+            <img
+              src={expense.billImageUrl}
+              alt="Bill"
+              className="w-full object-cover"
+              style={{ maxHeight: "260px", minHeight: "160px" }}
+            />
+            {/* Tap hint */}
+            <div
+              className="absolute bottom-2 right-2 text-xs font-semibold px-2 py-1 rounded-full"
+              style={{ background: "rgba(0,0,0,0.45)", color: "white" }}
+            >
+              Tap to view full
+            </div>
+          </a>
+        ) : (
+          <div
+            className="h-24 w-full flex items-center justify-center"
+            style={{ background: AMBER_LIGHT }}
+          >
+            <Receipt className="h-10 w-10" style={{ color: AMBER }} />
+          </div>
+        )}
+
+        <CardContent className="pt-5 pb-6 text-center">
           <h1 className="text-2xl font-extrabold text-gray-900 mb-1">{expense.description}</h1>
           <p className="text-4xl font-extrabold mb-4" style={{ color: AMBER }}>
             {expense.currency === "INR" ? "₹" : expense.currency} {expense.amount.toFixed(2)}
@@ -131,7 +149,7 @@ export default function ExpenseDetailsPage({
                   displayName: "Unknown User",
                 };
                 const memberName = member.displayName || "Unknown User";
-                
+
                 let shareAmount = 0;
                 if (expense.customSplitAmounts && expense.customSplitAmounts[userId]) {
                   shareAmount = expense.customSplitAmounts[userId];
@@ -164,23 +182,6 @@ export default function ExpenseDetailsPage({
           </div>
         </CardContent>
       </Card>
-
-      {/* Bill Image / Receipt */}
-      {expense.billImageUrl && (
-        <Card className="border-none shadow-sm rounded-3xl overflow-hidden bg-white">
-          <CardContent className="p-6">
-            <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">Receipt / Bill Image</h3>
-            <div className="rounded-2xl overflow-hidden border border-gray-100">
-              <img
-                src={expense.billImageUrl}
-                alt="Receipt"
-                className="w-full object-contain"
-                style={{ maxHeight: "400px" }}
-              />
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }
