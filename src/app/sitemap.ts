@@ -2,7 +2,7 @@ import { MetadataRoute } from 'next';
 import { blogs } from '@/data/blogs';
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://splinzo-web-sandy.vercel.app';
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://splinzo.in';
   
   const blogUrls = blogs.map((blog) => ({
     url: `${baseUrl}/blog/${blog.slug}`,
