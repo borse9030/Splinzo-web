@@ -128,7 +128,7 @@ export default function InvitationsPage() {
                       {invitation.groupName}
                     </h3>
                     <p className="text-sm text-gray-500 mt-0.5">
-                      <span className="font-semibold text-gray-700">{invitation.invitedByUserName}</span>
+                      <span className="font-semibold text-gray-700">{invitation.inviterName}</span>
                       {" "}invited you to join
                     </p>
 

@@ -21,7 +21,7 @@ export const invitationService = {
     const q = query(
       collection(db, "invitations"),
       where("groupId", "==", groupId),
-      where("invitedEmail", "==", email),
+      where("inviteeEmail", "==", email),
       where("status", "==", "pending")
     );
     const snapshot = await getDocs(q);
@@ -33,9 +33,8 @@ export const invitationService = {
     await setDoc(invRef, {
       groupId,
       groupName,
-      invitedByUserId: inviter.id,
-      invitedByUserName: inviter.displayName,
-      invitedEmail: email,
+      inviterName: inviter.displayName,
+      inviteeEmail: email,
       status: "pending",
       createdAt: serverTimestamp(),
     });

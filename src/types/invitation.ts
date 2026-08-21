@@ -4,9 +4,8 @@ export interface Invitation {
   id: string;
   groupId: string;
   groupName: string;
-  invitedByUserId: string;
-  invitedByUserName: string;
-  invitedEmail: string;
-  status: "pending" | "accepted" | "declined";
+  inviterName: string;
+  inviteeEmail: string;
+  status: "pending" | "accepted" | "declined" | "cancelled";
   createdAt: Timestamp;
 }

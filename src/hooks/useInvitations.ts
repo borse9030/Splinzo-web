@@ -18,7 +18,7 @@ export function useInvitations() {
     setLoading(true);
     const q = query(
       collection(db, "invitations"),
-      where("invitedEmail", "==", appUser.email),
+      where("inviteeEmail", "==", appUser.email.toLowerCase()),
       where("status", "==", "pending")
     );
 
