@@ -4,10 +4,15 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { motion, useInView, AnimatePresence } from "framer-motion";
-import {
-  ArrowRight, Zap, Users, Map, Shield, Bell, CreditCard,
-  Star, ChevronDown, Download, Check, MessageCircle, Smartphone
+import { 
+  ArrowRight, Check, CheckCircle2, ChevronRight, 
+  Download, Moon, Play, Shield, ShieldCheck, 
+  Sparkles, Star, Wallet, Zap, BookOpen,
+  Bell, Users, MessageCircle, ChevronDown, Smartphone,
+  Map, CreditCard
 } from "lucide-react";
+
+import { blogs } from "@/data/blogs";
 
 /* ─── CONSTANTS ─────────────────────────────────────────── */
 const AMBER       = "#F9B912";
@@ -797,6 +802,48 @@ export default function Home() {
         </div>
       </section>
 
+      {/* ══ BLOG / RESOURCES ═══════════════════════════════ */}
+      <Section className="py-24 px-5 bg-white">
+        <div className="max-w-6xl mx-auto">
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-16">
+            <div>
+              <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold mb-4"
+                    style={{ background: "#FFF8E1", color: "#F9A825" }}>
+                <BookOpen size={14} />
+                Resources
+              </span>
+              <h2 className="text-3xl md:text-5xl font-black text-gray-900 tracking-tight">
+                Latest from the <span style={{ color: AMBER }}>Blog</span>
+              </h2>
+            </div>
+            <Link href="/blog" className="inline-flex items-center gap-2 font-bold text-gray-500 hover:text-amber-500 transition-colors">
+              View all articles <ArrowRight size={18} />
+            </Link>
+          </div>
+          
+          <div className="grid md:grid-cols-3 gap-8">
+            {blogs.slice(0, 3).map((blog, i) => (
+              <motion.div key={blog.slug} whileHover={{ y: -8 }} transition={{ duration: 0.2 }}>
+                <Link href={`/blog/${blog.slug}`} className="block group">
+                  <article className="bg-gray-50 rounded-3xl p-6 h-full flex flex-col border border-gray-100 hover:border-amber-200 hover:shadow-xl hover:shadow-amber-500/5 transition-all">
+                    <span className="text-xs font-bold text-amber-500 mb-3">{blog.category}</span>
+                    <h3 className="text-lg font-black text-gray-900 mb-3 group-hover:text-amber-500 transition-colors leading-snug">
+                      {blog.title}
+                    </h3>
+                    <p className="text-sm text-gray-500 line-clamp-3 mb-6 flex-1 leading-relaxed">
+                      {blog.summary}
+                    </p>
+                    <div className="flex items-center text-xs font-bold text-gray-400 group-hover:text-amber-500 transition-colors gap-1">
+                      Read Article <ChevronRight size={14} />
+                    </div>
+                  </article>
+                </Link>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </Section>
+
       {/* ══ FOOTER ═════════════════════════════════════════ */}
       <footer className="bg-gray-900 text-gray-400 pt-16 pb-8 px-5">
         <div className="max-w-6xl mx-auto">
@@ -826,6 +873,7 @@ export default function Home() {
                 <li><a href="#features" className="hover:text-white transition-colors">Features</a></li>
                 <li><a href="#how-it-works" className="hover:text-white transition-colors">How It Works</a></li>
                 <li><a href="#download" className="hover:text-white transition-colors">Download App</a></li>
+                <li><Link href="/blog" className="hover:text-white transition-colors">Blog & Guides</Link></li>
                 <li><Link href="/signup" className="hover:text-white transition-colors">Get Started Free</Link></li>
               </ul>
             </div>
