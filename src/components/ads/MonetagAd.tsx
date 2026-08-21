@@ -24,10 +24,19 @@ export function MonetagAd() {
   }
 
   return (
-    <Script
-      src="https://n6wxm.com/vignette.min.js"
-      data-zone="11624127"
-      strategy="afterInteractive"
-    />
+    <>
+      {/* Vignette Banner */}
+      <Script
+        src="https://n6wxm.com/vignette.min.js"
+        data-zone="11624127"
+        strategy="afterInteractive"
+      />
+      {/* In-Page Push Banner */}
+      <Script
+        src="https://nap5k.com/tag.min.js"
+        data-zone="11624187"
+        strategy="afterInteractive"
+      />
+    </>
   );
 }
