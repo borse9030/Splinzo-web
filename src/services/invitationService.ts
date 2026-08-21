@@ -1,4 +1,4 @@
-import { collection, query, where, getDocs, doc, setDoc, updateDoc, arrayUnion, serverTimestamp, Timestamp } from "firebase/firestore";
+import { collection, query, where, getDocs, doc, setDoc, updateDoc, arrayUnion, serverTimestamp, Timestamp, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase/config";
 import { Invitation } from "@/types/invitation";
 import { AppUser } from "@/types/user";
@@ -49,12 +49,23 @@ export const invitationService = {
     const invRef = doc(db, "invitations", invitationId);
     await updateDoc(invRef, { status: "accepted" });
 
-    // 2. Add user to the group
+    // 2. Check if user is already a member (prevent duplicates)
     const groupRef = doc(db, "groups", groupId);
+    const groupSnap = await getDoc(groupRef);
+    if (!groupSnap.exists()) throw new Error("Group not found");
+
+    const groupData = groupSnap.data();
+    const existingMemberIds: string[] = groupData?.memberIds || [];
+    if (existingMemberIds.includes(currentUser.id)) {
+      // Already a member — nothing more to do
+      return;
+    }
+
+    // 3. Add user to the group
     const newMember: GroupMember = {
       id: currentUser.id,
       name: currentUser.displayName,
-      email: currentUser.email,
+      email: currentUser.email.toLowerCase(),
       role: "member",
       joinedAt: Timestamp.now()
     };

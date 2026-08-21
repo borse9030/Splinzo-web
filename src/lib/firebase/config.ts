@@ -11,12 +11,9 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "",
 };
 
-// Initialize Firebase only if we have an API key (prevents crash on first load without env vars)
-let app;
-if (typeof window !== "undefined") {
-  app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
-}
+// getApps() safely prevents re-initialization across hot reloads and server/client contexts
+const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
-export const auth = app ? getAuth(app) : {} as any;
+export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
-export const db = app ? getFirestore(app) : {} as any;
+export const db = getFirestore(app);
