@@ -33,7 +33,7 @@ export default function GroupLayout({
 
   if (error) {
     return (
-      <div className="flex min-h-screen" style={{ background: "#F7F7F7" }}>
+      <div className="flex h-[100dvh] overflow-hidden" style={{ background: "#F7F7F7" }}>
         <Navigation />
         <main className="flex-1 w-full md:ml-64 pb-20 md:pb-0 flex items-center justify-center">
           <div className="flex flex-col items-center justify-center py-20 text-center px-4">
@@ -54,7 +54,7 @@ export default function GroupLayout({
   }
 
   return (
-    <div className="flex min-h-screen" style={{ background: "#F7F7F7" }}>
+    <div className="flex h-[100dvh] overflow-hidden" style={{ background: "#F7F7F7" }}>
       {/* Shared sidebar + mobile nav */}
       <Navigation />
 

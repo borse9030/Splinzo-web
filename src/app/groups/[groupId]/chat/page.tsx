@@ -217,17 +217,21 @@ export default function GroupChatPage({
                 )}
 
                 <div className={`flex items-end gap-1.5 mb-0.5 ${isMe ? "flex-row-reverse" : "flex-row"} ${grouped ? "mt-0.5" : "mt-2"}`}>
-                  {/* Avatar */}
-                  <div className="w-7 shrink-0 self-end">
-                    {!isMe && !grouped ? (
-                      <div
-                        className="h-7 w-7 rounded-full flex items-center justify-center text-white font-bold text-xs"
-                        style={{ background: color }}
-                      >
-                        {name.charAt(0).toUpperCase()}
-                      </div>
-                    ) : <div className="h-7 w-7" />}
-                  </div>
+                  {/* Avatar (only for others) */}
+                  {!isMe && (
+                    <div className="w-7 shrink-0 self-end">
+                      {!grouped ? (
+                        <div
+                          className="h-7 w-7 rounded-full flex items-center justify-center text-white font-bold text-xs"
+                          style={{ background: color }}
+                        >
+                          {name.charAt(0).toUpperCase()}
+                        </div>
+                      ) : (
+                        <div className="h-7 w-7" />
+                      )}
+                    </div>
+                  )}
 
                   {/* Bubble */}
                   <div className={`flex flex-col ${isMe ? "items-end" : "items-start"} max-w-[78%] sm:max-w-[60%]`}>
