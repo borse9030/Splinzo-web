@@ -3,6 +3,7 @@ import { Timestamp } from "firebase/firestore";
 export interface GroupMember {
   id: string;
   name: string;
+  displayName?: string;
   email: string;
   photoUrl?: string;
   photoURL?: string;

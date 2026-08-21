@@ -183,7 +183,7 @@ export default function GroupMembersPage({
                     <Clock className="h-5 w-5" style={{ color: AMBER }} />
                   </div>
                   <div className="min-w-0">
-                    <p className="font-semibold text-gray-900 text-sm truncate">{inv.invitedEmail}</p>
+                    <p className="font-semibold text-gray-900 text-sm truncate">{inv.inviteeEmail}</p>
                     <p className="text-xs text-gray-400 font-medium">Invite pending · waiting for response</p>
                   </div>
                 </div>

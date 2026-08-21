@@ -94,6 +94,7 @@ export default function ExpenseDetailsPage({
 
   // Find member details
   const payer = group?.members?.find((m: any) => m.id === expense.payerId) || {
+    id: "",
     displayName: "Unknown User",
     email: "",
   };
@@ -253,6 +254,7 @@ export default function ExpenseDetailsPage({
             <div className="space-y-3">
               {expense.splitBetweenIds.map((userId) => {
                 const member = group?.members?.find((m: any) => m.id === userId) || {
+                  id: "",
                   displayName: "Unknown User",
                 };
                 const memberName = member.displayName || "Unknown User";
@@ -383,7 +385,7 @@ export default function ExpenseDetailsPage({
                   <div className="flex flex-col items-center justify-center p-6 bg-gray-50 rounded-2xl border">
                     <span className="text-sm font-medium text-gray-500 mb-1">Amount to pay</span>
                     <span className="text-4xl font-extrabold text-gray-900">
-                      {group.currency === 'INR' ? '₹' : group.currency}{myShare.toFixed(2)}
+                      {group?.currency === 'INR' ? '₹' : (group?.currency || '₹')}{myShare.toFixed(2)}
                     </span>
                   </div>
 
