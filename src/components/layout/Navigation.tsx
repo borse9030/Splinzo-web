@@ -89,12 +89,13 @@ export function Navigation() {
 
       {/* Mobile Bottom Navigation — matches app exactly */}
       <nav
-        className="md:hidden fixed bottom-0 left-0 right-0 flex justify-around items-center h-[70px] px-2 z-50"
+        className="md:hidden fixed bottom-0 left-0 right-0 flex justify-around items-center h-[70px] px-2 z-50 safe-bottom"
         style={{
           background: "white",
           borderTop: "1px solid #F0F0F0",
           boxShadow: "0 -4px 20px rgba(0,0,0,0.06)",
           borderRadius: "24px 24px 0 0",
+          paddingBottom: "max(env(safe-area-inset-bottom, 0px), 4px)",
         }}
       >
         {links.map((link) => {

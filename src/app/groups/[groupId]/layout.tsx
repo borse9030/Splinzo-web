@@ -59,10 +59,10 @@ export default function GroupLayout({
       <Navigation />
 
       {/* Group content — offset for sidebar on desktop */}
-      <main className="flex-1 w-full md:ml-64 pb-20 md:pb-0 overflow-x-hidden">
+      <main className="flex flex-col flex-1 w-full md:ml-64 pb-20 md:pb-0 overflow-x-hidden" style={{ minHeight: 0 }}>
 
         {/* Group Hero Banner — matches app's Goa screen */}
-        <div className="relative w-full" style={{ height: "200px" }}>
+        <div className="relative w-full" style={{ height: "160px" }}>
           {group?.imageUrl ? (
             <img
               src={group.imageUrl}
@@ -173,7 +173,7 @@ export default function GroupLayout({
         )}
 
         {/* Main content area */}
-        <div className="px-4 sm:px-6 lg:px-8 pb-24 min-h-screen" style={{ background: "#F7F7F7" }}>
+        <div className="flex flex-col flex-1 px-4 sm:px-6 lg:px-8 pb-0" style={{ background: "#F7F7F7", minHeight: 0 }}>
           <div className="max-w-4xl mx-auto">
             {loading ? (
               <div className="space-y-4 pt-4">

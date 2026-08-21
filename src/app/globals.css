@@ -161,4 +161,24 @@
     background-color: #FFF8E1;
     color: #F9A825;
   }
+
+  /* iOS safe area support for bottom nav */
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  /* Prevent double-tap zoom on interactive elements */
+  button, a, [role="button"] {
+    touch-action: manipulation;
+  }
+
+  /* Smooth scroll everywhere */
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* Overscroll contain for chat */
+  .overscroll-contain {
+    overscroll-behavior: contain;
+  }
 }
