@@ -173,16 +173,22 @@ export default function GroupLayout({
         )}
 
         {/* Main content area */}
-        <div className="flex flex-col flex-1 px-4 sm:px-6 lg:px-8 pb-0" style={{ background: "#F7F7F7", minHeight: 0 }}>
-          <div className="max-w-4xl mx-auto">
+        <div className="flex flex-col flex-1 min-h-0" style={{ background: "#F7F7F7" }}>
+          <div className="flex flex-col flex-1 min-h-0 w-full max-w-4xl mx-auto">
             {loading ? (
-              <div className="space-y-4 pt-4">
+              <div className="space-y-4 pt-4 px-4 sm:px-6 lg:px-8">
                 <Skeleton className="h-20 w-full rounded-2xl" />
                 <Skeleton className="h-20 w-full rounded-2xl" />
                 <Skeleton className="h-20 w-full rounded-2xl" />
               </div>
-            ) : (
+            ) : pathname.includes("/chat") ? (
+              /* Chat tab: no padding, fills full height */
               children
+            ) : (
+              /* All other tabs: padded + scrollable */
+              <div className="px-4 sm:px-6 lg:px-8 py-4 pb-28 overflow-y-auto">
+                {children}
+              </div>
             )}
           </div>
         </div>

@@ -157,16 +157,13 @@ export default function GroupChatPage({
 
   return (
     /**
-     * Key fix: use flex flex-col + h-full so this fills the parent flex-1 container
-     * from the group layout. No viewport height calculations needed — this eliminates
-     * all mobile breakage. The parent layout is now a proper flex column.
+     * Layout now passes flex-1 min-h-0 down from main → content div → here.
+     * So h-full fills exactly the remaining viewport space on ALL screen sizes.
+     * No calc(), no viewport hacks, works on mobile + desktop identically.
      */
     <div
-      className="flex flex-col -mx-4 sm:-mx-6 lg:-mx-8 -mt-0"
-      style={{
-        height: "calc(100dvh - 278px)", // hero(160) + actions(56) + tabs(44) + mobile-nav(80) - some offset
-        background: "#ECE5DD",
-      }}
+      className="flex flex-col w-full h-full"
+      style={{ background: "#ECE5DD" }}
     >
       {/* ── Scrollable messages ── */}
       <div className="flex-1 overflow-y-auto px-3 sm:px-5 py-4 space-y-0.5 overscroll-contain">
