@@ -77,10 +77,32 @@ export const invitationService = {
   },
 
   /**
-   * Decline an invitation
+   * Decline an invitation (by the invitee)
    */
   async declineInvitation(invitationId: string): Promise<void> {
     const invRef = doc(db, "invitations", invitationId);
     await updateDoc(invRef, { status: "declined" });
+  },
+
+  /**
+   * Cancel a sent invitation (by the inviter / admin).
+   * Marks as "cancelled" so the invitee no longer sees it.
+   */
+  async cancelInvitation(invitationId: string): Promise<void> {
+    const invRef = doc(db, "invitations", invitationId);
+    await updateDoc(invRef, { status: "cancelled" });
+  },
+
+  /**
+   * Fetch all pending invitations for a specific group (for showing in the Members tab).
+   */
+  async getGroupPendingInvitations(groupId: string): Promise<Invitation[]> {
+    const q = query(
+      collection(db, "invitations"),
+      where("groupId", "==", groupId),
+      where("status", "==", "pending")
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Invitation));
   }
 };
