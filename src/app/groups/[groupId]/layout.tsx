@@ -107,7 +107,7 @@ export default function GroupLayout({
                 <button
                   onClick={async () => {
                     if (!group) return;
-                    if (window.confirm("Are you sure you want to delete this group? This action cannot be undone.")) {
+                    if (window.confirm("WARNING: This will permanently erase this group and ALL of its data (expenses, chats, trips, and calls). This action cannot be recovered. Are you absolutely sure?")) {
                       try {
                         await groupService.deleteGroup(group.id);
                         router.push("/dashboard");
