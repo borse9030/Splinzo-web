@@ -121,15 +121,6 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        // Client-side staleness check (avoids needing a Firestore composite index)
-        if (call.status === "ringing") {
-          const ageMs = Date.now() - (call.createdAt || 0);
-          if (ageMs > 60_000) {
-            CallService.cancelCall(call.groupId, call.id).catch(() => {});
-            return;
-          }
-        }
-
         // Don't override if already in a different call
         if (currentCall && currentCall.id !== call.id) return;
 
