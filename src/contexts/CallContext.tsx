@@ -10,7 +10,13 @@ import React, {
 } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { useGroups } from "@/hooks/useGroups";
+import { db } from "@/lib/firebase/config";
+import {
+  collection,
+  query,
+  where,
+  onSnapshot,
+} from "firebase/firestore";
 import { CallSession } from "@/types/call";
 import { CallService } from "@/services/callService";
 import { PeerManager } from "@/lib/webrtc/PeerManager";
@@ -33,8 +39,9 @@ const CallContext = createContext<CallContextType | undefined>(undefined);
 
 export function CallProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const { appUser } = useAuth();
-  const { groups } = useGroups();
+  const { user, appUser } = useAuth();
+
+  const [groupIds, setGroupIds] = useState<string[]>([]);
 
   const [activeCall, setActiveCall] = useState<CallSession | null>(null);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
@@ -49,11 +56,34 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   const activeCallRef = useRef<CallSession | null>(null); // stable ref for beforeunload
   const isJoinedRef = useRef(false);
   const myUidRef = useRef<string | undefined>(undefined);
+  const groupIdsRef = useRef<string[]>([]); // stable ref used by watchActiveCall
 
   // Keep refs in sync
   useEffect(() => { activeCallRef.current = activeCall; }, [activeCall]);
   useEffect(() => { isJoinedRef.current = isJoined; }, [isJoined]);
   useEffect(() => { myUidRef.current = appUser?.id; }, [appUser]);
+  useEffect(() => { groupIdsRef.current = groupIds; }, [groupIds]);
+
+  // ── Fetch user's group IDs directly from Firestore ────────────────────
+  // Uses the Firebase Auth `user` (which has .uid) directly, bypassing
+  // useGroups to avoid any hook loading race conditions.
+  useEffect(() => {
+    if (!user?.uid) { setGroupIds([]); return; }
+
+    const q = query(
+      collection(db, "groups"),
+      where("memberIds", "array-contains", user.uid)
+    );
+
+    const unsub = onSnapshot(q, (snap) => {
+      const ids = snap.docs.map((d) => d.id);
+      setGroupIds(ids);
+    }, (err) => {
+      console.error("[CallProvider] Failed to fetch group IDs:", err);
+    });
+
+    return () => unsub();
+  }, [user?.uid]);
 
   // ── Tab / browser close cleanup ──────────────────────────────────────
   useEffect(() => {
@@ -76,16 +106,13 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     groupCallUnsubsRef.current.forEach((u) => u());
     groupCallUnsubsRef.current = [];
 
-    if (!appUser || groups.length === 0) return;
+    if (!appUser || groupIds.length === 0) return;
 
-    const unsubs = groups.map((group) =>
-      CallService.watchActiveCall(group.id, (call) => {
+    const unsubs = groupIds.map((groupId) =>
+      CallService.watchActiveCall(groupId, (call) => {
         const currentCall = activeCallRef.current;
         if (!call) {
-          // No active call in this group — clean up if we were in it
-          if (currentCall?.groupId === group.id) {
-            handleCallEnded();
-          }
+          if (currentCall?.groupId === groupId) handleCallEnded();
           return;
         }
 
@@ -94,11 +121,10 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        // 🔑 Auto-cancel stale ringing calls (older than 60 seconds with no answer)
+        // Client-side staleness check (avoids needing a Firestore composite index)
         if (call.status === "ringing") {
           const ageMs = Date.now() - (call.createdAt || 0);
           if (ageMs > 60_000) {
-            // The call was never answered — cancel it silently
             CallService.cancelCall(call.groupId, call.id).catch(() => {});
             return;
           }
@@ -116,8 +142,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       unsubs.forEach((u) => u());
       groupCallUnsubsRef.current = [];
     };
-  }, [appUser?.id, groups.map((g) => g.id).join(",")]);
-
+  }, [appUser?.id, groupIds.join(",")]);
   // ── React to participant changes once joined ──────────────────────────
   useEffect(() => {
     if (!activeCall || !isJoined || !appUser || !peerManagerRef.current) return;

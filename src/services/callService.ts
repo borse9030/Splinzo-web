@@ -21,12 +21,11 @@ export class CallService {
   /** Watches for incoming active calls for a specific group */
   static watchActiveCall(groupId: string, onUpdate: (call: CallSession | null) => void) {
     const callsRef = collection(db, "groups", groupId, "calls");
-    // Only pick up calls created within the last 90 seconds to skip stale docs
-    const cutoff = Date.now() - 90_000;
+    // Simple query - no composite index needed.
+    // Staleness (createdAt) is filtered client-side in CallContext.
     const q = query(
       callsRef,
       where("status", "in", ["ringing", "active"]),
-      where("createdAt", ">", cutoff),
       limit(1)
     );
     return onSnapshot(q, (snapshot) => {
@@ -36,6 +35,9 @@ export class CallService {
       } else {
         onUpdate(null);
       }
+    }, (err) => {
+      console.error(`[watchActiveCall:${groupId}]`, err.message);
+      onUpdate(null);
     });
   }
 
