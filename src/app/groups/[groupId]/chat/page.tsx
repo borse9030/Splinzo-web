@@ -140,26 +140,54 @@ export default function GroupChatPage({
   const handleSend = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if ((!text.trim() && !imageFile) || !appUser || sending) return;
-    setSending(true);
-    try {
-      if (imageFile) {
-        setUploading(true);
-        const url = await storageService.uploadFile(imageFile);
+    
+    // Save local vars
+    const messageText = text.trim();
+    const currentImageFile = imageFile;
+    const currentImageUrl = imagePreviewUrl;
+    const tempId = `temp-${Date.now()}`;
+    
+    // Optimistic UI updates
+    if (messageText || currentImageUrl) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: tempId,
+          groupId,
+          senderId: appUser.id,
+          text: messageText,
+          imageUrl: currentImageUrl || undefined,
+          createdAt: Timestamp.now(), // Estimate timestamp
+        },
+      ]);
+    }
+    
+    setText("");
+    setImageFile(null);
+    setImagePreviewUrl(null);
+    if (textareaRef.current) textareaRef.current.style.height = "auto";
+    
+    // Fire and forget
+    Promise.resolve().then(async () => {
+      try {
+        if (currentImageFile) {
+          setUploading(true);
+          const url = await storageService.uploadFile(currentImageFile);
+          await addDoc(collection(db, "groups", groupId, "messages"), {
+            groupId, senderId: appUser.id, imageUrl: url, createdAt: serverTimestamp(),
+          });
+        }
+        if (messageText) {
+          await addDoc(collection(db, "groups", groupId, "messages"), {
+            groupId, senderId: appUser.id, text: messageText, createdAt: serverTimestamp(),
+          });
+        }
+      } catch (err) {
+        console.error("Send failed:", err);
+      } finally {
         setUploading(false);
-        await addDoc(collection(db, "groups", groupId, "messages"), {
-          groupId, senderId: appUser.id, imageUrl: url, createdAt: serverTimestamp(),
-        });
-        setImageFile(null); setImagePreviewUrl(null);
       }
-      if (text.trim()) {
-        await addDoc(collection(db, "groups", groupId, "messages"), {
-          groupId, senderId: appUser.id, text: text.trim(), createdAt: serverTimestamp(),
-        });
-        setText("");
-        if (textareaRef.current) textareaRef.current.style.height = "auto";
-      }
-    } catch (err) { console.error("Send failed:", err); }
-    finally { setSending(false); setUploading(false); }
+    });
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {

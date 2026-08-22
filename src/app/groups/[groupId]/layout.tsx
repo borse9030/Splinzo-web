@@ -24,7 +24,7 @@ export default function GroupLayout({
 }) {
   const resolvedParams = use(params);
   const { group, loading, error } = useGroup(resolvedParams.groupId);
-  const { startCall } = useCall();
+  const { startCall, isConnecting } = useCall();
   const { appUser } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
@@ -126,15 +126,20 @@ export default function GroupLayout({
               )}
               <button
                 onClick={() => {
-                  if (group) {
+                  if (group && !isConnecting) {
                     startCall(group.id, group.name);
                   }
                 }}
                 className="h-9 w-9 rounded-full flex items-center justify-center cursor-pointer hover:bg-white/30 transition-colors"
-                style={{ background: "rgba(255,255,255,0.2)" }}
+                style={{ background: "rgba(255,255,255,0.2)", opacity: isConnecting ? 0.7 : 1 }}
                 title="Start Voice Call"
+                disabled={isConnecting}
               >
-                <PhoneCall className="h-4 w-4 text-white" />
+                {isConnecting ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <PhoneCall className="h-4 w-4 text-white" />
+                )}
               </button>
             </div>
           </div>

@@ -27,6 +27,7 @@ interface CallContextType {
   remoteStreams: Record<string, MediaStream>;
   isRinging: boolean;
   isJoined: boolean;
+  isConnecting: boolean;
   acceptCall: () => Promise<void>;
   declineCall: () => Promise<void>;
   endCall: () => Promise<void>;
@@ -48,6 +49,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   const [remoteStreams, setRemoteStreams] = useState<Record<string, MediaStream>>({});
   const [isJoined, setIsJoined] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
 
   const peerManagerRef = useRef<PeerManager | null>(null);
   const signalUnsubRef = useRef<(() => void) | null>(null);
@@ -69,6 +71,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     if (!user?.uid) {
       setActiveCall(null);
       setIsJoined(false);
+      setIsConnecting(false);
       setIsMuted(false);
       setRemoteStreams({});
     }
@@ -202,6 +205,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
     setActiveCall(null);
     setIsJoined(false);
+    setIsConnecting(false);
     setIsMuted(false);
     setRemoteStreams({});
     setLocalStream((prev) => {
@@ -227,6 +231,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   const acceptCall = useCallback(async () => {
     const call = activeCallRef.current;
     if (!call || !appUser) return;
+    setIsConnecting(true);
     try {
       const stream = await getMediaStream();
       await CallService.joinCall(
@@ -242,26 +247,33 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       router.push(`/call/${call.groupId}/${call.id}`);
     } catch (e) {
       console.error("[acceptCall] failed", e);
+    } finally {
+      setIsConnecting(false);
     }
   }, [appUser, getMediaStream, initPeerManager, subscribeToSession, router]);
 
   // ── Decline an incoming call ──────────────────────────────────────────
   const declineCall = useCallback(async () => {
     const call = activeCallRef.current;
+    
+    // Optimsitic UI: Teardown locally instantly
+    handleCallEnded();
+    
     // Tell Firestore this user declined — marks the call as missed
     // Don't cancel it completely; others can still answer on Android
     if (call) {
-      try {
-        // If only the caller is left (no one else joined), cancel it
-        if (call.participants.length <= 1) {
-          await CallService.cancelCall(call.groupId, call.id);
+      Promise.resolve().then(async () => {
+        try {
+          // If only the caller is left (no one else joined), cancel it
+          if (call.participants.length <= 1) {
+            await CallService.cancelCall(call.groupId, call.id);
+          }
+          // Otherwise just dismiss locally — the caller stays in the call
+        } catch (e) {
+          console.error("[declineCall]", e);
         }
-        // Otherwise just dismiss locally — the caller stays in the call
-      } catch (e) {
-        console.error("[declineCall]", e);
-      }
+      });
     }
-    handleCallEnded();
   }, [handleCallEnded]);
 
   // ── End an active call ────────────────────────────────────────────────
@@ -270,24 +282,33 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     const uid = myUidRef.current;
     if (!call || !uid) return;
 
-    if (call.status === "ringing" && call.callerId === uid) {
-      // Caller hung up before anyone answered
-      await CallService.cancelCall(call.groupId, call.id);
-    } else if (call.participants.length <= 1) {
-      await CallService.endCall(call.groupId, call.id);
-      CallService.cleanupSignaling(call.groupId, call.id);
-    } else {
-      await CallService.leaveCall(call.groupId, call.id, uid);
-    }
-
+    // Optimistic UI: Tear down and navigate instantly
     handleCallEnded();
     router.push("/dashboard");
+
+    // Run backend teardown in the background
+    Promise.resolve().then(async () => {
+      try {
+        if (call.status === "ringing" && call.callerId === uid) {
+          // Caller hung up before anyone answered
+          await CallService.cancelCall(call.groupId, call.id);
+        } else if (call.participants.length <= 1) {
+          await CallService.endCall(call.groupId, call.id);
+          CallService.cleanupSignaling(call.groupId, call.id);
+        } else {
+          await CallService.leaveCall(call.groupId, call.id, uid);
+        }
+      } catch (e) {
+        console.error("[endCall] failed", e);
+      }
+    });
   }, [handleCallEnded, router]);
 
   // ── Start a new call ──────────────────────────────────────────────────
   const startCall = useCallback(
     async (groupId: string, groupName: string) => {
       if (!appUser) return;
+      setIsConnecting(true);
       try {
         const stream = await getMediaStream();
         const { callId } = await CallService.startCall(
@@ -314,6 +335,8 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         router.push(`/call/${groupId}/${callId}`);
       } catch (e) {
         console.error("[startCall] failed", e);
+      } finally {
+        setIsConnecting(false);
       }
     },
     [appUser, getMediaStream, initPeerManager, subscribeToSession, router]
@@ -342,6 +365,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         remoteStreams,
         isRinging,
         isJoined,
+        isConnecting,
         isMuted,
         acceptCall,
         declineCall,

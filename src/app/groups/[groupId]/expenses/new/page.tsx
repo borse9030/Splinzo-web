@@ -145,22 +145,26 @@ export default function AddExpensePage({
         return;
       }
     }
-    setLoading(true); setError("");
+    setError("");
 
-    try {
-      let finalImageUrl = null;
-      if (billImage) finalImageUrl = await storageService.uploadFile(billImage);
-      await expenseService.addExpense(group.id, {
-        description, amount: numAmount, payerId, currency: group.currency,
-        createdBy: appUser.id, splitBetweenIds,
-        customSplitAmounts: splitType === "custom" ? customAmounts : null,
-        billImageUrl: finalImageUrl, category,
-      });
-      router.push(`/groups/${group.id}`);
-    } catch (err: any) {
-      setError(err.message || "Failed to add expense");
-      setLoading(false);
-    }
+    // Optimistic UI: Route away instantly
+    router.push(`/groups/${group.id}`);
+
+    // Fire and forget backend updates
+    Promise.resolve().then(async () => {
+      try {
+        let finalImageUrl = null;
+        if (billImage) finalImageUrl = await storageService.uploadFile(billImage);
+        await expenseService.addExpense(group.id, {
+          description, amount: numAmount, payerId, currency: group.currency,
+          createdBy: appUser.id, splitBetweenIds,
+          customSplitAmounts: splitType === "custom" ? customAmounts : null,
+          billImageUrl: finalImageUrl, category,
+        });
+      } catch (err: any) {
+        console.error("Failed to add expense:", err.message || "Unknown error");
+      }
+    });
   };
 
   const currSymbol = group?.currency === "INR" ? "₹" : group?.currency || "₹";

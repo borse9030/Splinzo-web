@@ -76,26 +76,31 @@ export default function SettleUpPage({
 
   const handleSettle = async () => {
     if (!selectedSettlement) return;
-    setSettling(selectedSettlement.toUserId);
-    try {
-      const paymentRef = doc(collection(db, "payments"));
-      await setDoc(paymentRef, {
-        groupId: group.id,
-        fromUserId: selectedSettlement.fromUserId,
-        fromUserName: selectedSettlement.fromUserName,
-        toUserId: selectedSettlement.toUserId,
-        toUserName: selectedSettlement.toUserName,
-        amount: selectedSettlement.amount,
-        status: "pending_approval",
-        createdAt: serverTimestamp(),
-      });
-      // Close dialog
-      setSelectedSettlement(null);
-    } catch (err) {
-      console.error("Failed to record settlement:", err);
-    } finally {
-      setSettling(null);
-    }
+    
+    // Save locally
+    const settlement = selectedSettlement;
+    
+    // Optimistic UI: Close dialog instantly
+    setSelectedSettlement(null);
+
+    // Run backend in background
+    Promise.resolve().then(async () => {
+      try {
+        const paymentRef = doc(collection(db, "payments"));
+        await setDoc(paymentRef, {
+          groupId: group.id,
+          fromUserId: settlement.fromUserId,
+          fromUserName: settlement.fromUserName,
+          toUserId: settlement.toUserId,
+          toUserName: settlement.toUserName,
+          amount: settlement.amount,
+          status: "pending_approval",
+          createdAt: serverTimestamp(),
+        });
+      } catch (err) {
+        console.error("Failed to record settlement:", err);
+      }
+    });
   };
 
   const mySettlements = settlements.filter(s => s.fromUserId === appUser?.id || s.toUserId === appUser?.id);
