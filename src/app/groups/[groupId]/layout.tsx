@@ -111,8 +111,9 @@ export default function GroupLayout({
                       try {
                         await groupService.deleteGroup(group.id);
                         router.push("/dashboard");
-                      } catch (err) {
-                        alert("Failed to delete group.");
+                      } catch (err: any) {
+                        console.error("Delete failed:", err);
+                        alert("Failed to delete group: " + (err.message || "Unknown error"));
                       }
                     }
                   }}
