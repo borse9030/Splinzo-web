@@ -64,6 +64,16 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => { myUidRef.current = appUser?.id; }, [appUser]);
   useEffect(() => { groupIdsRef.current = groupIds; }, [groupIds]);
 
+  // Clear state on user change/logout to prevent cross-account leakage
+  useEffect(() => {
+    if (!user?.uid) {
+      setActiveCall(null);
+      setIsJoined(false);
+      setIsMuted(false);
+      setRemoteStreams({});
+    }
+  }, [user?.uid]);
+
   // ── Fetch user's group IDs directly from Firestore ────────────────────
   // Uses the Firebase Auth `user` (which has .uid) directly, bypassing
   // useGroups to avoid any hook loading race conditions.

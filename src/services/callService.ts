@@ -14,6 +14,7 @@ import {
   arrayUnion,
   arrayRemove,
   runTransaction,
+  getDoc,
 } from "firebase/firestore";
 import { CallSession, SignalingData, IceCandidateData } from "@/types/call";
 
@@ -60,6 +61,14 @@ export class CallService {
     callerName: string,
     callerPhoto: string
   ): Promise<{ callId: string; isExisting: boolean }> {
+    // AUTHENTICATION CHECK: Ensure caller is actually a member of this group
+    const groupDoc = await getDoc(doc(db, "groups", groupId));
+    if (!groupDoc.exists()) throw new Error("Group does not exist.");
+    const memberIds = groupDoc.data().memberIds || [];
+    if (!memberIds.includes(callerId)) {
+      throw new Error("Unauthorized: You cannot start a call in a group you do not belong to.");
+    }
+
     const callsRef = collection(db, "groups", groupId, "calls");
 
     // Check for race condition: if a call already exists, join it instead
@@ -93,6 +102,14 @@ export class CallService {
     myName: string,
     myPhoto: string
   ) {
+    // AUTHENTICATION CHECK: Ensure joiner is actually a member of this group
+    const groupDoc = await getDoc(doc(db, "groups", groupId));
+    if (!groupDoc.exists()) throw new Error("Group does not exist.");
+    const memberIds = groupDoc.data().memberIds || [];
+    if (!memberIds.includes(myUid)) {
+      throw new Error("Unauthorized: You cannot join a call in a group you do not belong to.");
+    }
+
     const callDoc = doc(db, "groups", groupId, "calls", callId);
     await updateDoc(callDoc, {
       status: "active",
