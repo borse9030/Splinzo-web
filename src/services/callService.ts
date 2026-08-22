@@ -21,11 +21,18 @@ export class CallService {
   /** Watches for incoming active calls for a specific group */
   static watchActiveCall(groupId: string, onUpdate: (call: CallSession | null) => void) {
     const callsRef = collection(db, "groups", groupId, "calls");
-    const q = query(callsRef, where("status", "in", ["ringing", "active"]), limit(1));
+    // Only pick up calls created within the last 90 seconds to skip stale docs
+    const cutoff = Date.now() - 90_000;
+    const q = query(
+      callsRef,
+      where("status", "in", ["ringing", "active"]),
+      where("createdAt", ">", cutoff),
+      limit(1)
+    );
     return onSnapshot(q, (snapshot) => {
       if (!snapshot.empty) {
-        const doc = snapshot.docs[0];
-        onUpdate({ id: doc.id, groupId, ...doc.data() } as CallSession);
+        const d = snapshot.docs[0];
+        onUpdate({ id: d.id, groupId, ...d.data() } as CallSession);
       } else {
         onUpdate(null);
       }

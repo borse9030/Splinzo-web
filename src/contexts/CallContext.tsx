@@ -80,7 +80,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       CallService.watchActiveCall(group.id, (call) => {
         const currentCall = activeCallRef.current;
         if (!call) {
-          // No active call in this group
+          // No active call in this group — clean up if we were in it
           if (currentCall?.groupId === group.id) {
             handleCallEnded();
           }
@@ -90,6 +90,16 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         if (call.status === "ended" || call.status === "cancelled" || call.status === "missed") {
           if (currentCall?.id === call.id) handleCallEnded();
           return;
+        }
+
+        // 🔑 Auto-cancel stale ringing calls (older than 60 seconds with no answer)
+        if (call.status === "ringing") {
+          const ageMs = Date.now() - (call.createdAt || 0);
+          if (ageMs > 60_000) {
+            // The call was never answered — cancel it silently
+            CallService.cancelCall(call.groupId, call.id).catch(() => {});
+            return;
+          }
         }
 
         // Don't override if already in a different call
@@ -208,6 +218,20 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
   // ── Decline an incoming call ──────────────────────────────────────────
   const declineCall = useCallback(async () => {
+    const call = activeCallRef.current;
+    // Tell Firestore this user declined — marks the call as missed
+    // Don't cancel it completely; others can still answer on Android
+    if (call) {
+      try {
+        // If only the caller is left (no one else joined), cancel it
+        if (call.participants.length <= 1) {
+          await CallService.cancelCall(call.groupId, call.id);
+        }
+        // Otherwise just dismiss locally — the caller stays in the call
+      } catch (e) {
+        console.error("[declineCall]", e);
+      }
+    }
     handleCallEnded();
   }, [handleCallEnded]);
 
@@ -217,7 +241,10 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     const uid = myUidRef.current;
     if (!call || !uid) return;
 
-    if (call.participants.length <= 1) {
+    if (call.status === "ringing" && call.callerId === uid) {
+      // Caller hung up before anyone answered
+      await CallService.cancelCall(call.groupId, call.id);
+    } else if (call.participants.length <= 1) {
       await CallService.endCall(call.groupId, call.id);
       CallService.cleanupSignaling(call.groupId, call.id);
     } else {
