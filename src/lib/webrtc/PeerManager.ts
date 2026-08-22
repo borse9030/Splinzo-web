@@ -1,23 +1,42 @@
 import { CallService } from "@/services/callService";
 import { SignalingData, IceCandidateData } from "@/types/call";
 
+// Match the TURN config the Android app uses (call_repository.dart)
 const RTC_CONFIG: RTCConfiguration = {
   iceServers: [
-    { urls: "stun:stun.l.google.com:19302" },
-    { urls: "stun:stun1.l.google.com:19302" },
+    {
+      urls: [
+        "stun:stun.l.google.com:19302",
+        "stun:stun1.l.google.com:19302",
+        "stun:stun2.l.google.com:19302",
+      ],
+    },
+    {
+      urls: [
+        "turn:openrelay.metered.ca:80",
+        "turn:openrelay.metered.ca:443",
+        "turn:openrelay.metered.ca:443?transport=tcp",
+      ],
+      username: "openrelayproject",
+      credential: "openrelayproject",
+    },
   ],
 };
 
 export class PeerManager {
   private pcs: Map<string, RTCPeerConnection> = new Map();
+  private makingOfferFlags: Map<string, boolean> = new Map();
+  private ignoreOfferFlags: Map<string, boolean> = new Map();
+
   private localStream: MediaStream | null = null;
-  
+
   private groupId: string;
   private callId: string;
-  private myUid: string;
-  
+  public myUid: string;
+
   private candidateBuffers: Map<string, any[]> = new Map();
-  private candidateTimers: Map<string, NodeJS.Timeout> = new Map();
+  private candidateTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
+  private candidateQueues: Map<string, RTCIceCandidateInit[]> = new Map();
 
   public onRemoteStream?: (uid: string, stream: MediaStream) => void;
   public onPeerStateChange?: (uid: string, state: string) => void;
@@ -30,64 +49,79 @@ export class PeerManager {
 
   setLocalStream(stream: MediaStream) {
     this.localStream = stream;
-    // Add tracks to existing peer connections if any
     this.pcs.forEach((pc) => {
       stream.getTracks().forEach((track) => {
-        // Prevent adding the same track twice
-        const senders = pc.getSenders();
-        const hasTrack = senders.some((s) => s.track === track);
-        if (!hasTrack) {
-          pc.addTrack(track, stream);
-        }
+        const alreadyAdded = pc.getSenders().some((s) => s.track === track);
+        if (!alreadyAdded) pc.addTrack(track, stream);
       });
     });
   }
 
-  async createPeerConnection(remoteUid: string): Promise<RTCPeerConnection> {
-    if (this.pcs.has(remoteUid)) {
-      return this.pcs.get(remoteUid)!;
-    }
+  /**
+   * Whether this peer is "polite" (answers) vs "impolite" (offers).
+   * Determined by lexicographic UID comparison — matches Android convention.
+   * Lower UID = polite = answers. Higher UID = impolite = makes offers.
+   */
+  private isPolite(remoteUid: string): boolean {
+    return this.myUid < remoteUid;
+  }
+
+  async getOrCreatePc(remoteUid: string): Promise<RTCPeerConnection> {
+    if (this.pcs.has(remoteUid)) return this.pcs.get(remoteUid)!;
 
     const pc = new RTCPeerConnection(RTC_CONFIG);
     this.pcs.set(remoteUid, pc);
+    this.makingOfferFlags.set(remoteUid, false);
+    this.ignoreOfferFlags.set(remoteUid, false);
+    this.candidateQueues.set(remoteUid, []);
 
-    pc.onicecandidate = (event) => {
-      if (event.candidate) {
-        this.bufferIceCandidate(remoteUid, event.candidate.toJSON());
-      }
+    pc.onicecandidate = ({ candidate }) => {
+      if (candidate) this.bufferIceCandidate(remoteUid, candidate.toJSON());
     };
 
     pc.onconnectionstatechange = () => {
       this.onPeerStateChange?.(remoteUid, pc.connectionState);
     };
 
-    pc.ontrack = (event) => {
-      if (event.streams && event.streams[0]) {
-        this.onRemoteStream?.(remoteUid, event.streams[0]);
-      } else {
-        const stream = new MediaStream([event.track]);
-        this.onRemoteStream?.(remoteUid, stream);
+    pc.onnegotiationneeded = async () => {
+      // Only the impolite peer initiates offers
+      if (this.isPolite(remoteUid)) return;
+      try {
+        this.makingOfferFlags.set(remoteUid, true);
+        const offer = await pc.createOffer();
+        if (pc.signalingState !== "stable") return; // rolled back already
+        await pc.setLocalDescription(offer);
+        await CallService.sendOffer(
+          this.groupId, this.callId, this.myUid, remoteUid,
+          pc.localDescription!.sdp, pc.localDescription!.type, Date.now()
+        );
+      } catch (e) {
+        console.error("[PeerManager] onnegotiationneeded error", e);
+      } finally {
+        this.makingOfferFlags.set(remoteUid, false);
       }
     };
 
+    pc.ontrack = ({ streams, track }) => {
+      const stream = streams?.[0] ?? new MediaStream([track]);
+      this.onRemoteStream?.(remoteUid, stream);
+    };
+
     if (this.localStream) {
-      this.localStream.getTracks().forEach((track) => {
-        pc.addTrack(track, this.localStream!);
-      });
+      this.localStream.getTracks().forEach((t) => pc.addTrack(t, this.localStream!));
     }
 
     // Subscribe to ICE candidates from this remote peer
-    CallService.watchCandidatesFrom(this.groupId, this.callId, remoteUid, this.myUid, (candidateData) => {
-      this.addRemoteCandidate(remoteUid, candidateData);
-    });
+    CallService.watchCandidatesFrom(
+      this.groupId, this.callId, remoteUid, this.myUid,
+      (data) => this.applyRemoteCandidate(remoteUid, data)
+    );
 
     return pc;
   }
 
   private bufferIceCandidate(remoteUid: string, candidate: any) {
-    if (!this.candidateBuffers.has(remoteUid)) {
-      this.candidateBuffers.set(remoteUid, []);
-    }
+    if (!this.candidateBuffers.has(remoteUid)) this.candidateBuffers.set(remoteUid, []);
     this.candidateBuffers.get(remoteUid)!.push(candidate);
 
     if (!this.candidateTimers.has(remoteUid)) {
@@ -95,74 +129,99 @@ export class PeerManager {
         const batch = this.candidateBuffers.get(remoteUid) || [];
         this.candidateBuffers.set(remoteUid, []);
         this.candidateTimers.delete(remoteUid);
-
         if (batch.length > 0) {
-          await CallService.sendCandidateBatch(this.groupId, this.callId, this.myUid, remoteUid, batch);
+          await CallService.sendCandidateBatch(
+            this.groupId, this.callId, this.myUid, remoteUid, batch
+          );
         }
-      }, 500); // 500ms batching window
+      }, 400);
       this.candidateTimers.set(remoteUid, timer);
     }
   }
 
-  private async addRemoteCandidate(remoteUid: string, data: IceCandidateData) {
+  private async applyRemoteCandidate(remoteUid: string, data: IceCandidateData) {
     const pc = this.pcs.get(remoteUid);
     if (!pc) return;
+    const candidate: RTCIceCandidateInit = {
+      candidate: data.candidate,
+      sdpMid: data.sdpMid,
+      sdpMLineIndex: data.sdpMLineIndex,
+    };
     try {
       if (pc.remoteDescription) {
-        await pc.addIceCandidate(new RTCIceCandidate({
-          candidate: data.candidate,
-          sdpMid: data.sdpMid,
-          sdpMLineIndex: data.sdpMLineIndex
-        }));
+        await pc.addIceCandidate(new RTCIceCandidate(candidate));
       } else {
-        // Queue candidate if remote description is not set yet
-        // A robust implementation would queue these and apply them after setRemoteDescription
-        // For simplicity, we assume SDP negotiation happens fast enough or we wait slightly.
-        setTimeout(() => this.addRemoteCandidate(remoteUid, data), 500);
+        // Queue until remote description is set
+        this.candidateQueues.get(remoteUid)?.push(candidate);
       }
     } catch (e) {
-      console.error("Error adding remote ICE candidate", e);
+      if (!(this.ignoreOfferFlags.get(remoteUid))) {
+        console.error("[PeerManager] addIceCandidate failed", e);
+      }
     }
   }
 
-  async createAndSendOffer(remoteUid: string) {
-    const pc = await this.createPeerConnection(remoteUid);
-    const offer = await pc.createOffer();
-    await pc.setLocalDescription(offer);
-    
-    await CallService.sendOffer(
-      this.groupId,
-      this.callId,
-      this.myUid,
-      remoteUid,
-      offer.sdp!,
-      offer.type,
-      1
-    );
+  private async drainCandidateQueue(remoteUid: string) {
+    const pc = this.pcs.get(remoteUid);
+    if (!pc) return;
+    const queue = this.candidateQueues.get(remoteUid) || [];
+    this.candidateQueues.set(remoteUid, []);
+    for (const c of queue) {
+      try {
+        await pc.addIceCandidate(new RTCIceCandidate(c));
+      } catch (e) {
+        console.error("[PeerManager] drainCandidateQueue addIceCandidate failed", e);
+      }
+    }
   }
 
+  /**
+   * Handle an incoming signaling message (offer or answer).
+   * Uses "perfect negotiation" to avoid offer/answer collisions between Web and Android.
+   */
   async handleIncomingSignaling(data: SignalingData) {
     if (data.from === this.myUid) return;
-    
-    const pc = await this.createPeerConnection(data.from);
 
-    if (data.role === 'offer') {
-      await pc.setRemoteDescription(new RTCSessionDescription({ type: data.type as RTCSdpType, sdp: data.sdp }));
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
+    const pc = await this.getOrCreatePc(data.from);
+    const polite = this.isPolite(data.from);
 
-      await CallService.sendAnswer(
-        this.groupId,
-        this.callId,
-        this.myUid,
-        data.from,
-        answer.sdp!,
-        answer.type,
-        data.revision
-      );
-    } else if (data.role === 'answer') {
-      await pc.setRemoteDescription(new RTCSessionDescription({ type: data.type as RTCSdpType, sdp: data.sdp }));
+    try {
+      if (data.role === "offer") {
+        const offerCollision =
+          this.makingOfferFlags.get(data.from) ||
+          pc.signalingState !== "stable";
+
+        this.ignoreOfferFlags.set(data.from, !polite && offerCollision);
+        if (this.ignoreOfferFlags.get(data.from)) return;
+
+        await pc.setRemoteDescription(
+          new RTCSessionDescription({ type: data.type as RTCSdpType, sdp: data.sdp })
+        );
+        await this.drainCandidateQueue(data.from);
+
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        await CallService.sendAnswer(
+          this.groupId, this.callId, this.myUid, data.from,
+          pc.localDescription!.sdp, pc.localDescription!.type, data.revision
+        );
+      } else if (data.role === "answer") {
+        // Only process if we're not already stable
+        if (pc.signalingState !== "have-local-offer") return;
+        await pc.setRemoteDescription(
+          new RTCSessionDescription({ type: data.type as RTCSdpType, sdp: data.sdp })
+        );
+        await this.drainCandidateQueue(data.from);
+      }
+    } catch (e) {
+      console.error("[PeerManager] handleIncomingSignaling error", e, data.role, pc.signalingState);
     }
+  }
+
+  /** Explicitly create a PC and trigger onnegotiationneeded (impolite peer only) */
+  async connectTo(remoteUid: string) {
+    await this.getOrCreatePc(remoteUid);
+    // onnegotiationneeded fires automatically if we are the impolite peer
   }
 
   dispose() {
@@ -170,7 +229,7 @@ export class PeerManager {
     this.pcs.forEach((pc) => pc.close());
     this.pcs.clear();
     if (this.localStream) {
-      this.localStream.getTracks().forEach(track => track.stop());
+      this.localStream.getTracks().forEach((t) => t.stop());
     }
   }
 }

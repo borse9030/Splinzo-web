@@ -4,7 +4,7 @@ import { use } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useGroup } from "@/hooks/useGroup";
-import { ChevronLeft, Camera, Plus, Scale } from "lucide-react";
+import { ChevronLeft, PhoneCall, Plus, Scale } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Navigation } from "@/components/layout/Navigation";
@@ -107,7 +107,7 @@ export default function GroupLayout({
               className="h-9 w-9 rounded-full flex items-center justify-center cursor-pointer hover:bg-white/30 transition-colors"
               style={{ background: "rgba(255,255,255,0.2)" }}
             >
-              <Camera className="h-4 w-4 text-white" />
+              <PhoneCall className="h-4 w-4 text-white" />
             </button>
           </div>
 
