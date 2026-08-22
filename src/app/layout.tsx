@@ -33,20 +33,11 @@ export const metadata: Metadata = {
     url: "/",
     siteName: "Splinzo",
     type: "website",
-    images: [
-      {
-        url: "/icon.png",
-        width: 1200,
-        height: 630,
-        alt: "Splinzo — Smart Expense Sharing",
-      }
-    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "Splinzo — Smart Expense Sharing",
     description: "The smartest way to split expenses with friends, roommates, and groups.",
-    images: ["/icon.png"],
   },
   alternates: {
     canonical: "/",
