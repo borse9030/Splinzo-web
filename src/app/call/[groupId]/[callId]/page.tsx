@@ -84,9 +84,9 @@ export default function CallPage({
   const { groupId, callId } = use(params);
   const router = useRouter();
   const { appUser } = useAuth();
-  const { activeCall, localStream, remoteStreams, isJoined, endCall, toggleMute } = useCall();
+  const { activeCall, localStream, remoteStreams, isJoined, endCall, toggleMute, isMuted } = useCall();
 
-  const isLocalMuted = localStream?.getAudioTracks()[0]?.enabled === false;
+  const isLocalMuted = isMuted;
 
   // If user navigates here directly without an active call, redirect back
   useEffect(() => {

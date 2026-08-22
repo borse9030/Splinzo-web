@@ -26,6 +26,7 @@ interface CallContextType {
   endCall: () => Promise<void>;
   startCall: (groupId: string, groupName: string) => Promise<void>;
   toggleMute: () => void;
+  isMuted: boolean;
 }
 
 const CallContext = createContext<CallContextType | undefined>(undefined);
@@ -39,6 +40,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStreams, setRemoteStreams] = useState<Record<string, MediaStream>>({});
   const [isJoined, setIsJoined] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
 
   const peerManagerRef = useRef<PeerManager | null>(null);
   const signalUnsubRef = useRef<(() => void) | null>(null);
@@ -174,6 +176,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
     setActiveCall(null);
     setIsJoined(false);
+    setIsMuted(false);
     setRemoteStreams({});
     setLocalStream((prev) => {
       prev?.getTracks().forEach((t) => t.stop());
@@ -252,7 +255,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     }
 
     handleCallEnded();
-    router.back();
+    router.push("/dashboard");
   }, [handleCallEnded, router]);
 
   // ── Start a new call ──────────────────────────────────────────────────
@@ -293,9 +296,10 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   // ── Toggle mute ───────────────────────────────────────────────────────
   const toggleMute = useCallback(() => {
     if (!localStream) return;
-    localStream.getAudioTracks().forEach((t) => (t.enabled = !t.enabled));
-    // Force a re-render so mute icon updates
-    setLocalStream((prev) => prev);
+    localStream.getAudioTracks().forEach((t) => {
+      t.enabled = !t.enabled;
+    });
+    setIsMuted((prev) => !prev);
   }, [localStream]);
 
   const isRinging =
@@ -312,6 +316,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         remoteStreams,
         isRinging,
         isJoined,
+        isMuted,
         acceptCall,
         declineCall,
         endCall,
