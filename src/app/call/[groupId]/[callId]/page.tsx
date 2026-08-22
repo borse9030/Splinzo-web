@@ -175,30 +175,61 @@ export default function CallPage({
       </div>
 
       {/* Controls */}
-      <div className="h-36 flex items-center justify-center gap-8 pb-10">
-        {/* Mute toggle */}
-        <button
-          onClick={toggleMute}
-          className="w-16 h-16 rounded-full flex items-center justify-center shadow-lg transition-all active:scale-90"
+      <div className="flex flex-col items-center gap-3 pb-10">
+        {/* Mute status label */}
+        <span
+          className="text-xs font-semibold tracking-wide px-3 py-1 rounded-full transition-all"
           style={{
-            background: isLocalMuted ? "#fff" : "rgba(255,255,255,0.12)",
+            background: isLocalMuted ? "rgba(239,68,68,0.2)" : "rgba(255,255,255,0.08)",
+            color: isLocalMuted ? "#FCA5A5" : "rgba(255,255,255,0.4)",
           }}
         >
-          {isLocalMuted ? (
-            <MicOff className="w-6 h-6 text-black" />
-          ) : (
-            <Mic className="w-6 h-6 text-white" />
-          )}
-        </button>
+          {isLocalMuted ? "🔇 Mic Off — you are muted" : "🎤 Mic On"}
+        </span>
 
-        {/* End call */}
-        <button
-          onClick={endCall}
-          className="w-20 h-20 rounded-full flex items-center justify-center text-white transition-all active:scale-90 shadow-[0_0_30px_rgba(239,68,68,0.5)]"
-          style={{ background: "#EF4444" }}
-        >
-          <PhoneOff className="w-8 h-8" />
-        </button>
+        <div className="flex items-center justify-center gap-8">
+          {/* Mute toggle */}
+          <div className="flex flex-col items-center gap-1.5">
+            <button
+              onClick={toggleMute}
+              className="relative w-16 h-16 rounded-full flex items-center justify-center shadow-lg transition-all active:scale-90"
+              style={{
+                background: isLocalMuted ? "#EF4444" : "rgba(255,255,255,0.12)",
+                boxShadow: isLocalMuted
+                  ? "0 0 0 4px rgba(239,68,68,0.25), 0 0 20px rgba(239,68,68,0.3)"
+                  : undefined,
+              }}
+            >
+              {isLocalMuted ? (
+                <MicOff className="w-6 h-6 text-white" />
+              ) : (
+                <Mic className="w-6 h-6 text-white" />
+              )}
+              {/* Pulsing ring when muted */}
+              {isLocalMuted && (
+                <span
+                  className="absolute inset-0 rounded-full animate-ping pointer-events-none"
+                  style={{ background: "rgba(239,68,68,0.3)" }}
+                />
+              )}
+            </button>
+            <span className="text-white/40 text-[11px]">
+              {isLocalMuted ? "Unmute" : "Mute"}
+            </span>
+          </div>
+
+          {/* End call */}
+          <div className="flex flex-col items-center gap-1.5">
+            <button
+              onClick={endCall}
+              className="w-20 h-20 rounded-full flex items-center justify-center text-white transition-all active:scale-90 shadow-[0_0_30px_rgba(239,68,68,0.5)]"
+              style={{ background: "#EF4444" }}
+            >
+              <PhoneOff className="w-8 h-8" />
+            </button>
+            <span className="text-white/40 text-[11px]">End Call</span>
+          </div>
+        </div>
       </div>
     </div>
   );
