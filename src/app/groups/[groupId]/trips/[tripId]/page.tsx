@@ -224,7 +224,8 @@ export default function TripDetailsPage({
               {/* Day Timeline */}
               <div className="relative border-l-2 border-dashed border-gray-300 ml-4 pl-6 space-y-6 pb-2">
                 {dayPlans.map((plan, planIdx) => {
-                  const author = getMember(plan.createdByUid);
+                  const authorId = plan.createdByUid || (plan as any).createdBy;
+                  const author = authorId ? getMember(authorId) : null;
                   const isLast = planIdx === dayPlans.length - 1 && index === Object.keys(groupedPlans).length - 1;
                   
                   return (
@@ -256,7 +257,7 @@ export default function TripDetailsPage({
                             </div>
                             
                             {/* Author Attribution */}
-                            {author && (
+                            {author ? (
                               <div className="flex items-center self-start bg-gray-50 pr-3 pl-1 py-1 rounded-full border border-gray-100">
                                 {author.photoURL ? (
                                   <img src={author.photoURL} alt={author.name} className="h-6 w-6 rounded-full object-cover mr-2 shadow-sm" />
@@ -267,6 +268,12 @@ export default function TripDetailsPage({
                                 )}
                                 <span className="text-[11px] font-medium text-gray-500 whitespace-nowrap">
                                   by <span className="text-gray-900 font-bold">{author.name.split(' ')[0]}</span>
+                                </span>
+                              </div>
+                            ) : (
+                              <div className="flex items-center self-start bg-gray-50 px-3 py-1 rounded-full border border-gray-100">
+                                <span className="text-[11px] font-medium text-gray-500 whitespace-nowrap">
+                                  by <span className="text-gray-900 font-bold">Unknown</span>
                                 </span>
                               </div>
                             )}
