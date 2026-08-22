@@ -1,4 +1,4 @@
-import { collection, query, where, onSnapshot, doc, setDoc, Timestamp } from "firebase/firestore";
+import { collection, query, where, onSnapshot, doc, setDoc, deleteDoc, Timestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase/config";
 import { storageService } from "@/services/storageService";
 import { Group, GroupMember } from "@/types/group";
@@ -106,4 +106,9 @@ export const groupService = {
 
     return unsubscribe;
   },
+
+  async deleteGroup(groupId: string): Promise<void> {
+    const groupRef = doc(db, "groups", groupId);
+    await deleteDoc(groupRef);
+  }
 };

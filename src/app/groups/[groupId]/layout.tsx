@@ -2,14 +2,16 @@
 
 import { use } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useGroup } from "@/hooks/useGroup";
-import { ChevronLeft, PhoneCall, Plus, Scale } from "lucide-react";
+import { ChevronLeft, PhoneCall, Plus, Scale, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Navigation } from "@/components/layout/Navigation";
 import { cn } from "@/lib/utils";
 import { useCall } from "@/contexts/CallContext";
+import { useAuth } from "@/contexts/AuthContext";
+import { groupService } from "@/services/groupService";
 
 const AMBER = "#F9B912";
 
@@ -23,7 +25,9 @@ export default function GroupLayout({
   const resolvedParams = use(params);
   const { group, loading, error } = useGroup(resolvedParams.groupId);
   const { startCall } = useCall();
+  const { appUser } = useAuth();
   const pathname = usePathname();
+  const router = useRouter();
 
   const tabs = [
     { name: "Expenses", href: `/groups/${resolvedParams.groupId}` },
@@ -98,17 +102,40 @@ export default function GroupLayout({
             ) : (
               <span className="text-white font-semibold text-base">{group?.name}</span>
             )}
-            <button
-              onClick={() => {
-                if (group) {
-                  startCall(group.id, group.name);
-                }
-              }}
-              className="h-9 w-9 rounded-full flex items-center justify-center cursor-pointer hover:bg-white/30 transition-colors"
-              style={{ background: "rgba(255,255,255,0.2)" }}
-            >
-              <PhoneCall className="h-4 w-4 text-white" />
-            </button>
+            <div className="flex gap-2">
+              {group?.createdBy === appUser?.id && (
+                <button
+                  onClick={async () => {
+                    if (!group) return;
+                    if (window.confirm("Are you sure you want to delete this group? This action cannot be undone.")) {
+                      try {
+                        await groupService.deleteGroup(group.id);
+                        router.push("/dashboard");
+                      } catch (err) {
+                        alert("Failed to delete group.");
+                      }
+                    }
+                  }}
+                  className="h-9 w-9 rounded-full flex items-center justify-center cursor-pointer hover:bg-red-500/80 transition-colors"
+                  style={{ background: "rgba(239,68,68,0.6)" }}
+                  title="Delete Group"
+                >
+                  <Trash2 className="h-4 w-4 text-white" />
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  if (group) {
+                    startCall(group.id, group.name);
+                  }
+                }}
+                className="h-9 w-9 rounded-full flex items-center justify-center cursor-pointer hover:bg-white/30 transition-colors"
+                style={{ background: "rgba(255,255,255,0.2)" }}
+                title="Start Voice Call"
+              >
+                <PhoneCall className="h-4 w-4 text-white" />
+              </button>
+            </div>
           </div>
 
           {/* Bottom of banner: group name + total */}
