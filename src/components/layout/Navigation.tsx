@@ -158,8 +158,8 @@ export function Navigation() {
           paddingBottom: "max(env(safe-area-inset-bottom, 0px), 4px)",
         }}
       >
-        {links.map((link) => {
-          const isActive = isLinkActive(link);
+        {[...links, { name: "Settings", href: "/dashboard/settings", icon: Settings, exact: false }].map((link) => {
+          const isActive = isLinkActive(link as any);
           const Icon = link.icon;
           return (
             <Link
