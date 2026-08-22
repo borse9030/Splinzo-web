@@ -145,18 +145,19 @@ export default function TripDetailsPage({
   };
 
   return (
-    <div className="space-y-6 pb-20 relative">
+    <div className="pb-20 relative">
       
-      {/* --- Back Button --- */}
-      <button 
-        onClick={() => router.back()}
-        className="absolute top-4 left-4 z-30 h-10 w-10 bg-black/30 hover:bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center text-white transition-colors"
-      >
-        <ArrowLeft className="h-5 w-5" />
-      </button>
-
       {/* --- Hero Section --- */}
-      <div className="h-64 sm:h-72 w-full relative overflow-hidden bg-gray-100 rounded-b-3xl sm:rounded-3xl shadow-sm -mx-4 px-4 sm:mx-0 sm:px-0 w-[calc(100%+2rem)] sm:w-full -mt-4 sm:mt-0">
+      <div className="h-64 sm:h-72 relative overflow-hidden bg-gray-100 rounded-b-3xl sm:rounded-3xl shadow-sm -mx-4 sm:mx-0 -mt-4 sm:mt-0 mb-6">
+        
+        {/* --- Back Button (Inside Hero to avoid space-y interference and position relative to image edges) --- */}
+        <button 
+          onClick={() => router.back()}
+          className="absolute top-8 left-4 z-30 h-10 w-10 bg-black/30 hover:bg-black/50 backdrop-blur-md rounded-full flex items-center justify-center text-white transition-colors"
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </button>
+
         <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-black/10 z-10" />
         {trip.coverImageUrl ? (
           <img 
