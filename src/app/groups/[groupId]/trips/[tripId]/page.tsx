@@ -7,13 +7,13 @@ import { useGroup } from "@/hooks/useGroup";
 import { useTrips } from "@/hooks/useTrips";
 import { useAuth } from "@/contexts/AuthContext";
 import { db } from "@/lib/firebase/config";
-import { collection, addDoc, Timestamp } from "firebase/firestore";
+import { collection, addDoc, doc, deleteDoc, Timestamp } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, MapPin, Calendar, Clock, Plus, X, CalendarDays, Navigation as NavIcon } from "lucide-react";
+import { ArrowLeft, MapPin, Calendar, Clock, Plus, X, CalendarDays, Navigation as NavIcon, Plane, Utensils, Bed, Ticket, Car, Coffee, Trash2, CheckCircle2 } from "lucide-react";
 
 const AMBER = "#F9B912";
 
@@ -109,6 +109,41 @@ export default function TripDetailsPage({
     return `${hr}:${minutes} ${ampm}`;
   };
 
+  const handleDeletePlan = async (planId: string) => {
+    if (!window.confirm("Are you sure you want to delete this plan?")) return;
+    try {
+      await deleteDoc(doc(db, "groups", groupId, "trips", tripId, "plans", planId));
+    } catch (err) {
+      console.error("Failed to delete plan:", err);
+      alert("Failed to delete plan");
+    }
+  };
+
+  // 1. Resolve author
+  const getMember = (uid: string) => {
+    return group?.members?.find(m => m.id === uid) || null;
+  };
+
+  // 2. Group plans by date
+  const groupedPlans: Record<string, typeof plans> = {};
+  plans.forEach(plan => {
+    const dStr = fmtDate(plan.date);
+    if (!groupedPlans[dStr]) groupedPlans[dStr] = [];
+    groupedPlans[dStr].push(plan);
+  });
+
+  // 3. Smart Icon Resolver
+  const getPlanIcon = (title: string) => {
+    const t = title.toLowerCase();
+    if (t.includes("flight") || t.includes("airport") || t.includes("plane")) return <Plane className="h-5 w-5 text-white" />;
+    if (t.includes("hotel") || t.includes("stay") || t.includes("check-in") || t.includes("check in") || t.includes("airbnb")) return <Bed className="h-5 w-5 text-white" />;
+    if (t.includes("eat") || t.includes("dinner") || t.includes("lunch") || t.includes("breakfast") || t.includes("food") || t.includes("restaurant") || t.includes("cafe")) return <Utensils className="h-5 w-5 text-white" />;
+    if (t.includes("coffee") || t.includes("tea")) return <Coffee className="h-5 w-5 text-white" />;
+    if (t.includes("car") || t.includes("drive") || t.includes("rental") || t.includes("cab") || t.includes("taxi")) return <Car className="h-5 w-5 text-white" />;
+    if (t.includes("ticket") || t.includes("movie") || t.includes("show") || t.includes("concert")) return <Ticket className="h-5 w-5 text-white" />;
+    return <CheckCircle2 className="h-5 w-5 text-white" />; // Default fallback
+  };
+
   return (
     <div className="space-y-6 pb-20 relative">
       
@@ -165,60 +200,113 @@ export default function TripDetailsPage({
 
       {/* --- Plans Timeline --- */}
       {plans.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-center bg-gray-50/50 rounded-3xl border border-gray-100">
-          <div className="h-16 w-16 bg-amber-50 rounded-full flex items-center justify-center mb-4">
-            <CalendarDays className="h-8 w-8 text-amber-400" />
+        <div className="flex flex-col items-center justify-center py-16 text-center bg-gray-50/50 rounded-3xl border border-gray-100 mx-4 sm:mx-0">
+          <div className="h-16 w-16 bg-amber-50 rounded-full flex items-center justify-center mb-4 shadow-inner">
+            <CalendarDays className="h-8 w-8 text-amber-500" />
           </div>
-          <h3 className="font-extrabold text-lg text-gray-700">No Plans Yet</h3>
-          <p className="text-gray-500 text-sm mt-1 max-w-xs">
-            Start adding activities, flights, or reservations to build your trip itinerary.
+          <h3 className="font-extrabold text-lg text-gray-800">No Plans Yet</h3>
+          <p className="text-gray-500 text-sm mt-2 max-w-xs px-4">
+            Start adding activities, flights, or reservations to build your route.
           </p>
         </div>
       ) : (
-        <div className="space-y-4 px-1">
-          {/* A simple timeline-style list */}
-          <div className="relative border-l-2 border-amber-200 ml-4 pl-6 space-y-6 pb-6">
-            {plans.map((plan) => (
-              <div key={plan.id} className="relative group">
-                <div className="absolute -left-[35px] top-1 h-4 w-4 rounded-full bg-amber-100 border-[3px] border-amber-400 group-hover:scale-125 transition-transform" />
-                <Card className="border-none shadow-sm shadow-gray-200/50 hover:shadow-md transition-shadow overflow-hidden rounded-2xl bg-white group-hover:-translate-y-0.5 duration-300">
-                  <div className="w-1.5 bg-amber-400 absolute top-0 bottom-0 left-0" />
-                  <CardContent className="p-4 sm:p-5 pl-5 sm:pl-6">
-                    
-                    <div className="flex items-start justify-between mb-2">
-                      <h3 className="font-bold text-lg text-gray-900">{plan.title}</h3>
-                      {plan.time && (
-                        <div className="flex items-center text-xs font-bold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-full shrink-0 ml-2">
-                          <Clock className="h-3 w-3 mr-1" />
-                          {formatTimeStr(plan.time)}
-                        </div>
-                      )}
-                    </div>
-                    
-                    <div className="space-y-2 text-sm text-gray-600 font-medium">
-                      <div className="flex items-center">
-                        <Calendar className="h-4 w-4 mr-2 text-gray-400" />
-                        {fmtDate(plan.date)}
+        <div className="space-y-8 px-2 sm:px-0 mt-4">
+          {Object.entries(groupedPlans).map(([dateLabel, dayPlans], index) => (
+            <div key={dateLabel} className="relative">
+              {/* Day Header */}
+              <div className="sticky top-0 z-10 py-2 bg-white/80 backdrop-blur-md mb-4 flex items-center">
+                <div className="bg-gray-900 text-white font-bold text-sm px-4 py-1.5 rounded-full shadow-sm">
+                  Day {index + 1} <span className="opacity-60 font-medium ml-1">· {dateLabel}</span>
+                </div>
+                <div className="h-px bg-gray-200 flex-1 ml-4" />
+              </div>
+
+              {/* Day Timeline */}
+              <div className="relative border-l-2 border-dashed border-gray-300 ml-4 pl-6 space-y-6 pb-2">
+                {dayPlans.map((plan, planIdx) => {
+                  const author = getMember(plan.createdByUid);
+                  const isLast = planIdx === dayPlans.length - 1 && index === Object.keys(groupedPlans).length - 1;
+                  
+                  return (
+                    <div key={plan.id} className="relative group">
+                      {/* Timeline Icon Node */}
+                      <div 
+                        className="absolute -left-[35px] top-1.5 h-8 w-8 rounded-full flex items-center justify-center shadow-md z-10 transition-transform group-hover:scale-110"
+                        style={{ background: "linear-gradient(135deg, #F9B912 0%, #FF8F00 100%)" }}
+                      >
+                        {getPlanIcon(plan.title)}
                       </div>
                       
-                      {plan.location && (
-                        <div className="flex items-start">
-                          <NavIcon className="h-4 w-4 mr-2 mt-0.5 text-gray-400 shrink-0" />
-                          <span className="leading-snug">{plan.location}</span>
-                        </div>
+                      {/* Extend the dashed line to the bottom if it's the very last item */}
+                      {isLast && (
+                        <div className="absolute -left-[2px] top-10 bottom-0 w-0.5 bg-white z-0" />
                       )}
-                      
-                      {plan.description && (
-                        <p className="pt-3 mt-3 border-t border-gray-100 text-gray-500 leading-relaxed font-normal">
-                          {plan.description}
-                        </p>
-                      )}
+
+                      <Card className="border border-gray-100 shadow-sm shadow-gray-200/40 hover:shadow-lg transition-all overflow-hidden rounded-2xl bg-white group-hover:-translate-y-1 duration-300">
+                        <CardContent className="p-4 sm:p-5">
+                          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-3">
+                            <div>
+                              <h3 className="font-extrabold text-lg text-gray-900 leading-tight">{plan.title}</h3>
+                              {plan.time && (
+                                <div className="flex items-center text-xs font-bold text-amber-700 mt-1.5">
+                                  <Clock className="h-3.5 w-3.5 mr-1" />
+                                  {formatTimeStr(plan.time)}
+                                </div>
+                              )}
+                            </div>
+                            
+                            {/* Author Attribution */}
+                            {author && (
+                              <div className="flex items-center self-start bg-gray-50 pr-3 pl-1 py-1 rounded-full border border-gray-100">
+                                {author.photoURL ? (
+                                  <img src={author.photoURL} alt={author.name} className="h-6 w-6 rounded-full object-cover mr-2 shadow-sm" />
+                                ) : (
+                                  <div className="h-6 w-6 rounded-full bg-gray-200 text-gray-600 flex items-center justify-center text-[10px] font-bold mr-2">
+                                    {author.name?.charAt(0).toUpperCase()}
+                                  </div>
+                                )}
+                                <span className="text-[11px] font-medium text-gray-500 whitespace-nowrap">
+                                  by <span className="text-gray-900 font-bold">{author.name.split(' ')[0]}</span>
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                          
+                          <div className="space-y-2.5 text-sm text-gray-600 font-medium">
+                            {plan.location && (
+                              <div className="flex items-start bg-gray-50/50 p-2 rounded-lg text-gray-700">
+                                <MapPin className="h-4 w-4 mr-2 mt-0.5 text-amber-500 shrink-0" />
+                                <span className="leading-snug">{plan.location}</span>
+                              </div>
+                            )}
+                            
+                            {plan.description && (
+                              <p className="pt-2 text-gray-500 leading-relaxed font-normal text-[15px]">
+                                {plan.description}
+                              </p>
+                            )}
+                          </div>
+                          
+                          {/* Delete Action (only if creator) */}
+                          {appUser?.id === plan.createdByUid && (
+                            <div className="mt-4 pt-3 border-t border-gray-100 flex justify-end">
+                              <button 
+                                onClick={() => handleDeletePlan(plan.id)}
+                                className="flex items-center text-[11px] font-bold text-gray-400 hover:text-red-500 transition-colors"
+                              >
+                                <Trash2 className="h-3 w-3 mr-1" />
+                                Remove Plan
+                              </button>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
                     </div>
-                  </CardContent>
-                </Card>
+                  );
+                })}
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
         </div>
       )}
 
