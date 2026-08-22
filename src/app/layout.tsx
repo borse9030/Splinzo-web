@@ -7,6 +7,8 @@ import { AuthGuard } from "@/components/auth/AuthGuard";
 import { ThemeProvider } from "next-themes";
 import { CookieConsent } from "@/components/common/CookieConsent";
 import { ErrorHandler } from "@/components/common/ErrorHandler";
+import { CallProvider } from "@/contexts/CallContext";
+import { GlobalCallOverlay } from "@/components/call/GlobalCallOverlay";
 
 const outfit = Outfit({
   variable: "--font-outfit",
@@ -76,8 +78,11 @@ export default function RootLayout({
           <ErrorHandler />
           <AuthProvider>
             <AuthGuard>
-              {children}
-              <CookieConsent />
+              <CallProvider>
+                <GlobalCallOverlay />
+                {children}
+                <CookieConsent />
+              </CallProvider>
             </AuthGuard>
           </AuthProvider>
         </ThemeProvider>

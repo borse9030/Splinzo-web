@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Navigation } from "@/components/layout/Navigation";
 import { cn } from "@/lib/utils";
+import { useCall } from "@/contexts/CallContext";
 
 const AMBER = "#F9B912";
 
@@ -21,6 +22,7 @@ export default function GroupLayout({
 }) {
   const resolvedParams = use(params);
   const { group, loading, error } = useGroup(resolvedParams.groupId);
+  const { startCall } = useCall();
   const pathname = usePathname();
 
   const tabs = [
@@ -96,12 +98,17 @@ export default function GroupLayout({
             ) : (
               <span className="text-white font-semibold text-base">{group?.name}</span>
             )}
-            <div
-              className="h-9 w-9 rounded-full flex items-center justify-center"
+            <button
+              onClick={() => {
+                if (group) {
+                  startCall(group.id, group.name);
+                }
+              }}
+              className="h-9 w-9 rounded-full flex items-center justify-center cursor-pointer hover:bg-white/30 transition-colors"
               style={{ background: "rgba(255,255,255,0.2)" }}
             >
               <Camera className="h-4 w-4 text-white" />
-            </div>
+            </button>
           </div>
 
           {/* Bottom of banner: group name + total */}
