@@ -17,6 +17,7 @@
     "browser-image-compression": "^2.0.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "date-fns": "^4.4.0",
     "firebase": "^12.17.1",
     "framer-motion": "^13.1.0",
     "heic2any": "^0.0.4",

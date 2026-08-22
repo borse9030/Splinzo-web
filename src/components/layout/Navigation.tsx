@@ -20,7 +20,7 @@ export function Navigation() {
   const links = [
     { name: "Home",     href: "/dashboard",             icon: Home,     exact: true  },
     { name: "Groups",   href: "/dashboard/groups",       icon: Users,    exact: false, activeOn: "/dashboard/groups" },
-    { name: "Activity", href: "/dashboard/invitations",  icon: Inbox,    badge: invitations?.length || 0, exact: false },
+    { name: "Activity", href: "/dashboard/activity",  icon: Inbox,    badge: invitations?.length || 0, exact: false },
     { name: "Profile",  href: "/dashboard/profile",      icon: UserIcon, exact: false },
   ];
 

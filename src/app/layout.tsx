@@ -6,6 +6,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { AuthGuard } from "@/components/auth/AuthGuard";
 import { ThemeProvider } from "next-themes";
 import { CookieConsent } from "@/components/common/CookieConsent";
+import { ErrorHandler } from "@/components/common/ErrorHandler";
 
 const outfit = Outfit({
   variable: "--font-outfit",
@@ -72,6 +73,7 @@ export default function RootLayout({
         style={{ fontFamily: "var(--font-outfit), 'Outfit', sans-serif" }}
       >
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          <ErrorHandler />
           <AuthProvider>
             <AuthGuard>
               {children}
