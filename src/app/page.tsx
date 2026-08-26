@@ -405,7 +405,7 @@ function Navbar() {
 
         {/* Desktop links */}
         <nav className="hidden md:flex items-center gap-8">
-          {[["Features","#features"],["How it Works","#how-it-works"],["Download","#download"],["FAQ","#faq"]].map(([label,href])=>(
+          {[["Features","#features"],["How it Works","#how-it-works"],["Download","#download"],["Blog","/blog"],["About Us","/about"],["FAQ","#faq"]].map(([label,href])=>(
             <a key={href} href={href}
                className="text-sm font-semibold text-gray-600 hover:text-gray-900 transition-colors">
               {label}
@@ -439,7 +439,7 @@ function Navbar() {
           <motion.div initial={{height:0,opacity:0}} animate={{height:"auto",opacity:1}} exit={{height:0,opacity:0}}
                       className="md:hidden overflow-hidden bg-white border-t border-gray-100">
             <div className="flex flex-col px-5 py-4 gap-4">
-              {[["Features","#features"],["How it Works","#how-it-works"],["Download","#download"],["FAQ","#faq"]].map(([label,href])=>(
+              {[["Features","#features"],["How it Works","#how-it-works"],["Download","#download"],["Blog","/blog"],["About Us","/about"],["FAQ","#faq"]].map(([label,href])=>(
                 <a key={href} href={href} onClick={()=>setMobileOpen(false)}
                    className="text-sm font-semibold text-gray-700">{label}</a>
               ))}
@@ -878,10 +878,11 @@ export default function Home() {
               </ul>
             </div>
 
-            {/* Legal */}
+            {/* Legal & About */}
             <div>
-              <h4 className="font-bold text-white mb-4">Legal</h4>
+              <h4 className="font-bold text-white mb-4">Company</h4>
               <ul className="flex flex-col gap-2.5 text-sm">
+                <li><Link href="/about" className="hover:text-white transition-colors">About Us</Link></li>
                 <li><Link href="/privacy-policy" className="hover:text-white transition-colors">Privacy Policy</Link></li>
                 <li><Link href="/terms" className="hover:text-white transition-colors">Terms of Service</Link></li>
                 <li><Link href="/contact" className="hover:text-white transition-colors">Contact Us</Link></li>
@@ -892,6 +893,7 @@ export default function Home() {
           <div className="border-t border-gray-800 pt-8 flex flex-col md:flex-row items-center justify-between gap-4">
             <p className="text-xs">© {new Date().getFullYear()} Splinzo. All rights reserved.</p>
             <div className="flex items-center gap-4 text-xs">
+              <Link href="/about" className="hover:text-white transition-colors">About</Link>
               <Link href="/privacy-policy" className="hover:text-white transition-colors">Privacy</Link>
               <Link href="/terms" className="hover:text-white transition-colors">Terms</Link>
               <Link href="/contact" className="hover:text-white transition-colors">Contact</Link>

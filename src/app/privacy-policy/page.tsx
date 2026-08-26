@@ -161,7 +161,9 @@ export default function PrivacyPolicy() {
         <div className="max-w-4xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4 text-sm text-gray-400">
           <p>© {new Date().getFullYear()} Splinzo. All rights reserved.</p>
           <div className="flex gap-6">
-            <Link href="/terms" className="hover:text-gray-700 transition-colors">Terms of Service</Link>
+            <Link href="/about" className="hover:text-gray-700 transition-colors">About Us</Link>
+            <Link href="/blog" className="hover:text-gray-700 transition-colors">Blog</Link>
+            <Link href="/terms" className="hover:text-gray-700 transition-colors">Terms</Link>
             <Link href="/contact" className="hover:text-gray-700 transition-colors">Contact</Link>
             <Link href="/" className="hover:text-gray-700 transition-colors">Home</Link>
           </div>
