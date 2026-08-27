@@ -212,7 +212,7 @@ export default function GroupMembersPage({
           <Card key={member.id} className="border-none shadow-sm rounded-2xl bg-white">
             <CardContent className="p-4 flex items-center gap-4">
               <Avatar className="h-12 w-12">
-                <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${member.id}`} />
+                <AvatarImage src={member.photoUrl || member.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${member.id}`} />
                 <AvatarFallback
                   className="font-bold"
                   style={{ background: AMBER_LIGHT, color: AMBER }}

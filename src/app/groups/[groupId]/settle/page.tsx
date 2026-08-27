@@ -128,6 +128,8 @@ export default function SettleUpPage({
           <div className="space-y-4">
             {mySettlements.map((s, idx) => {
               const iAmPaying = s.fromUserId === appUser?.id;
+              const fromMember = group.members.find(m => m.id === s.fromUserId);
+              const toMember = group.members.find(m => m.id === s.toUserId);
               
               return (
                 <Card key={idx} className="border-none shadow-sm">
@@ -136,7 +138,7 @@ export default function SettleUpPage({
                       
                       <div className="flex items-center gap-4">
                         <Avatar className="h-10 w-10">
-                          <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${s.fromUserId}`} />
+                          <AvatarImage src={fromMember?.photoUrl || fromMember?.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${s.fromUserId}`} />
                           <AvatarFallback>{s.fromUserName.charAt(0)}</AvatarFallback>
                         </Avatar>
                         
@@ -148,7 +150,7 @@ export default function SettleUpPage({
                         </div>
                         
                         <Avatar className="h-10 w-10">
-                          <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${s.toUserId}`} />
+                          <AvatarImage src={toMember?.photoUrl || toMember?.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${s.toUserId}`} />
                           <AvatarFallback>{s.toUserName.charAt(0)}</AvatarFallback>
                         </Avatar>
                         
@@ -183,17 +185,21 @@ export default function SettleUpPage({
         <section>
           <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4">Other Group Settlements</h3>
           <div className="space-y-4">
-            {otherSettlements.map((s, idx) => (
+            {otherSettlements.map((s, idx) => {
+              const fromMember = group.members.find(m => m.id === s.fromUserId);
+              const toMember = group.members.find(m => m.id === s.toUserId);
+              
+              return (
               <Card key={idx} className="border-none shadow-sm opacity-75">
                 <CardContent className="p-4 sm:p-6 flex items-center justify-between">
                   <div className="flex items-center gap-4">
                     <Avatar className="h-8 w-8">
-                      <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${s.fromUserId}`} />
+                      <AvatarImage src={fromMember?.photoUrl || fromMember?.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${s.fromUserId}`} />
                       <AvatarFallback>{s.fromUserName.charAt(0)}</AvatarFallback>
                     </Avatar>
                     <ArrowRight className="h-4 w-4 text-gray-300" />
                     <Avatar className="h-8 w-8">
-                      <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${s.toUserId}`} />
+                      <AvatarImage src={toMember?.photoUrl || toMember?.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${s.toUserId}`} />
                       <AvatarFallback>{s.toUserName.charAt(0)}</AvatarFallback>
                     </Avatar>
                   </div>
@@ -207,7 +213,7 @@ export default function SettleUpPage({
                   </div>
                 </CardContent>
               </Card>
-            ))}
+            )})}
           </div>
         </section>
       )}
