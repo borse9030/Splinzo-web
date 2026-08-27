@@ -16,7 +16,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       if (!user) {
         // Not logged in, redirect to login
         if (!PUBLIC_PATHS.includes(pathname)) {
-          router.push("/login");
+          setTimeout(() => router.push("/login"), 0);
         }
       } else if (user && !appUser) {
         // User is logged in via Firebase Auth but has no Firestore document yet
@@ -25,7 +25,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       } else {
         // Logged in and has appUser document
         if (pathname === "/login" || pathname === "/signup") {
-          router.push("/dashboard");
+          setTimeout(() => router.push("/dashboard"), 0);
         }
       }
     }
