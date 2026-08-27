@@ -45,6 +45,15 @@ export const metadata: Metadata = {
   verification: {
     google: "9xrsDkHKvEwqrLGex_g9ZOU-D1N9nH6h9Am8DxljcZw",
   },
+  icons: {
+    icon: [
+      { url: '/favicon.ico' },
+      { url: '/icon.png', type: 'image/png' },
+    ],
+    apple: [
+      { url: '/icon.png' },
+    ],
+  },
 };
 
 export default function RootLayout({
