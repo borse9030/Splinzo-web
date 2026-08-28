@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Clock, User } from "lucide-react";
 import { blogs } from "@/data/blogs";
+import { ArticleAd } from "@/components/ads/ArticleAd";
 
 const AMBER = "#F9B912";
 
@@ -88,6 +89,9 @@ export default async function BlogPostPage({ params }: Props) {
           className="prose prose-lg max-w-none prose-headings:font-black prose-headings:tracking-tight prose-a:text-amber-500 hover:prose-a:text-amber-600 prose-img:rounded-3xl prose-img:shadow-xl prose-hr:border-gray-100"
           dangerouslySetInnerHTML={{ __html: blog.content }}
         />
+
+        {/* In-article ad after content — max 2 per article (IAB compliant) */}
+        <ArticleAd />
         
         <hr className="my-16 border-gray-100" />
         

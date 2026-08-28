@@ -6,6 +6,7 @@ import { motion } from "framer-motion";
 import { Plus, ChevronRight, Users, TrendingDown, TrendingUp, Wallet } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
+import { DashboardBannerAd } from "@/components/ads/DashboardBannerAd";
 
 const AMBER      = "#F9B912";
 const AMBER_DARK = "#F9A000";
@@ -209,6 +210,11 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+      </motion.div>
+
+      {/* ══ AD BANNER ═════════════════════════════════════ */}
+      <motion.div variants={fadeUp}>
+        <DashboardBannerAd />
       </motion.div>
 
       {/* ══ GROUPS SECTION ═══════════════════════════════ */}

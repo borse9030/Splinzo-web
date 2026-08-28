@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Plus, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DashboardBannerAd } from "@/components/ads/DashboardBannerAd";
 
 const AMBER = "#F9B912";
 const AMBER_LIGHT = "#FFF8E1";
@@ -25,6 +26,9 @@ export default function DashboardGroupsPage() {
           </p>
         </div>
       </header>
+
+      {/* Ad between header and content */}
+      <DashboardBannerAd />
 
       <div className="space-y-4">
         <div className="flex items-center justify-end">

@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
+import { DashboardBannerAd } from "@/components/ads/DashboardBannerAd";
 
 const AMBER = "#F9B912";
 const AMBER_LIGHT = "#FFF8E1";
@@ -104,6 +105,9 @@ export default function ActivityPage() {
           </div>
         )}
       </header>
+
+      {/* Ad below header — before activity content */}
+      <DashboardBannerAd />
 
       {/* ══ INVITATIONS SECTION ══ */}
       {visibleInvitations.length > 0 && (

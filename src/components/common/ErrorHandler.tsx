@@ -11,8 +11,19 @@ export function ErrorHandler() {
       }
     };
     
+    const handleError = (event: ErrorEvent) => {
+      if (event.message && event.message.includes("Database is closing/hidden")) {
+        event.preventDefault();
+        console.warn("Suppressed Firebase HMR error:", event.message);
+      }
+    };
+    
     window.addEventListener("unhandledrejection", handleRejection);
-    return () => window.removeEventListener("unhandledrejection", handleRejection);
+    window.addEventListener("error", handleError);
+    return () => {
+      window.removeEventListener("unhandledrejection", handleRejection);
+      window.removeEventListener("error", handleError);
+    };
   }, []);
 
   return null;

@@ -10,11 +10,14 @@ import {
   orderBy,
   onSnapshot,
   addDoc,
+  updateDoc,
+  doc,
+  deleteField,
   serverTimestamp,
   Timestamp,
 } from "firebase/firestore";
 import { storageService } from "@/services/storageService";
-import { Send, ImageIcon, MessageSquare, X } from "lucide-react";
+import { Send, ImageIcon, MessageSquare, X, Trash2, Edit2, Ban } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const AMBER     = "#F9B912";
@@ -69,6 +72,8 @@ interface ChatMessage {
   imageUrl?: string;
   isCallLog?: boolean;
   createdAt: Timestamp | null;
+  editedAt?: Timestamp | null;
+  isDeleted?: boolean;
 }
 
 export default function GroupChatPage({
@@ -88,6 +93,8 @@ export default function GroupChatPage({
   const [imageFile,      setImageFile]      = useState<File | null>(null);
   const [imagePreviewUrl,setImagePreviewUrl]= useState<string | null>(null);
   const [uploading,      setUploading]      = useState(false);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editText,         setEditText]         = useState("");
 
   const bottomRef   = useRef<HTMLDivElement>(null);
   const fileInputRef= useRef<HTMLInputElement>(null);
@@ -139,6 +146,30 @@ export default function GroupChatPage({
   /* Send handler */
   const handleSend = async (e?: React.FormEvent) => {
     e?.preventDefault();
+
+    if (editingMessageId) {
+      if (!editText.trim()) return;
+      const currentEditId = editingMessageId;
+      const currentEditText = editText.trim();
+      
+      setEditingMessageId(null);
+      setEditText("");
+      if (textareaRef.current) textareaRef.current.style.height = "auto";
+      
+      Promise.resolve().then(async () => {
+        try {
+          const docRef = doc(db, "groups", groupId, "messages", currentEditId);
+          await updateDoc(docRef, {
+            text: currentEditText,
+            editedAt: serverTimestamp(),
+          });
+        } catch (err) {
+          console.error("Edit failed:", err);
+        }
+      });
+      return;
+    }
+
     if ((!text.trim() && !imageFile) || !appUser || sending) return;
     
     // Save local vars
@@ -192,6 +223,41 @@ export default function GroupChatPage({
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
+  };
+
+  const EDIT_WINDOW_MS = 15 * 60 * 1000;
+  
+  const canEdit = (msg: ChatMessage) => {
+    if (msg.isDeleted || !msg.text || !msg.createdAt) return false;
+    return Date.now() - msg.createdAt.toMillis() <= EDIT_WINDOW_MS;
+  };
+
+  const handleEditInit = (msg: ChatMessage) => {
+    setEditingMessageId(msg.id);
+    setEditText(msg.text || "");
+    if (textareaRef.current) {
+      textareaRef.current.focus();
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingMessageId(null);
+    setEditText("");
+  };
+
+  const handleDelete = async (msgId: string) => {
+    if (window.confirm("Are you sure you want to delete this message?")) {
+      try {
+        const docRef = doc(db, "groups", groupId, "messages", msgId);
+        await updateDoc(docRef, {
+          isDeleted: true,
+          text: deleteField(),
+          imageUrl: deleteField(),
+        });
+      } catch (err) {
+        console.error("Delete failed:", err);
+      }
+    }
   };
 
   const fmt = (ts: Timestamp | null) => {
@@ -288,35 +354,90 @@ export default function GroupChatPage({
                       )}
 
                       {/* Image message */}
-                      {msg.imageUrl ? (
-                        <a href={msg.imageUrl} target="_blank" rel="noopener noreferrer">
-                          <div style={{
-                            padding: "3px",
-                            background: isMe ? AMBER : "var(--card)",
-                            borderRadius: isMe ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
-                            boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
-                          }}>
-                            <img src={msg.imageUrl} alt="img"
-                                 className="max-w-[220px] sm:max-w-[260px] max-h-[280px] rounded-xl object-cover" />
-                            <p className="text-[10px] font-medium text-right px-1 pt-0.5 pb-0" style={{ opacity: 0.55, color: isMe ? AMBER_DARK : "var(--muted-foreground)" }}>
-                              {fmt(msg.createdAt)}
-                            </p>
-                          </div>
-                        </a>
+                      {msg.isDeleted ? (
+                        <div className="px-3.5 py-2 text-sm leading-relaxed flex items-center gap-2 italic" style={{
+                          background: isMe ? "var(--muted)" : "var(--card)",
+                          color: "var(--muted-foreground)",
+                          borderRadius: isMe ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
+                        }}>
+                          <Ban className="h-3.5 w-3.5" />
+                          <span>This message was deleted</span>
+                        </div>
+                      ) : msg.imageUrl ? (
+                        <div className="relative group/msg">
+                          <a href={msg.imageUrl} target="_blank" rel="noopener noreferrer">
+                            <div style={{
+                              padding: "3px",
+                              background: isMe ? AMBER : "var(--card)",
+                              borderRadius: isMe ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
+                              boxShadow: "0 2px 8px rgba(0,0,0,0.12)",
+                            }}>
+                              <img src={msg.imageUrl} alt="img"
+                                   className="max-w-[220px] sm:max-w-[260px] max-h-[280px] rounded-xl object-cover" />
+                              <p className="text-[10px] font-medium text-right px-1 pt-0.5 pb-0" style={{ opacity: 0.55, color: isMe ? AMBER_DARK : "var(--muted-foreground)" }}>
+                                {fmt(msg.createdAt)}
+                              </p>
+                            </div>
+                          </a>
+                          {isMe && (
+                            <div className="absolute -left-9 top-2 opacity-0 group-hover/msg:opacity-100 transition-opacity hidden md:block">
+                               <button onClick={() => handleDelete(msg.id)} className="p-1.5 rounded-full bg-white shadow-sm text-gray-500 hover:text-red-500">
+                                 <Trash2 className="h-3 w-3" />
+                               </button>
+                            </div>
+                          )}
+                          {/* Mobile-only visible delete button since hover is tricky */}
+                          {isMe && (
+                            <div className="absolute -left-9 top-2 md:hidden">
+                               <button onClick={() => handleDelete(msg.id)} className="p-1.5 rounded-full bg-white/80 shadow-sm text-gray-500 hover:text-red-500">
+                                 <Trash2 className="h-3 w-3" />
+                               </button>
+                            </div>
+                          )}
+                        </div>
                       ) : msg.text ? (
                         /* Text message */
-                        <div className="px-3.5 py-2 text-sm leading-relaxed" style={{
-                          background: isMe ? AMBER : "var(--card)",
-                          color: isMe ? AMBER_DARK : "var(--foreground)",
-                          borderRadius: isMe ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
-                          boxShadow: "0 1px 4px rgba(0,0,0,0.1)",
-                          wordBreak: "break-word",
-                        }}>
-                          <span className="font-medium whitespace-pre-wrap">{msg.text}</span>
-                          <span className="block text-[10px] font-medium text-right mt-1 -mb-0.5 ml-8"
-                                style={{ opacity: 0.5, color: isMe ? AMBER_DARK : "var(--muted-foreground)" }}>
-                            {fmt(msg.createdAt)}
-                          </span>
+                        <div className="relative group/msg max-w-full">
+                          <div className="px-3.5 py-2 text-sm leading-relaxed" style={{
+                            background: isMe ? AMBER : "var(--card)",
+                            color: isMe ? AMBER_DARK : "var(--foreground)",
+                            borderRadius: isMe ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
+                            boxShadow: "0 1px 4px rgba(0,0,0,0.1)",
+                            wordBreak: "break-word",
+                          }}>
+                            <span className="font-medium whitespace-pre-wrap">{msg.text}</span>
+                            <span className="block text-[10px] font-medium text-right mt-1 -mb-0.5 ml-8"
+                                  style={{ opacity: 0.5, color: isMe ? AMBER_DARK : "var(--muted-foreground)" }}>
+                              {msg.editedAt && <span className="mr-1">(edited)</span>}
+                              {fmt(msg.createdAt)}
+                            </span>
+                          </div>
+                          {/* Actions overlay for isMe */}
+                          {isMe && (
+                            <div className="absolute -left-16 top-0 bottom-0 flex items-center opacity-0 group-hover/msg:opacity-100 transition-opacity gap-1 hidden md:flex">
+                               {canEdit(msg) && (
+                                 <button onClick={() => handleEditInit(msg)} className="p-1.5 rounded-full bg-white shadow-sm text-gray-500 hover:text-blue-500">
+                                   <Edit2 className="h-3 w-3" />
+                                 </button>
+                               )}
+                               <button onClick={() => handleDelete(msg.id)} className="p-1.5 rounded-full bg-white shadow-sm text-gray-500 hover:text-red-500">
+                                 <Trash2 className="h-3 w-3" />
+                               </button>
+                            </div>
+                          )}
+                          {/* Mobile-only actions */}
+                          {isMe && (
+                            <div className="absolute -left-16 top-0 bottom-0 flex items-center gap-1 md:hidden">
+                               {canEdit(msg) && (
+                                 <button onClick={() => handleEditInit(msg)} className="p-1.5 rounded-full bg-white/80 shadow-sm text-gray-500">
+                                   <Edit2 className="h-3 w-3" />
+                                 </button>
+                               )}
+                               <button onClick={() => handleDelete(msg.id)} className="p-1.5 rounded-full bg-white/80 shadow-sm text-gray-500">
+                                 <Trash2 className="h-3 w-3" />
+                               </button>
+                            </div>
+                          )}
                         </div>
                       ) : null}
                     </div>
@@ -329,8 +450,23 @@ export default function GroupChatPage({
         </div>
       </div>
 
+      {/* ── Edit preview strip ── */}
+      {editingMessageId && (
+        <div className="px-4 py-2 flex items-center justify-between shrink-0"
+             style={{ background: "var(--muted)", borderTop: "1px solid var(--border)" }}>
+          <div className="flex items-center gap-2 text-sm">
+            <Edit2 className="h-4 w-4" style={{ color: AMBER }} />
+            <span className="font-semibold" style={{ color: "var(--foreground)" }}>Editing Message</span>
+          </div>
+          <button onClick={handleCancelEdit}
+                  className="h-6 w-6 rounded-full flex items-center justify-center hover:bg-black/10 transition-colors">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
       {/* ── Image preview strip ── */}
-      {imagePreviewUrl && (
+      {imagePreviewUrl && !editingMessageId && (
         <div className="px-4 py-2 flex items-center gap-3 shrink-0"
              style={{ background: "var(--muted)", borderTop: "1px solid var(--border)" }}>
           <div className="relative shrink-0">
@@ -368,10 +504,14 @@ export default function GroupChatPage({
             <textarea
               ref={textareaRef}
               rows={1}
-              placeholder="Type a message…"
-              value={text}
+              placeholder={editingMessageId ? "Edit your message…" : "Type a message…"}
+              value={editingMessageId ? editText : text}
               onChange={(e) => {
-                setText(e.target.value);
+                if (editingMessageId) {
+                  setEditText(e.target.value);
+                } else {
+                  setText(e.target.value);
+                }
                 e.target.style.height = "auto";
                 e.target.style.height = `${Math.min(e.target.scrollHeight, 96)}px`;
               }}
@@ -390,7 +530,7 @@ export default function GroupChatPage({
 
           {/* Send button */}
           <button onClick={() => handleSend()}
-                  disabled={sending || uploading || (!text.trim() && !imageFile)}
+                  disabled={editingMessageId ? !editText.trim() : (sending || uploading || (!text.trim() && !imageFile))}
                   className="h-10 w-10 rounded-full flex items-center justify-center shrink-0 transition-transform active:scale-90 disabled:opacity-40"
                   style={{ background: AMBER }}>
             {(sending || uploading) ? (
