@@ -27,6 +27,7 @@ export class PeerManager {
   private pcs: Map<string, RTCPeerConnection> = new Map();
   private makingOfferFlags: Map<string, boolean> = new Map();
   private ignoreOfferFlags: Map<string, boolean> = new Map();
+  private lastHandledRevision: Map<string, number> = new Map();
 
   private localStream: MediaStream | null = null;
 
@@ -63,7 +64,7 @@ export class PeerManager {
    * Lower UID = polite = answers. Higher UID = impolite = makes offers.
    */
   private isPolite(remoteUid: string): boolean {
-    return this.myUid < remoteUid;
+    return this.myUid > remoteUid;
   }
 
   async getOrCreatePc(remoteUid: string): Promise<RTCPeerConnection> {
@@ -84,8 +85,6 @@ export class PeerManager {
     };
 
     pc.onnegotiationneeded = async () => {
-      // Only the impolite peer initiates offers
-      if (this.isPolite(remoteUid)) return;
       try {
         this.makingOfferFlags.set(remoteUid, true);
         const offer = await pc.createOffer();
@@ -187,12 +186,24 @@ export class PeerManager {
 
     try {
       if (data.role === "offer") {
+        const lastRev = this.lastHandledRevision.get(data.from) || 0;
+        if (data.revision > 0 && data.revision <= lastRev) {
+          console.warn(`[PeerManager] Stale offer rev.${data.revision} from ${data.from} ignored`);
+          return;
+        }
+
         const offerCollision =
           this.makingOfferFlags.get(data.from) ||
           pc.signalingState !== "stable";
 
         this.ignoreOfferFlags.set(data.from, !polite && offerCollision);
         if (this.ignoreOfferFlags.get(data.from)) return;
+
+        this.lastHandledRevision.set(data.from, data.revision);
+
+        if (polite && offerCollision) {
+          await pc.setLocalDescription({ type: "rollback" as RTCSdpType });
+        }
 
         await pc.setRemoteDescription(
           new RTCSessionDescription({ type: data.type as RTCSdpType, sdp: data.sdp })
