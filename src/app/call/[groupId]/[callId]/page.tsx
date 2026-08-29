@@ -1,10 +1,16 @@
 "use client";
 
-import { use, useEffect } from "react";
+import { use, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useCall } from "@/contexts/CallContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { Mic, MicOff, PhoneOff, Users } from "lucide-react";
+
+function formatDuration(totalSeconds: number) {
+  const mins = Math.floor(totalSeconds / 60);
+  const secs = totalSeconds % 60;
+  return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+}
 
 const AVATAR_COLORS = [
   "#E91E63", "#9C27B0", "#2196F3", "#00BCD4",
@@ -120,7 +126,18 @@ export default function CallPage({
 
   if (!activeCall) return null;
 
-  const elapsedSeconds = 0; // Could wire up a timer here
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+
+  useEffect(() => {
+    if (!activeCall || activeCall.participants.length <= 1) {
+      setElapsedSeconds(0);
+      return;
+    }
+    const interval = setInterval(() => {
+      setElapsedSeconds((prev) => prev + 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [activeCall?.participants.length]);
 
   return (
     <div
@@ -138,7 +155,9 @@ export default function CallPage({
           <Users className="w-3.5 h-3.5" />
           {activeCall.participants.length} participant
           {activeCall.participants.length !== 1 ? "s" : ""}
-          {activeCall.status === "ringing" ? " · Ringing…" : " · Active"}
+          {activeCall.status === "ringing" && activeCall.participants.length <= 1
+            ? " · Ringing…"
+            : ` · ${formatDuration(elapsedSeconds)}`}
         </p>
       </div>
 

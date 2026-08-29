@@ -59,6 +59,55 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   const isJoinedRef = useRef(false);
   const myUidRef = useRef<string | undefined>(undefined);
   const groupIdsRef = useRef<string[]>([]); // stable ref used by watchActiveCall
+  const ringAudioRef = useRef<HTMLAudioElement | null>(null);
+  const ringbackAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  const isRinging =
+    activeCall !== null &&
+    !isJoined &&
+    activeCall.status === "ringing" &&
+    activeCall.callerId !== appUser?.id;
+
+  // ── Ringtone for incoming call ─────────────────────────────────────────
+  useEffect(() => {
+    if (isRinging) {
+      if (!ringAudioRef.current) {
+        ringAudioRef.current = new Audio("/ring.mp3");
+        ringAudioRef.current.loop = true;
+        ringAudioRef.current.volume = 0.8;
+      }
+      ringAudioRef.current.play().catch((e) => console.log("[Ringtone] Auto-play prevented:", e));
+    } else {
+      if (ringAudioRef.current) {
+        ringAudioRef.current.pause();
+        ringAudioRef.current.currentTime = 0;
+      }
+    }
+  }, [isRinging]);
+
+  // ── Ringback audio for caller while waiting ──────────────────────────
+  useEffect(() => {
+    const isCallerWaiting =
+      activeCall !== null &&
+      isJoined &&
+      activeCall.callerId === appUser?.id &&
+      activeCall.status === "ringing" &&
+      activeCall.participants.length === 1;
+
+    if (isCallerWaiting) {
+      if (!ringbackAudioRef.current) {
+        ringbackAudioRef.current = new Audio("/ring.mp3");
+        ringbackAudioRef.current.loop = true;
+        ringbackAudioRef.current.volume = 0.6;
+      }
+      ringbackAudioRef.current.play().catch((e) => console.log("[Ringback] Auto-play prevented:", e));
+    } else {
+      if (ringbackAudioRef.current) {
+        ringbackAudioRef.current.pause();
+        ringbackAudioRef.current.currentTime = 0;
+      }
+    }
+  }, [activeCall?.status, activeCall?.participants.length, isJoined, appUser?.id]);
 
   // Keep refs in sync
   useEffect(() => { activeCallRef.current = activeCall; }, [activeCall]);
@@ -195,6 +244,15 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
   // ── Clean up everything locally ───────────────────────────────────────
   const handleCallEnded = useCallback(() => {
+    if (ringAudioRef.current) {
+      ringAudioRef.current.pause();
+      ringAudioRef.current.currentTime = 0;
+    }
+    if (ringbackAudioRef.current) {
+      ringbackAudioRef.current.pause();
+      ringbackAudioRef.current.currentTime = 0;
+    }
+
     sessionUnsubRef.current?.();
     sessionUnsubRef.current = null;
     signalUnsubRef.current?.();
@@ -350,12 +408,6 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     });
     setIsMuted((prev) => !prev);
   }, [localStream]);
-
-  const isRinging =
-    activeCall !== null &&
-    !isJoined &&
-    activeCall.status === "ringing" &&
-    activeCall.callerId !== appUser?.id;
 
   return (
     <CallContext.Provider
