@@ -45,13 +45,19 @@ export class CallService {
   /** Watches a specific call session */
   static watchCallSession(groupId: string, callId: string, onUpdate: (call: CallSession | null) => void) {
     const callDoc = doc(db, "groups", groupId, "calls", callId);
-    return onSnapshot(callDoc, (snapshot) => {
-      if (snapshot.exists()) {
-        onUpdate({ id: snapshot.id, groupId, ...snapshot.data() } as CallSession);
-      } else {
-        onUpdate(null);
+    return onSnapshot(
+      callDoc,
+      (snapshot) => {
+        if (snapshot.exists()) {
+          onUpdate({ id: snapshot.id, groupId, ...snapshot.data() } as CallSession);
+        } else {
+          onUpdate(null);
+        }
+      },
+      (err) => {
+        console.warn(`[watchCallSession:${callId}]`, err.message);
       }
-    });
+    );
   }
 
   static async startCall(
@@ -229,13 +235,19 @@ export class CallService {
   ) {
     const sigRef = collection(db, "groups", groupId, "calls", callId, "signaling");
     const q = query(sigRef, where("to", "==", myUid));
-    return onSnapshot(q, (snapshot) => {
-      snapshot.docChanges().forEach((change) => {
-        if (change.type === "added" || change.type === "modified") {
-          onSignaling(change.doc.data() as SignalingData);
-        }
-      });
-    });
+    return onSnapshot(
+      q,
+      (snapshot) => {
+        snapshot.docChanges().forEach((change) => {
+          if (change.type === "added" || change.type === "modified") {
+            onSignaling(change.doc.data() as SignalingData);
+          }
+        });
+      },
+      (err) => {
+        console.warn(`[watchIncomingSignaling]`, err.message);
+      }
+    );
   }
 
   static async sendCandidateBatch(
@@ -288,12 +300,18 @@ export class CallService {
       this._signalingDocId(fromUid, toUid),
       "ice"
     );
-    return onSnapshot(iceCol, (snapshot) => {
-      snapshot.docChanges().forEach((change) => {
-        if (change.type === "added") {
-          onCandidate(change.doc.data() as IceCandidateData);
-        }
-      });
-    });
+    return onSnapshot(
+      iceCol,
+      (snapshot) => {
+        snapshot.docChanges().forEach((change) => {
+          if (change.type === "added") {
+            onCandidate(change.doc.data() as IceCandidateData);
+          }
+        });
+      },
+      (err) => {
+        console.warn(`[watchCandidatesFrom]`, err.message);
+      }
+    );
   }
 }

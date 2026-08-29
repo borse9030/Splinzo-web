@@ -113,6 +113,9 @@ export default function GroupChatPage({
       });
       setMessages(msgs);
       setChatLoading(false);
+    }, (err) => {
+      console.warn("[chat:onSnapshot]", err.message);
+      setChatLoading(false);
     });
     return () => unsub();
   }, [groupId]);
