@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { LogOut, Save, AlertCircle, CheckCircle2, QrCode, Upload } from "lucide-react";
+import { LogOut, Save, AlertCircle, CheckCircle2, QrCode, Upload, Camera, Trash2, Loader2 } from "lucide-react";
 import { storageService } from "@/services/storageService";
 
 export default function ProfilePage() {
@@ -19,6 +19,8 @@ export default function ProfilePage() {
   const router = useRouter();
 
   const [name, setName] = useState(appUser?.displayName || "");
+  const [photoUrl, setPhotoUrl] = useState(appUser?.photoUrl || appUser?.photoURL || "");
+  const [photoUploading, setPhotoUploading] = useState(false);
   const [upiId, setUpiId] = useState((appUser as any)?.upiId || "");
   const [paymentQrUrl, setPaymentQrUrl] = useState((appUser as any)?.paymentQrUrl || "");
   const [qrUploading, setQrUploading] = useState(false);
@@ -34,6 +36,78 @@ export default function ProfilePage() {
     }
   };
 
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/") && !file.name.toLowerCase().endsWith(".heic") && !file.name.toLowerCase().endsWith(".heif")) {
+      setMessage({ type: "error", text: "Please select an image file (JPEG, PNG, WebP, HEIC)." });
+      return;
+    }
+
+    setPhotoUploading(true);
+    setMessage(null);
+
+    try {
+      const url = await storageService.uploadFile(file);
+      setPhotoUrl(url);
+
+      // 1. Update Firebase Auth Profile
+      if (auth.currentUser) {
+        await updateProfile(auth.currentUser, {
+          photoURL: url,
+        });
+      }
+
+      // 2. Update Firestore Document
+      if (appUser) {
+        const userRef = doc(db, "users", appUser.id);
+        await updateDoc(userRef, {
+          photoUrl: url,
+          photoURL: url,
+        });
+      }
+
+      setMessage({ type: "success", text: "Profile picture updated successfully!" });
+    } catch (err: any) {
+      console.error("Failed to upload profile photo:", err);
+      setMessage({ type: "error", text: err.message || "Failed to upload profile picture." });
+    } finally {
+      setPhotoUploading(false);
+    }
+  };
+
+  const handleRemovePhoto = async () => {
+    if (!appUser) return;
+    setPhotoUploading(true);
+    setMessage(null);
+
+    try {
+      setPhotoUrl("");
+
+      // 1. Update Firebase Auth Profile
+      if (auth.currentUser) {
+        await updateProfile(auth.currentUser, {
+          photoURL: "",
+        });
+      }
+
+      // 2. Update Firestore Document
+      const userRef = doc(db, "users", appUser.id);
+      await updateDoc(userRef, {
+        photoUrl: "",
+        photoURL: "",
+      });
+
+      setMessage({ type: "success", text: "Profile picture removed." });
+    } catch (err: any) {
+      console.error("Failed to remove profile photo:", err);
+      setMessage({ type: "error", text: "Failed to remove profile picture." });
+    } finally {
+      setPhotoUploading(false);
+    }
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!appUser || !auth.currentUser) return;
@@ -45,12 +119,15 @@ export default function ProfilePage() {
       // 1. Update Firebase Auth Profile
       await updateProfile(auth.currentUser, {
         displayName: name,
+        photoURL: photoUrl || null,
       });
 
       // 2. Update Firestore Document
       const userRef = doc(db, "users", appUser.id);
       await updateDoc(userRef, {
         displayName: name,
+        photoUrl: photoUrl || "",
+        photoURL: photoUrl || "",
         upiId: upiId.trim(),
         paymentQrUrl: paymentQrUrl,
       });
@@ -104,21 +181,93 @@ export default function ProfilePage() {
         <CardContent>
           <form onSubmit={handleSave} className="space-y-6">
             <div className="flex flex-col sm:flex-row gap-6 items-start sm:items-center">
-              <Avatar className="h-24 w-24 border-4 border-gray-50 shadow-sm">
-                <AvatarImage src={appUser.photoUrl || appUser.photoURL} />
-                <AvatarFallback className="bg-primary/10 text-primary font-bold text-2xl" style={!(appUser.photoUrl || appUser.photoURL) ? { background: "var(--card)", color: "var(--foreground)", border: "1px solid var(--border)" } : {}}>
-                  {name ? name.charAt(0).toUpperCase() : "?"}
-                </AvatarFallback>
-              </Avatar>
-              <div className="space-y-2 flex-1 w-full">
-                <Label htmlFor="name">Display Name</Label>
-                <Input
-                  id="name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="rounded-xl h-11"
-                  required
+              {/* Avatar Upload Container */}
+              <div className="relative group">
+                <Avatar className="h-24 w-24 sm:h-28 sm:w-28 border-4 border-gray-100 shadow-md">
+                  <AvatarImage src={photoUrl || appUser.photoUrl || appUser.photoURL} className="object-cover" />
+                  <AvatarFallback className="bg-primary/10 text-primary font-bold text-2xl" style={!(photoUrl || appUser.photoUrl || appUser.photoURL) ? { background: "var(--card)", color: "var(--foreground)", border: "1px solid var(--border)" } : {}}>
+                    {name ? name.charAt(0).toUpperCase() : "?"}
+                  </AvatarFallback>
+                </Avatar>
+
+                {/* Upload Hover Overlay */}
+                <label
+                  htmlFor="avatar-upload"
+                  className="absolute inset-0 rounded-full bg-black/50 text-white flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer z-10"
+                >
+                  {photoUploading ? (
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                  ) : (
+                    <>
+                      <Camera className="h-6 w-6 mb-1" />
+                      <span className="text-[10px] font-bold uppercase tracking-wider">Change</span>
+                    </>
+                  )}
+                </label>
+
+                {/* Camera Badge at Bottom Right */}
+                <label
+                  htmlFor="avatar-upload"
+                  className="absolute bottom-0 right-0 p-2 bg-primary text-white rounded-full shadow-lg border-2 border-white cursor-pointer hover:bg-primary/90 transition-transform active:scale-95 z-20"
+                  title="Upload profile picture"
+                >
+                  <Camera className="h-4 w-4" />
+                </label>
+
+                <input
+                  id="avatar-upload"
+                  type="file"
+                  accept="image/*,.heic,.heif"
+                  className="hidden"
+                  onChange={handlePhotoUpload}
+                  disabled={photoUploading}
                 />
+              </div>
+
+              {/* Display Name & Photo Action Buttons */}
+              <div className="space-y-3 flex-1 w-full">
+                <div className="space-y-2">
+                  <Label htmlFor="name">Display Name</Label>
+                  <Input
+                    id="name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="rounded-xl h-11"
+                    required
+                  />
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  <label
+                    htmlFor="avatar-upload"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors cursor-pointer"
+                  >
+                    {photoUploading ? (
+                      <>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        Uploading…
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="h-3.5 w-3.5" />
+                        Upload Photo
+                      </>
+                    )}
+                  </label>
+
+                  {(photoUrl || appUser.photoUrl || appUser.photoURL) && (
+                    <button
+                      type="button"
+                      onClick={handleRemovePhoto}
+                      disabled={photoUploading}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-red-600 hover:bg-red-50 transition-colors"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Remove
+                    </button>
+                  )}
+                  <span className="text-[11px] text-gray-400">JPG, PNG, WebP or HEIC</span>
+                </div>
               </div>
             </div>
 
@@ -187,7 +336,16 @@ export default function ProfilePage() {
             )}
 
             <div className="flex justify-end border-t pt-6 mt-6">
-              <Button type="submit" disabled={saving || name === appUser.displayName} className="rounded-xl px-8 h-11">
+              <Button
+                type="submit"
+                disabled={
+                  saving ||
+                  (name === appUser.displayName &&
+                    upiId === ((appUser as any)?.upiId || "") &&
+                    photoUrl === (appUser.photoUrl || appUser.photoURL || ""))
+                }
+                className="rounded-xl px-8 h-11"
+              >
                 <Save className="h-4 w-4 mr-2" />
                 {saving ? "Saving..." : "Save Changes"}
               </Button>
