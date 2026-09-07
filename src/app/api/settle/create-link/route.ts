@@ -1,23 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { initializeApp, getApps, getApp } from "firebase/app";
-import { getFirestore, doc, setDoc, serverTimestamp, updateDoc } from "firebase/firestore";
+import { getServerDb } from "@/lib/firebase/serverDb";
+import { doc, setDoc, serverTimestamp, updateDoc } from "firebase/firestore";
 import { setuClient } from "@/lib/fintech/setuClient";
-
-const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "fallback",
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "fallback",
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "fallback",
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "fallback",
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "fallback",
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "fallback",
-};
-
-function getDb() {
-  const app = !getApps().length
-    ? initializeApp(firebaseConfig, "setu-settle-app")
-    : getApp("setu-settle-app");
-  return getFirestore(app);
-}
 
 const PLATFORM_FEE = Number(process.env.NEXT_PUBLIC_PLATFORM_FEE_INR || 1);
 
@@ -35,7 +19,8 @@ export async function POST(req: NextRequest) {
     const totalAmount = Number((baseAmount + platformFee).toFixed(2));
     const amountInPaise = Math.round(totalAmount * 100);
 
-    const db = getDb();
+    const db = getServerDb();
+
     // Unique payment ID
     const paymentId = `pay_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const paymentRef = doc(db, "payments", paymentId);

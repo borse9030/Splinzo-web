@@ -1,22 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { initializeApp, getApps, getApp } from "firebase/app";
-import { getFirestore, doc, getDoc, updateDoc, collection, addDoc, serverTimestamp } from "firebase/firestore";
-
-const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || "fallback",
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || "fallback",
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "fallback",
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || "fallback",
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "fallback",
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || "fallback",
-};
-
-function getDb() {
-  const app = !getApps().length
-    ? initializeApp(firebaseConfig, "setu-webhook-app")
-    : getApp("setu-webhook-app");
-  return getFirestore(app);
-}
+import { getServerDb } from "@/lib/firebase/serverDb";
+import { doc, getDoc, updateDoc, collection, addDoc, serverTimestamp } from "firebase/firestore";
 
 export async function POST(req: NextRequest) {
   try {
@@ -36,7 +20,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ok: true, note: "Ignored, missing billerBillID" });
       }
 
-      const db = getDb();
+      const db = getServerDb();
       const paymentRef = doc(db, "payments", paymentId);
       const paymentSnap = await getDoc(paymentRef);
 
