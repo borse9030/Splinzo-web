@@ -5,7 +5,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useExpenses } from "@/hooks/useExpenses";
 import { useGroup } from "@/hooks/useGroup";
 import { usePayments } from "@/hooks/usePayments";
-import { paymentService } from "@/services/paymentService";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, Receipt, Image as ImageIcon } from "lucide-react";
@@ -56,18 +55,6 @@ export default function GroupExpensesPage({
 
   const getMember = (id: string) => group?.members?.find((m: any) => m.id === id);
 
-  const pendingApprovals = payments?.filter(
-    (p) => p.status === "pending_approval" && p.toUserId === appUser?.id
-  ) || [];
-
-  const handleApprove = async (paymentId: string) => {
-    try {
-      await paymentService.approvePayment(paymentId);
-    } catch (err) {
-      console.error("Failed to approve payment:", err);
-    }
-  };
-
   if (error) {
     return (
       <div className="p-4 bg-red-50 text-red-600 rounded-2xl flex items-center gap-2 mt-4 border border-red-100">
@@ -114,30 +101,6 @@ export default function GroupExpensesPage({
 
   return (
     <div className="space-y-4 mt-4">
-      {pendingApprovals.length > 0 && (
-        <div className="space-y-2 mb-6">
-          <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2 px-2">Pending Approvals</h3>
-          {pendingApprovals.map(payment => (
-            <Card key={payment.id} className="border-amber-200 bg-amber-50 shadow-sm rounded-2xl overflow-hidden">
-              <CardContent className="p-4 flex flex-col sm:flex-row gap-3 sm:items-center justify-between">
-                <div>
-                  <h4 className="font-bold text-amber-900">
-                    {payment.fromUserName} marked a payment of {group.currency === 'INR' ? '₹' : group.currency}{payment.amount.toFixed(2)} as paid.
-                  </h4>
-                  <p className="text-sm text-amber-700/80 mt-1">Approve this to update group balances.</p>
-                </div>
-                <Button 
-                  onClick={() => handleApprove(payment.id)} 
-                  className="shrink-0 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl"
-                >
-                  Confirm Received
-                </Button>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
-
       <div className="space-y-3">
       {expenses.map((expense) => {
         const isPayer = expense.payerId === appUser?.id;

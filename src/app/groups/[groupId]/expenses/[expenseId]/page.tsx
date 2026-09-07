@@ -10,7 +10,6 @@ import { ChevronLeft, Receipt, Calendar, User, Zap } from "lucide-react";
 import Link from "next/link";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePayments } from "@/hooks/usePayments";
-import { paymentService } from "@/services/paymentService";
 
 const AMBER = "#F9B912";
 const AMBER_LIGHT = "#FFF8E1";
@@ -78,18 +77,9 @@ export default function ExpenseDetailsPage({
   }
 
   // Find if there's already a payment for this expense
-  const paymentRecord = payments?.find(p => p.expenseId === expenseId && ((p.fromUserId === appUser?.id) || (p.toUserId === appUser?.id && p.fromUserId === payer.id)));
-  // Actually, look for a payment where I am paying the payer for this expense
-  const myPaymentToPayer = payments?.find(p => p.expenseId === expenseId && p.fromUserId === appUser?.id && p.toUserId === payer.id);
-
-
-  const handleApprovePayment = async (paymentId: string) => {
-    try {
-      await paymentService.approvePayment(paymentId);
-    } catch (err) {
-      console.error("Failed to approve payment:", err);
-    }
-  };
+  const myPaymentToPayer = payments?.find(
+    (p) => p.expenseId === expenseId && p.fromUserId === appUser?.id && p.toUserId === payer.id
+  );
 
   const dateStr = expense.createdAt
     ? expense.createdAt.toDate().toLocaleDateString("en-US", {
@@ -100,113 +90,129 @@ export default function ExpenseDetailsPage({
     : "";
 
   return (
-    <div className="space-y-6 mt-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Link href={`/groups/${groupId}`}>
-            <div className="h-10 w-10 rounded-full flex items-center justify-center bg-white shadow-sm">
-              <ChevronLeft className="h-5 w-5 text-gray-700" />
-            </div>
-          </Link>
-          <h2 className="text-xl font-extrabold text-gray-900">Expense Details</h2>
-        </div>
+    <div className="space-y-4 mt-4">
+      {/* Top Navigation */}
+      <div className="flex items-center gap-3">
+        <Link
+          href={`/groups/${groupId}`}
+          className="h-10 w-10 rounded-full flex items-center justify-center transition-colors shadow-sm"
+          style={{ background: AMBER_LIGHT, color: AMBER }}
+        >
+          <ChevronLeft className="h-6 w-6" />
+        </Link>
+        <h1 className="text-xl font-bold tracking-tight text-gray-900">Expense Details</h1>
       </div>
 
-      {/* Main Info Card */}
-      <Card className="border-none shadow-sm rounded-3xl overflow-hidden bg-white">
-        {/* Hero: bill image if available, else amber icon */}
-        {(expense.billImageUrl || expense.imageUrl || expense.receiptUrl) ? (
-          <a href={(expense.billImageUrl || expense.imageUrl || expense.receiptUrl) as string} target="_blank" rel="noopener noreferrer" className="block relative">
+      {/* Bill Image / Receipt */}
+      {(expense.billImageUrl || expense.imageUrl || expense.receiptUrl) ? (
+        <Card className="border-none shadow-sm rounded-3xl overflow-hidden bg-gray-50">
+          <CardContent className="p-0">
             <img
               src={(expense.billImageUrl || expense.imageUrl || expense.receiptUrl) as string}
-              alt="Bill"
-              className="w-full object-cover"
-              style={{ maxHeight: "260px", minHeight: "160px" }}
+              alt="Receipt"
+              className="w-full h-48 object-cover cursor-pointer hover:opacity-95 transition-opacity"
+              onClick={() => window.open((expense.billImageUrl || expense.imageUrl || expense.receiptUrl) as string, "_blank")}
             />
-            {/* Tap hint */}
-            <div
-              className="absolute bottom-2 right-2 text-xs font-semibold px-2 py-1 rounded-full"
-              style={{ background: "rgba(0,0,0,0.45)", color: "white" }}
-            >
-              Tap to view full
+          </CardContent>
+        </Card>
+      ) : (
+        <Card className="border-none shadow-sm rounded-3xl overflow-hidden bg-gray-50/50">
+          <CardContent className="py-8 flex flex-col items-center justify-center text-center">
+            <div className="h-12 w-12 rounded-full flex items-center justify-center mb-2" style={{ background: AMBER_LIGHT }}>
+              <Receipt className="h-6 w-6" style={{ color: AMBER }} />
             </div>
-          </a>
-        ) : (
-          <div
-            className="h-24 w-full flex items-center justify-center"
-            style={{ background: AMBER_LIGHT }}
-          >
-            <Receipt className="h-10 w-10" style={{ color: AMBER }} />
-          </div>
-        )}
+            <p className="text-xs font-semibold text-gray-400">No bill photo attached</p>
+          </CardContent>
+        </Card>
+      )}
 
-        <CardContent className="pt-5 pb-6 text-center">
-          <h1 className="text-2xl font-extrabold text-gray-900 mb-1">{expense.description}</h1>
-          <p className="text-4xl font-extrabold mb-4" style={{ color: AMBER }}>
-            {expense.currency === "INR" ? "₹" : expense.currency} {expense.amount.toFixed(2)}
-          </p>
-          <div className="flex items-center justify-center gap-2 text-sm text-gray-500 font-medium">
-            <Calendar className="h-4 w-4" />
-            <span>Added on {dateStr}</span>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Payer and Split Details */}
-      <Card className="border-none shadow-sm rounded-3xl overflow-hidden bg-white">
+      {/* Expense Info Card */}
+      <Card className="border-none shadow-sm rounded-3xl overflow-hidden">
         <CardContent className="p-6 space-y-6">
           <div>
-            <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3">Paid By</h3>
-            <div className="flex items-center gap-3">
-              <div
-                className="h-10 w-10 rounded-full flex items-center justify-center font-bold text-white shadow-sm"
-                style={{ background: "#4CAF50" }}
-              >
-                {payerName.charAt(0).toUpperCase()}
-              </div>
-              <div>
-                <p className="font-bold text-gray-900">{payerName}</p>
-                <p className="text-xs text-gray-500 font-medium">Paid the full amount</p>
-              </div>
+            <h2 className="text-2xl font-extrabold text-gray-900 capitalize tracking-tight">
+              {expense.description}
+            </h2>
+            <p className="text-3xl font-black mt-2 tracking-tight" style={{ color: AMBER }}>
+              {expense.currency === "INR" ? "₹" : expense.currency}{expense.amount.toFixed(2)}
+            </p>
+          </div>
+
+          <div className="space-y-3 pt-4 border-t border-gray-100 text-sm font-medium text-gray-600">
+            <div className="flex items-center gap-2.5">
+              <User className="h-4 w-4 text-gray-400" />
+              <span>
+                <strong className="text-gray-900">{payerName}</strong> paid
+              </span>
+            </div>
+            <div className="flex items-center gap-2.5">
+              <Calendar className="h-4 w-4 text-gray-400" />
+              <span>{dateStr}</span>
+            </div>
+            <div className="flex items-center gap-2.5">
+              <Receipt className="h-4 w-4 text-gray-400" />
+              <span>Split equally between {expense.splitBetweenIds.length} people</span>
             </div>
           </div>
 
-          <div className="border-t border-gray-100 pt-6">
-            <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-3">Split Between</h3>
+          {/* Split Breakdown */}
+          <div className="pt-4 border-t border-gray-100">
+            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">
+              Split Breakdown
+            </h3>
             <div className="space-y-3">
               {expense.splitBetweenIds.map((userId) => {
-                const member = group?.members?.find((m: any) => m.id === userId) || {
-                  id: "",
-                  displayName: "Unknown User",
-                };
-                const memberName = member.displayName || "Unknown User";
+                const member = group?.members.find((m: any) => m.id === userId);
+                const memberName: string = member?.displayName || member?.name || "Unknown Member";
 
                 let shareAmount = 0;
-                if (expense.customSplitAmounts && expense.customSplitAmounts[userId]) {
+                if (expense.customSplitAmounts && expense.customSplitAmounts[userId] !== undefined) {
                   shareAmount = expense.customSplitAmounts[userId];
                 } else {
                   shareAmount = expense.amount / expense.splitBetweenIds.length;
                 }
 
                 const isMe = userId === appUser?.id;
+                const isPayerMember = userId === expense.payerId;
+                const memberPayment = payments?.find(
+                  (p) => p.expenseId === expenseId && p.fromUserId === userId && p.toUserId === payer.id
+                );
+                const isSettled = isPayerMember || memberPayment?.status === "approved";
+                const isVerifying = memberPayment?.status === "pending_approval";
 
                 return (
-                  <div key={userId} className="flex items-center justify-between">
+                  <div key={userId} className="flex items-center justify-between p-2.5 rounded-2xl bg-gray-50/70">
                     <div className="flex items-center gap-3">
                       <div
-                        className="h-8 w-8 rounded-full flex items-center justify-center font-bold shadow-sm text-sm"
-                        style={isMe ? { background: AMBER, color: "#1a1a1a" } : { background: "#F5F5F5", color: "#666" }}
+                        className="h-9 w-9 rounded-full flex items-center justify-center font-bold shadow-sm text-sm"
+                        style={isMe ? { background: AMBER, color: "#1a1a1a" } : { background: "#FFFFFF", color: "#666" }}
                       >
                         {memberName.charAt(0).toUpperCase()}
                       </div>
-                      <p className="font-semibold text-sm text-gray-900">
-                        {memberName} {isMe && "(You)"}
+                      <div>
+                        <p className="font-semibold text-sm text-gray-900">
+                          {memberName} {isMe && "(You)"}
+                        </p>
+                        {isPayerMember ? (
+                          <span className="text-[11px] font-bold text-emerald-600">Paid original bill</span>
+                        ) : isSettled ? (
+                          <span className="text-[11px] font-bold text-emerald-600 flex items-center gap-1">
+                            ✓ Settled via UPI
+                          </span>
+                        ) : isVerifying ? (
+                          <span className="text-[11px] font-bold text-blue-600 flex items-center gap-1">
+                            ⚡ Verifying with Bank...
+                          </span>
+                        ) : (
+                          <span className="text-[11px] font-medium text-gray-400">Not settled yet</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-bold text-sm text-gray-900">
+                        {expense.currency === "INR" ? "₹" : expense.currency}{shareAmount.toFixed(2)}
                       </p>
                     </div>
-                    <p className="font-bold text-sm text-gray-900">
-                      ₹{shareAmount.toFixed(2)}
-                    </p>
                   </div>
                 );
               })}
@@ -217,10 +223,10 @@ export default function ExpenseDetailsPage({
 
       {/* Payment Action Bar */}
       {amIInvolved && !amIPayer && myShare > 0 && !myPaymentToPayer && (
-        <Card className="border-none shadow-sm rounded-3xl overflow-hidden bg-blue-50/50">
+        <Card className="border-none shadow-sm rounded-3xl overflow-hidden bg-blue-50/50 border border-blue-100">
           <CardContent className="p-6 text-center">
             <h3 className="font-bold text-gray-900 mb-1">You owe {payerName}</h3>
-            <p className="text-2xl font-extrabold text-blue-600 mb-4">₹{myShare.toFixed(2)}</p>
+            <p className="text-2xl font-extrabold text-blue-600 mb-4">{expense.currency === "INR" ? "₹" : expense.currency}{myShare.toFixed(2)}</p>
             <Button asChild className="w-full rounded-full h-12 text-base font-bold bg-blue-600 hover:bg-blue-700 shadow-md">
               <Link href={`/groups/${group?.id || groupId}/settle`}>
                 <Zap className="h-4 w-4 mr-2 fill-amber-400 text-amber-400" />
@@ -231,37 +237,66 @@ export default function ExpenseDetailsPage({
         </Card>
       )}
 
-      {/* Payment Status Bar */}
+      {/* Payment Status Bar for Debtor */}
       {myPaymentToPayer && (
-        <Card className={`border-none shadow-sm rounded-3xl overflow-hidden ${myPaymentToPayer.status === 'approved' ? 'bg-green-50' : 'bg-amber-50'}`}>
+        <Card
+          className={`border-none shadow-sm rounded-3xl overflow-hidden ${
+            myPaymentToPayer.status === "approved"
+              ? "bg-emerald-50 border border-emerald-200"
+              : "bg-blue-50 border border-blue-200"
+          }`}
+        >
           <CardContent className="p-6 text-center">
-            {myPaymentToPayer.status === 'approved' ? (
+            {myPaymentToPayer.status === "approved" ? (
               <>
-                <h3 className="font-bold text-green-900">Payment Complete</h3>
-                <p className="text-sm text-green-700 mt-1">You have settled your share of ₹{myPaymentToPayer.amount.toFixed(2)} for this expense.</p>
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold mb-2">
+                  <span>✓ Verified via UPI</span>
+                </div>
+                <h3 className="font-extrabold text-emerald-950 text-lg">Settlement Complete</h3>
+                <p className="text-sm text-emerald-800 mt-1">
+                  You settled your share of {expense.currency === "INR" ? "₹" : expense.currency}{myPaymentToPayer.amount.toFixed(2)} with {payerName}.
+                </p>
+                {myPaymentToPayer.utr && (
+                  <p className="text-xs text-emerald-700 font-mono mt-2 bg-emerald-100/70 inline-block px-3 py-1 rounded-lg">
+                    Bank UTR: {myPaymentToPayer.utr}
+                  </p>
+                )}
               </>
             ) : (
               <>
-                <h3 className="font-bold text-amber-900">Payment Pending Approval</h3>
-                <p className="text-sm text-amber-700 mt-1">Waiting for {payerName} to confirm they received ₹{myPaymentToPayer.amount.toFixed(2)}.</p>
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-100 text-blue-800 text-xs font-bold mb-2">
+                  <span className="w-2 h-2 rounded-full bg-blue-600 animate-ping" />
+                  <span>Verifying with Bank...</span>
+                </div>
+                <h3 className="font-extrabold text-blue-950 text-lg">UPI Payment in Progress</h3>
+                <p className="text-sm text-blue-800 mt-1">
+                  Waiting for instant bank confirmation via Setu UPI. Balances update automatically upon verification.
+                </p>
               </>
             )}
           </CardContent>
         </Card>
       )}
 
-      {/* Receiver Approval Bar */}
-      {amIPayer && payments && payments.filter(p => p.expenseId === expenseId && p.status === 'pending_approval' && p.toUserId === appUser?.id).map(p => (
-        <Card key={p.id} className="border-none shadow-sm rounded-3xl overflow-hidden bg-amber-100/50 mt-4">
-          <CardContent className="p-6 text-center">
-            <h3 className="font-bold text-amber-900">{p.fromUserName} marked their share as paid</h3>
-            <p className="text-2xl font-extrabold text-amber-700 my-2">₹{p.amount.toFixed(2)}</p>
-            <Button onClick={() => handleApprovePayment(p.id)} className="w-full rounded-full h-12 text-base font-bold bg-amber-600 hover:bg-amber-700 text-white">
-              Confirm Received
-            </Button>
-          </CardContent>
-        </Card>
-      ))}
+      {/* Verified Settlements List for Payer / Creditor */}
+      {amIPayer &&
+        payments &&
+        payments
+          .filter((p) => p.expenseId === expenseId && p.status === "approved" && p.toUserId === appUser?.id)
+          .map((p) => (
+            <Card key={p.id} className="border-emerald-200 bg-emerald-50/70 border shadow-sm rounded-3xl overflow-hidden mt-3">
+              <CardContent className="p-5 flex items-center justify-between">
+                <div>
+                  <div className="inline-flex items-center gap-1 text-xs font-bold text-emerald-800 mb-1">
+                    <span>✓ Automated UPI Settlement</span>
+                  </div>
+                  <h4 className="font-bold text-emerald-950">{p.fromUserName} settled their share</h4>
+                  <p className="text-xs text-emerald-700 font-mono mt-0.5">UTR: {p.utr || "BANK_VERIFIED"}</p>
+                </div>
+                <span className="text-xl font-black text-emerald-700">{expense.currency === "INR" ? "₹" : expense.currency}{p.amount.toFixed(2)}</span>
+              </CardContent>
+            </Card>
+          ))}
     </div>
   );
 }
