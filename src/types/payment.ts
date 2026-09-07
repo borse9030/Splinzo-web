@@ -9,6 +9,11 @@ export interface Payment {
   toUserId: string;
   toUserName: string;
   amount: number;
+  platformFee?: number;
+  totalAmount?: number;
+  setuLinkId?: string;
+  utr?: string;
+  verifiedVia?: "setu" | "manual";
   status: "pending_approval" | "approved";
   createdAt: Timestamp;
   approvedAt?: Timestamp;
