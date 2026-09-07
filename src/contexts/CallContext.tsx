@@ -207,10 +207,16 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     });
   }, [activeCall?.participants.join(","), isJoined]);
 
-  // ── Get microphone stream ─────────────────────────────────────────────
   const getMediaStream = useCallback(async (): Promise<MediaStream> => {
     if (localStream) return localStream;
-    const stream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: false,
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      },
+    });
     setLocalStream(stream);
     return stream;
   }, [localStream]);
