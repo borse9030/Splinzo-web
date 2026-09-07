@@ -57,7 +57,7 @@ export const setuClient = {
 
       return {
         linkId: simulatedLinkId,
-        shortUrl: `https://splinzo.in/pay/${simulatedLinkId}`,
+        shortUrl: `https://www.splinzo.in/pay/${simulatedLinkId}`,
         upiUrl: fallbackUpi,
         qrData: fallbackUpi,
         isSimulated: true,
@@ -108,7 +108,7 @@ export const setuClient = {
 
       return {
         linkId: simulatedLinkId,
-        shortUrl: `https://splinzo.in/pay/${simulatedLinkId}`,
+        shortUrl: `https://www.splinzo.in/pay/${simulatedLinkId}`,
         upiUrl: fallbackUpi,
         qrData: fallbackUpi,
         isSimulated: true,
