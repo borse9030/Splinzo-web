@@ -12,82 +12,86 @@ export default function PrivacyPolicy() {
     {
       title: "1. Information We Collect",
       content: [
-        "**Account Information:** When you create a Splinzo account, we collect your name, email address, and profile picture (optional).",
-        "**Usage Data:** We collect information about how you use the app — expenses created, groups joined, features used — to improve our service.",
-        "**Device Information:** We may collect device type, operating system version, and app version to provide technical support.",
-        "**Communications:** When you contact us for support, we retain those messages to assist you and improve our service.",
+        "**Account Information:** When you create a Splinzo account, we collect your name, email address, profile picture (optional), and mobile number.",
+        "**Expense & Group Data:** Information you provide about groups, expenses, splits, category tags, and optional receipt images.",
+        "**Payment & Settlement Information:** When you use our automated UPI settlement feature, we collect your UPI ID (Virtual Payment Address / VPA) to enable direct peer-to-peer transfers. When a payment is executed, we also receive and store transaction verification metadata from our payment gateway, including the payment status, Setu Payment ID, transaction timestamp, and official Bank UTR (Unique Transaction Reference number).",
+        "**Zero Storage of Sensitive Financial Credentials:** Splinzo NEVER collects, handles, or stores your UPI PIN, ATM PIN, bank account login credentials, OTPs, debit/credit card numbers, or CVVs. All payment authorizations and PIN entries occur exclusively within your own device's official UPI apps (such as Google Pay, PhonePe, Paytm, or BHIM).",
+        "**Usage & Technical Data:** We collect information about how you interact with the app, device type, operating system version, and anonymous performance logs to maintain service reliability.",
+        "**Customer Support:** When you reach out to our support team, we retain your messages and contact details to assist in resolving your query.",
       ],
     },
     {
       title: "2. How We Use Your Information",
       content: [
-        "To provide, operate, and maintain the Splinzo service.",
-        "To sync your expense data across devices in real-time.",
-        "To send you important notifications (expense reminders, group invitations).",
-        "To respond to your customer support inquiries.",
-        "To analyse usage patterns and improve app functionality.",
-        "We never sell your personal data to third parties.",
+        "To provide, operate, and maintain the Splinzo expense-splitting platform.",
+        "To generate automated dynamic UPI deeplinks and QR codes for seamless peer-to-peer debt settlements.",
+        "To verify settlement finality using secure bank webhooks and automatically update group balances without manual interventions.",
+        "To account for the transparent platform verification fee (₹1.00 per settlement) applied during checkout sessions.",
+        "To sync your expense and settlement ledger in real-time across all your devices.",
+        "To send essential notifications, including expense additions, settlement confirmations, and group invitations.",
+        "To detect, prevent, and mitigate fraudulent activities or violations of our Terms of Service.",
+        "We never sell, rent, or monetize your personal or financial data to third parties.",
       ],
     },
     {
       title: "3. Data Storage & Security",
       content: [
-        "Your data is stored securely using Google Firebase, which is compliant with industry-standard security practices.",
-        "All data transmissions are encrypted using HTTPS/TLS.",
-        "We implement access controls to ensure only authorised personnel can access your data.",
-        "We do not store payment credentials or banking information.",
+        "**Cloud Infrastructure:** Your account and expense data is stored securely using Google Firebase, adhering to industry-leading SOC 1/2/3 and ISO 27001 security standards.",
+        "**End-to-End Encryption:** All data transmissions between your device, our servers, and payment infrastructure are encrypted using HTTPS and modern TLS protocols.",
+        "**Cryptographic Verification:** All incoming payment status notifications (webhooks) are cryptographically validated to ensure authenticity before any balance is settled.",
+        "**Strict Access Controls:** Internal access to user data is strictly restricted to authorized personnel on a least-privilege basis.",
+        "**No Banking Credentials Stored:** As stated, we never hold bank login details or UPI PINs.",
       ],
     },
     {
-      title: "4. Data Sharing",
+      title: "4. Data Sharing & Third-Party Service Providers",
       content: [
-        "**Group Members:** Expense data you add to a group is visible to all members of that group.",
-        "**Service Providers:** We use Firebase (Google) for authentication and database services. They are bound by their own privacy policies.",
-        "**Legal Requirements:** We may disclose information if required by law, court order, or to protect the rights of Splinzo and its users.",
-        "**Advertising:** We use Google AdSense to serve ads. Third-party vendors may use cookies to serve personalized ads based on your visit to our site.",
+        "**Group Members:** Expense logs, split calculations, and settlement status (including your registered UPI ID and payment confirmation status) are visible to members of the specific group you belong to.",
+        "**Payment Infrastructure Partners:** We integrate with Setu (Pine Labs entity), an authorized payment infrastructure provider, to generate UPI deeplinks and receive automated payment confirmations. Only transaction-essential metadata (payee UPI ID, amount, and reference identifier) is exchanged with Setu in strict accordance with RBI and NPCI standards.",
+        "**Cloud & Database Providers:** We use Google Firebase for authentication, database storage, and cloud infrastructure.",
+        "**Legal Compliance:** We may disclose information if required by applicable Indian laws, judicial proceedings, or lawful requests from regulatory authorities.",
+        "**Advertising:** We may use Google AdSense on informational web pages. Third-party advertising vendors use cookies to serve ads based on prior web visits. Financial and settlement data is never shared with advertisers.",
       ],
     },
     {
-      title: "5. Your Rights",
+      title: "5. Your Rights & Data Control",
       content: [
-        "**Access:** You can view all your data within the Splinzo app at any time.",
-        "**Correction:** You can update your profile information in account settings.",
-        "**Deletion:** You can request deletion of your account and all associated data by contacting us at privacy@splinzo.app.",
-        "**Portability:** You can export your expense data via the app's export feature.",
+        "**Access & Transparency:** You can review all your logged expenses, settlements, and linked UPI IDs within the app at any time.",
+        "**Correction & Updating:** You can update your profile name, email, and registered UPI ID directly through account settings.",
+        "**Account Deletion:** You have the right to delete your Splinzo account at any time via Profile Settings or by emailing privacy@splinzo.app. Upon account deletion, personal identifiers are permanently deleted within 30 days.",
+        "**Data Portability:** You can export your expense summaries and group settlement histories.",
       ],
     },
     {
-      title: "6. Cookies & Tracking",
+      title: "6. Cookies & Tracking Technologies",
       content: [
-        "The Splinzo web app uses cookies to maintain your login session and store user preferences.",
-        "**Third-party vendors, including Google**, use cookies to serve ads based on your prior visits to our website or other websites.",
-        "Google's use of advertising cookies enables it and its partners to serve ads to you based on your visit to Splinzo and/or other sites on the Internet.",
-        "You may opt out of personalized advertising by visiting **Ads Settings** (https://www.google.com/settings/ads).",
-        "You can also disable cookies in your browser, but this may affect app functionality.",
+        "The Splinzo web platform utilizes cookies and local storage to maintain your authentication session, preferences, and security state.",
+        "Third-party partners, including Google, may use cookies to serve relevant contextual ads on public web pages.",
+        "You can manage cookie preferences through your browser settings, though disabling essential cookies may impact web app authentication.",
       ],
     },
     {
       title: "7. Children's Privacy",
       content: [
-        "Splinzo is not directed at children under the age of 13.",
-        "We do not knowingly collect personal information from children under 13.",
-        "If we become aware that a child under 13 has provided us with personal information, we will promptly delete it.",
+        "Splinzo is not designed for or directed at children under the age of 18 (or 13 where permitted by local law with parental consent).",
+        "We do not knowingly collect personal or financial information from minors.",
+        "If you believe a minor has provided us with personal information without parental consent, please contact us immediately for deletion.",
       ],
     },
     {
-      title: "8. Changes to This Policy",
+      title: "8. Changes to This Privacy Policy",
       content: [
-        "We may update this Privacy Policy periodically. When we do, we will notify you via the app or email.",
-        "Your continued use of Splinzo after the changes take effect constitutes acceptance of the updated policy.",
-        "The 'Last Updated' date at the top of this policy indicates when it was last revised.",
+        "We may revise this Privacy Policy periodically to reflect changes in our automated payment features, legal frameworks, or service enhancements.",
+        "Whenever material changes occur, we will update the 'Last Updated' date and notify users through app or website banners.",
+        "Your continued use of Splinzo following any updates constitutes agreement to the modified policy.",
       ],
     },
     {
-      title: "9. Contact Us",
+      title: "9. Contact & Grievance Redressal",
       content: [
-        "If you have any questions about this Privacy Policy or how we handle your data, please contact us:",
-        "Email: privacy@splinzo.app",
-        "You can also use our Contact page to send us a message directly.",
+        "For any questions, concerns, or grievances regarding this Privacy Policy or your data privacy, please contact our team:",
+        "**Email:** privacy@splinzo.app",
+        "**Official Website:** https://www.splinzo.in/contact",
       ],
     },
   ];
@@ -113,7 +117,7 @@ export default function PrivacyPolicy() {
         <div className="max-w-2xl mx-auto">
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-semibold mb-5"
                style={{ background: "#FFF3CD", color: "#B8860B" }}>
-            Last Updated: August 2025
+            Last Updated: September 2025
           </div>
           <h1 className="text-4xl md:text-5xl font-black text-gray-900 mb-4">Privacy Policy</h1>
           <p className="text-gray-500 text-lg">

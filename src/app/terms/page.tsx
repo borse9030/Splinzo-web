@@ -20,9 +20,9 @@ export default function Terms() {
     {
       title: "2. Description of Service",
       content: [
-        "Splinzo is an expense-splitting and group finance management platform.",
-        "The service allows users to create groups, log shared expenses, calculate individual shares, and track settlements.",
-        "Splinzo is available via web browser and Android mobile application.",
+        "Splinzo is an automated expense-splitting and group finance management platform available on the web and Android.",
+        "The service allows users to create groups, log shared expenses, calculate individual debt obligations, and execute automated peer-to-peer UPI settlements.",
+        "Splinzo provides automated payment link generation and bank confirmation tracking in partnership with regulated fintech and payment gateway infrastructure (including Setu / NPCI UPI Deeplinks).",
         "We reserve the right to modify, suspend, or discontinue any part of the service at any time.",
       ],
     },
@@ -31,7 +31,7 @@ export default function Terms() {
       content: [
         "You must create an account to use most features of Splinzo.",
         "You are responsible for maintaining the confidentiality of your account credentials.",
-        "You must provide accurate and complete information when creating your account.",
+        "You must provide accurate and complete information, including a valid name and UPI ID, when creating your account.",
         "You may not create accounts for the purpose of abuse, harassment, or fraudulent activity.",
         "You are solely responsible for all activity that occurs under your account.",
       ],
@@ -40,72 +40,85 @@ export default function Terms() {
       title: "4. Acceptable Use",
       content: [
         "You agree to use Splinzo only for lawful purposes and in accordance with these terms.",
-        "You may not use Splinzo to harass, intimidate, or harm other users.",
-        "You may not attempt to gain unauthorized access to other users' accounts or data.",
-        "You may not use Splinzo to engage in any fraudulent financial activity.",
-        "You may not reverse engineer, decompile, or attempt to extract the source code of our apps.",
-        "Violation of these terms may result in immediate account termination.",
+        "You may not use Splinzo to engage in money laundering, fraudulent financial activities, or unauthorized commercial transactions.",
+        "You may not attempt to manipulate, bypass, or reverse engineer our automated settlement or verification systems.",
+        "You may not attempt to gain unauthorized access to other users' accounts, data, or payment links.",
+        "Violation of these terms may result in immediate account suspension and termination.",
       ],
     },
     {
       title: "5. Content & Data",
       content: [
-        "You retain ownership of all expense data and content you add to Splinzo.",
-        "By using Splinzo, you grant us a limited license to store, process, and display your content to provide the service.",
-        "You are responsible for the accuracy of expenses and financial data you enter.",
-        "We are not responsible for any disputes arising from incorrect or disputed expense entries.",
+        "You retain ownership of all expense data and receipt images you add to Splinzo.",
+        "By using Splinzo, you grant us a limited license to store, process, and display your expense content and transaction metadata to provide the service.",
+        "You are responsible for the accuracy of all expense entries, amounts, and split configurations.",
+        "Splinzo is not liable for disputes arising from erroneous expense entries or member miscommunications.",
       ],
     },
     {
-      title: "6. Group Responsibility",
+      title: "6. Automated UPI Settlements & Payments",
       content: [
-        "When you create a group, you become the group administrator.",
-        "As a group admin, you are responsible for managing member access and group content.",
-        "All group members can view all expenses added to the group.",
-        "Splinzo does not mediate financial disputes between group members.",
-        "Splinzo is a tracking tool — we do not facilitate actual money transfers.",
+        "Direct Bank-to-Bank Transfers: All settlements facilitated by Splinzo occur directly between the paying user's bank account and the receiving user's bank account via the NPCI Unified Payments Interface (UPI).",
+        "No Custody or Escrow: Splinzo is not a bank, non-banking financial company (NBFC), digital wallet, or escrow agent. Splinzo does not hold, store, or escrow user funds at any point.",
+        "Regulated Gateway Integration: UPI payment links and dynamic QR codes are generated through authorized payment infrastructure providers (Setu / Pine Labs). Transactions are authenticated natively inside your chosen UPI application (such as Google Pay, PhonePe, Paytm, or BHIM).",
+        "Platform Verification Fee: To maintain our automated instant bank confirmation, webhook infrastructure, and real-time ledger synchronization, Splinzo charges a transparent platform fee of ₹1.00 (or as displayed in the payment breakdown card) per settlement session. This fee is added to the base payable amount upon checkout.",
+        "User Accuracy Responsibility: Users are strictly responsible for providing an accurate and active UPI Virtual Payment Address (VPA / UPI ID) in their profile to receive funds. Splinzo bears no responsibility or liability for payments routed to an incorrect UPI ID provided by a group member.",
+        "Automated Settlement Finality: A settlement is marked as 'Approved' and synchronized across group balances only upon receipt of official bank confirmation (Bank Unique Transaction Reference - UTR). Manual payment overrides are disabled to ensure ledger integrity.",
       ],
     },
     {
-      title: "7. Intellectual Property",
+      title: "7. Refunds, Cancellations & Failed Transactions",
       content: [
-        "The Splinzo name, logo, and all related marks are trademarks of Splinzo.",
-        "The app's design, code, and features are the intellectual property of Splinzo's creators.",
-        "You may not copy, reproduce, or distribute any part of the Splinzo service without written permission.",
+        "Failed UPI Transactions: If money is debited from your bank account but the settlement fails to confirm or complete, the funds will be automatically reversed to your source bank account by your issuing bank in accordance with standard NPCI guidelines (typically within T+1 to T+3 business days).",
+        "Platform Fee Policy: The ₹1.00 platform verification fee covers the generation, security, and verification infrastructure of the payment session. Once the secure payment session is initiated and executed, the platform fee is non-refundable.",
+        "Peer-to-Peer Disputes: Because settlements are direct transfers between individual users' bank accounts, Splinzo cannot reverse, recall, or refund completed peer-to-peer transfers. Any disputes regarding split shares or reimbursement amounts must be settled directly between the involved group members.",
       ],
     },
     {
-      title: "8. Disclaimers & Limitation of Liability",
+      title: "8. Group Administration",
       content: [
-        "Splinzo is provided 'as is' without warranties of any kind, express or implied.",
-        "We do not guarantee that the service will be uninterrupted, error-free, or completely secure.",
-        "Splinzo is not responsible for any financial losses arising from the use of our service.",
-        "Our liability to you for any claim is limited to the amount you paid us in the past 12 months (which, for free users, is $0).",
+        "Group administrators are responsible for managing member invitations and group participation.",
+        "All members within a group have visibility into all shared expenses and settlement records logged in that group.",
+        "Splinzo does not act as an arbitrator for personal financial disagreements between group members.",
       ],
     },
     {
-      title: "9. Account Termination",
+      title: "9. Intellectual Property",
       content: [
-        "You may delete your account at any time via the account settings in the app.",
-        "We reserve the right to suspend or terminate accounts that violate these terms.",
-        "Upon account deletion, your data will be permanently deleted within 30 days.",
-        "Data shared with group members (expenses you added) may remain visible to those members.",
+        "The Splinzo brand, logo, application interfaces, and proprietary software are the exclusive intellectual property of Splinzo.",
+        "You may not copy, reproduce, distribute, or create derivative works from any part of our service without prior written authorization.",
       ],
     },
     {
-      title: "10. Changes to Terms",
+      title: "10. Disclaimers & Limitation of Liability",
       content: [
-        "We may update these Terms of Service periodically.",
-        "We will notify you of significant changes via email or in-app notification.",
-        "Continued use of Splinzo after changes are posted constitutes acceptance of the new terms.",
+        "Splinzo is provided on an 'as is' and 'as available' basis without warranties of any kind.",
+        "We do not guarantee uninterrupted banking gateway availability or error-free network communications across third-party UPI applications and banking servers.",
+        "Splinzo is not liable for indirect, incidental, or consequential damages resulting from banking delays, NPCI network outages, or user negligence.",
+        "To the fullest extent permitted by applicable law, our aggregate liability for any claim shall not exceed the platform fees paid by you to Splinzo in the preceding twelve (12) months.",
       ],
     },
     {
-      title: "11. Governing Law",
+      title: "11. Account Termination",
       content: [
-        "These terms are governed by the laws of India.",
-        "Any disputes arising from these terms shall be resolved in the courts of India.",
-        "If any provision of these terms is found to be unenforceable, the remaining provisions remain in effect.",
+        "You may delete your account at any time through the profile settings in the web or mobile app.",
+        "We reserve the right to suspend or terminate accounts that engage in fraudulent activity, violate acceptable use rules, or compromise system security.",
+        "Upon account deletion, your personal information is purged within 30 days, while non-identifiable shared group transaction logs remain intact to preserve group ledger consistency.",
+      ],
+    },
+    {
+      title: "12. Changes to Terms",
+      content: [
+        "We may update these Terms of Service periodically to reflect product evolutions or regulatory requirements.",
+        "Notice of material revisions will be provided through in-app notifications or website notices.",
+        "Your continued use of Splinzo following posted updates constitutes acceptance of the modified terms.",
+      ],
+    },
+    {
+      title: "13. Governing Law & Jurisdiction",
+      content: [
+        "These terms shall be governed by and construed in accordance with the laws of India.",
+        "Any legal disputes arising under these terms shall be subject to the exclusive jurisdiction of the competent courts in India.",
       ],
     },
   ];
@@ -131,7 +144,7 @@ export default function Terms() {
         <div className="max-w-2xl mx-auto">
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-semibold mb-5"
                style={{ background: "#FFF3CD", color: "#B8860B" }}>
-            Effective: August 2025
+            Last Updated: September 2025
           </div>
           <h1 className="text-4xl md:text-5xl font-black text-gray-900 mb-4">Terms of Service</h1>
           <p className="text-gray-500 text-lg">
