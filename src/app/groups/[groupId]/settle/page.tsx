@@ -25,8 +25,6 @@ import {
   Sparkles
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { collection, doc, setDoc, serverTimestamp } from "firebase/firestore";
-import { db } from "@/lib/firebase/config";
 import {
   Dialog,
   DialogContent,
@@ -60,7 +58,6 @@ export default function SettleUpPage({
   const { expenses, loading: expensesLoading } = useExpenses(resolvedParams.groupId);
   const { payments, loading: paymentsLoading } = usePayments(resolvedParams.groupId);
 
-  const [settling, setSettling] = useState<string | null>(null);
   const [selectedSettlement, setSelectedSettlement] = useState<any>(null);
   const [receiverDetails, setReceiverDetails] = useState<any>(null);
   const [dialogLoading, setDialogLoading] = useState(false);
@@ -72,7 +69,6 @@ export default function SettleUpPage({
   const [showQr, setShowQr] = useState(false);
   const [copiedUpi, setCopiedUpi] = useState(false);
   const [simulating, setSimulating] = useState(false);
-  const [showManualOption, setShowManualOption] = useState(false);
 
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -128,7 +124,6 @@ export default function SettleUpPage({
     setPaymentStatus("idle");
     setVerifiedUtr(null);
     setShowQr(false);
-    setShowManualOption(false);
     setDialogLoading(true);
 
     try {
@@ -184,30 +179,6 @@ export default function SettleUpPage({
       console.error("Simulation failed:", e);
     } finally {
       setSimulating(false);
-    }
-  };
-
-  const handleManualSettle = async () => {
-    if (!selectedSettlement) return;
-    setSettling(selectedSettlement.toUserId);
-    try {
-      const paymentRef = doc(collection(db, "payments"));
-      await setDoc(paymentRef, {
-        groupId: group.id,
-        fromUserId: selectedSettlement.fromUserId,
-        fromUserName: selectedSettlement.fromUserName,
-        toUserId: selectedSettlement.toUserId,
-        toUserName: selectedSettlement.toUserName,
-        amount: selectedSettlement.amount,
-        status: "pending_approval",
-        verifiedVia: "manual",
-        createdAt: serverTimestamp(),
-      });
-      setSelectedSettlement(null);
-    } catch (err) {
-      console.error("Failed to record manual settlement:", err);
-    } finally {
-      setSettling(null);
     }
   };
 
@@ -501,40 +472,18 @@ export default function SettleUpPage({
                 </div>
               )}
 
-              {/* Fallback to Manual Settle */}
-              <div className="pt-1 text-center">
-                {!showManualOption ? (
-                  <button 
-                    onClick={() => setShowManualOption(true)}
-                    className="text-[11px] text-gray-400 hover:text-gray-600 font-medium underline"
-                  >
-                    Paid via cash or offline?
-                  </button>
-                ) : (
-                  <div className="p-3 bg-gray-50 rounded-xl border text-xs space-y-2">
-                    <p className="text-gray-500">Paid offline without bank verification? You can submit for manual approval:</p>
-                    <Button 
-                      variant="ghost"
-                      size="sm"
-                      onClick={handleManualSettle}
-                      disabled={settling === selectedSettlement?.toUserId}
-                      className="w-full text-xs font-semibold"
-                    >
-                      {settling === selectedSettlement?.toUserId ? "Recording..." : "Record Offline Payment"}
-                    </Button>
-                  </div>
-                )}
-              </div>
-
             </div>
           ) : (
             <div className="py-8 text-center space-y-3">
               <ShieldCheck className="h-10 w-10 text-amber-500 mx-auto" />
               <p className="text-sm text-gray-600">
-                Could not connect to UPI settlement service. Please try again or settle offline.
+                Could not connect to UPI settlement service. Please try again.
               </p>
-              <Button onClick={handleManualSettle} className="w-full rounded-xl">
-                Settle Offline
+              <Button 
+                onClick={() => selectedSettlement && handleOpenDialog(selectedSettlement)} 
+                className="w-full rounded-xl"
+              >
+                Retry Connection
               </Button>
             </div>
           )}
