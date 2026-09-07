@@ -15,6 +15,7 @@ import {
   arrayRemove,
   runTransaction,
   getDoc,
+  Timestamp,
 } from "firebase/firestore";
 import { CallSession, SignalingData, IceCandidateData } from "@/types/call";
 
@@ -88,13 +89,15 @@ export class CallService {
 
     const callRef = doc(callsRef);
     await setDoc(callRef, {
+      groupId,
       status: "ringing",
       callerId,
+      callerName,
       groupName,
       participants: [callerId],
       participantNames: { [callerId]: callerName },
       participantPhotos: { [callerId]: callerPhoto },
-      createdAt: Date.now(),
+      createdAt: Timestamp.now(),
       lastSeen: { [callerId]: serverTimestamp() },
     });
 

@@ -2,12 +2,13 @@ export interface CallSession {
   id: string;
   groupId: string;
   callerId: string;
+  callerName?: string;
   groupName: string;
   participants: string[];
   participantNames: Record<string, string>;
   participantPhotos: Record<string, string>;
   status: 'ringing' | 'active' | 'ended' | 'missed' | 'cancelled';
-  createdAt: number;
+  createdAt: any;
   lastSeen?: Record<string, any>;
 }
 
