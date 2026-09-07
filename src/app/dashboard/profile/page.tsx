@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { LogOut, Save, AlertCircle, CheckCircle2, QrCode, Upload, Camera, Trash2, Loader2 } from "lucide-react";
+import { LogOut, Save, AlertCircle, CheckCircle2, CreditCard, Upload, Camera, Trash2, Loader2 } from "lucide-react";
 import { storageService } from "@/services/storageService";
 
 export default function ProfilePage() {
@@ -22,8 +22,6 @@ export default function ProfilePage() {
   const [photoUrl, setPhotoUrl] = useState(appUser?.photoUrl || appUser?.photoURL || "");
   const [photoUploading, setPhotoUploading] = useState(false);
   const [upiId, setUpiId] = useState((appUser as any)?.upiId || "");
-  const [paymentQrUrl, setPaymentQrUrl] = useState((appUser as any)?.paymentQrUrl || "");
-  const [qrUploading, setQrUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{type: "error" | "success", text: string} | null>(null);
 
@@ -129,7 +127,6 @@ export default function ProfilePage() {
         photoUrl: photoUrl || "",
         photoURL: photoUrl || "",
         upiId: upiId.trim(),
-        paymentQrUrl: paymentQrUrl,
       });
 
       setMessage({ type: "success", text: "Profile updated successfully!" });
@@ -137,29 +134,6 @@ export default function ProfilePage() {
       setMessage({ type: "error", text: err.message || "Failed to update profile." });
     } finally {
       setSaving(false);
-    }
-  };
-
-  const handleQrUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setQrUploading(true);
-    setMessage(null);
-    try {
-      const url = await storageService.uploadFile(file);
-      setPaymentQrUrl(url);
-      
-      // Auto-save the QR URL to Firestore
-      if (appUser) {
-        const userRef = doc(db, "users", appUser.id);
-        await updateDoc(userRef, { paymentQrUrl: url });
-        setMessage({ type: "success", text: "Payment QR Code uploaded successfully!" });
-      }
-    } catch (err: any) {
-      setMessage({ type: "error", text: "Failed to upload QR code." });
-    } finally {
-      setQrUploading(false);
     }
   };
 
@@ -284,13 +258,13 @@ export default function ProfilePage() {
 
             <div className="pt-4 border-t">
               <h3 className="font-bold text-lg mb-4 flex items-center gap-2">
-                <QrCode className="h-5 w-5 text-primary" />
-                Payment & Receiving
+                <CreditCard className="h-5 w-5 text-primary" />
+                Payment Details (UPI)
               </h3>
               
-              <div className="space-y-6">
+              <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="upiId">UPI ID</Label>
+                  <Label htmlFor="upiId">UPI ID (Virtual Payment Address)</Label>
                   <Input
                     id="upiId"
                     value={upiId}
@@ -298,30 +272,7 @@ export default function ProfilePage() {
                     placeholder="e.g. phone@upi or username@okbank"
                     className="rounded-xl h-11"
                   />
-                  <p className="text-xs text-gray-500">Other users will be redirected to this UPI ID when settling up.</p>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Payment QR Code</Label>
-                  {paymentQrUrl ? (
-                    <div className="relative inline-block border rounded-xl overflow-hidden p-2 bg-gray-50">
-                      <img src={paymentQrUrl} alt="Payment QR" className="h-32 w-32 object-contain" />
-                      <label className="absolute inset-0 bg-black/50 text-white flex flex-col items-center justify-center opacity-0 hover:opacity-100 transition-opacity cursor-pointer">
-                        <Upload className="h-6 w-6 mb-1" />
-                        <span className="text-xs font-bold">Change</span>
-                        <input type="file" accept="image/*,.heic,.heif" className="hidden" onChange={handleQrUpload} disabled={qrUploading} />
-                      </label>
-                    </div>
-                  ) : (
-                    <div>
-                      <label className="inline-flex items-center gap-2 px-4 py-2 border-2 border-dashed border-gray-300 rounded-xl text-gray-600 cursor-pointer hover:bg-gray-50 transition-colors">
-                        <Upload className="h-4 w-4" />
-                        {qrUploading ? "Uploading..." : "Upload QR Code Image"}
-                        <input type="file" accept="image/*,.heic,.heif" className="hidden" onChange={handleQrUpload} disabled={qrUploading} />
-                      </label>
-                    </div>
-                  )}
-                  <p className="text-xs text-gray-500 mt-1">Upload a screenshot of your Google Pay/PhonePe QR code.</p>
+                  <p className="text-xs text-gray-500">Group members will send automated settlements directly to this UPI ID.</p>
                 </div>
               </div>
             </div>
