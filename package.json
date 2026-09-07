@@ -20,6 +20,7 @@
     "clsx": "^2.1.1",
     "date-fns": "^4.4.0",
     "firebase": "^12.17.1",
+    "firebase-admin": "^14.3.0",
     "framer-motion": "^13.1.0",
     "heic2any": "^0.0.4",
     "lucide-react": "^1.31.0",

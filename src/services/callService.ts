@@ -101,7 +101,35 @@ export class CallService {
       lastSeen: { [callerId]: serverTimestamp() },
     });
 
+    CallService._dispatchPushNotification({
+      groupId,
+      callId: callRef.id,
+      action: "call",
+      callerId,
+      callerName,
+      groupName,
+      avatar: callerPhoto,
+    });
+
     return { callId: callRef.id, isExisting: false };
+  }
+
+  static _dispatchPushNotification(payload: {
+    groupId: string;
+    callId: string;
+    action: "call" | "call_ended";
+    callerId?: string;
+    callerName?: string;
+    groupName?: string;
+    avatar?: string;
+  }) {
+    if (typeof window !== "undefined") {
+      fetch("/api/calls/notify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      }).catch((e) => console.warn("[_dispatchPushNotification]", e));
+    }
   }
 
   static async joinCall(
@@ -145,11 +173,21 @@ export class CallService {
   }
 
   static async endCall(groupId: string, callId: string) {
+    CallService._dispatchPushNotification({
+      groupId,
+      callId,
+      action: "call_ended",
+    });
     const callDoc = doc(db, "groups", groupId, "calls", callId);
     await updateDoc(callDoc, { status: "ended" });
   }
 
   static async cancelCall(groupId: string, callId: string) {
+    CallService._dispatchPushNotification({
+      groupId,
+      callId,
+      action: "call_ended",
+    });
     const callDoc = doc(db, "groups", groupId, "calls", callId);
     await updateDoc(callDoc, { status: "cancelled" });
   }
