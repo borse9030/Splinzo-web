@@ -7,6 +7,7 @@ import React, {
   useState,
   useRef,
   useCallback,
+  useMemo,
 } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
@@ -26,10 +27,12 @@ interface CallContextType {
   localStream: MediaStream | null;
   remoteStreams: Record<string, MediaStream>;
   isRinging: boolean;
+  isOngoingHover: boolean;
   isJoined: boolean;
   isConnecting: boolean;
   acceptCall: () => Promise<void>;
   declineCall: () => Promise<void>;
+  dismissOngoingCall: (callId: string) => void;
   endCall: () => Promise<void>;
   startCall: (groupId: string, groupName: string) => Promise<void>;
   toggleMute: () => void;
@@ -62,11 +65,57 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   const ringAudioRef = useRef<HTMLAudioElement | null>(null);
   const ringbackAudioRef = useRef<HTMLAudioElement | null>(null);
 
+  const [dismissedCallIds, setDismissedCallIds] = useState<Set<string>>(() => {
+    if (typeof window === "undefined") return new Set();
+    try {
+      const saved = sessionStorage.getItem("splinzo_dismissed_calls");
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
+
+  const dismissOngoingCall = useCallback((callId: string) => {
+    setDismissedCallIds((prev) => {
+      const next = new Set(prev).add(callId);
+      try {
+        sessionStorage.setItem("splinzo_dismissed_calls", JSON.stringify(Array.from(next)));
+      } catch {}
+      return next;
+    });
+  }, []);
+
+  const callAgeSeconds = useMemo(() => {
+    if (!activeCall?.createdAt) return 0;
+    const createdMillis =
+      activeCall.createdAt?.toMillis?.() ??
+      (typeof activeCall.createdAt === "number"
+        ? activeCall.createdAt
+        : new Date(activeCall.createdAt).getTime());
+    if (!createdMillis || isNaN(createdMillis)) return 0;
+    return Math.abs((Date.now() - createdMillis) / 1000);
+  }, [activeCall?.createdAt]);
+
   const isRinging =
     activeCall !== null &&
     !isJoined &&
     activeCall.status === "ringing" &&
-    activeCall.callerId !== appUser?.id;
+    activeCall.callerId !== appUser?.id &&
+    !dismissedCallIds.has(activeCall.id) &&
+    !activeCall.rejectedBy?.includes(appUser?.id ?? "") &&
+    !activeCall.participants?.includes(appUser?.id ?? "") &&
+    callAgeSeconds < 35;
+
+  const isOngoingHover =
+    activeCall !== null &&
+    !isJoined &&
+    !isRinging &&
+    (activeCall.status === "active" || activeCall.status === "ringing") &&
+    activeCall.callerId !== appUser?.id &&
+    !dismissedCallIds.has(activeCall.id) &&
+    !activeCall.rejectedBy?.includes(appUser?.id ?? "") &&
+    !activeCall.participants?.includes(appUser?.id ?? "") &&
+    activeCall.participants.length > 0;
 
   // ── Ringtone for incoming call ─────────────────────────────────────────
   useEffect(() => {
@@ -319,26 +368,23 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   // ── Decline an incoming call ──────────────────────────────────────────
   const declineCall = useCallback(async () => {
     const call = activeCallRef.current;
-    
-    // Optimsitic UI: Teardown locally instantly
-    handleCallEnded();
-    
-    // Tell Firestore this user declined — marks the call as missed
-    // Don't cancel it completely; others can still answer on Android
-    if (call) {
-      Promise.resolve().then(async () => {
-        try {
-          // If only the caller is left (no one else joined), cancel it
-          if (call.participants.length <= 1) {
-            await CallService.cancelCall(call.groupId, call.id);
-          }
-          // Otherwise just dismiss locally — the caller stays in the call
-        } catch (e) {
-          console.error("[declineCall]", e);
-        }
-      });
+    const uid = myUidRef.current;
+
+    // Immediately stop ring audio
+    if (ringAudioRef.current) {
+      ringAudioRef.current.pause();
+      ringAudioRef.current.currentTime = 0;
     }
-  }, [handleCallEnded]);
+
+    if (call && uid) {
+      // Mark as dismissed locally so it doesn't ring or hover again
+      dismissOngoingCall(call.id);
+      // Record rejection in Firestore for this user only — NEVER cancel the group call for others
+      CallService.rejectCall(call.groupId, call.id, uid);
+    }
+
+    handleCallEnded();
+  }, [dismissOngoingCall, handleCallEnded]);
 
   // ── End an active call ────────────────────────────────────────────────
   const endCall = useCallback(async () => {
@@ -422,11 +468,13 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         localStream,
         remoteStreams,
         isRinging,
+        isOngoingHover,
         isJoined,
         isConnecting,
         isMuted,
         acceptCall,
         declineCall,
+        dismissOngoingCall,
         endCall,
         startCall,
         toggleMute,

@@ -10,6 +10,8 @@ export interface CallSession {
   status: 'ringing' | 'active' | 'ended' | 'missed' | 'cancelled';
   createdAt: any;
   lastSeen?: Record<string, any>;
+  rejectedBy?: string[];
+  missedBy?: string[];
 }
 
 export interface SignalingData {

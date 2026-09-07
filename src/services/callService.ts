@@ -154,6 +154,30 @@ export class CallService {
     await updateDoc(callDoc, { status: "cancelled" });
   }
 
+  /** Explicitly marks that a specific user rejected/declined this call without terminating it for others */
+  static async rejectCall(groupId: string, callId: string, myUid: string) {
+    try {
+      const callDoc = doc(db, "groups", groupId, "calls", callId);
+      await updateDoc(callDoc, {
+        rejectedBy: arrayUnion(myUid),
+      });
+    } catch (e) {
+      console.warn("[rejectCall]", e);
+    }
+  }
+
+  /** Explicitly marks that a specific user missed the call timeout */
+  static async missCall(groupId: string, callId: string, myUid: string) {
+    try {
+      const callDoc = doc(db, "groups", groupId, "calls", callId);
+      await updateDoc(callDoc, {
+        missedBy: arrayUnion(myUid),
+      });
+    } catch (e) {
+      console.warn("[missCall]", e);
+    }
+  }
+
   /** Clean up signaling sub-collections after a call ends */
   static async cleanupSignaling(groupId: string, callId: string) {
     try {
