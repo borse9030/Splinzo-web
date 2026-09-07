@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import { Geist_Mono } from "next/font/google";
 import { Outfit } from "next/font/google";
 import "./globals.css";
@@ -45,6 +46,9 @@ export const metadata: Metadata = {
   verification: {
     google: "9xrsDkHKvEwqrLGex_g9ZOU-D1N9nH6h9Am8DxljcZw",
   },
+  other: {
+    "google-adsense-account": "ca-pub-9758730673684519",
+  },
   icons: {
     icon: [
       { url: '/favicon.ico' },
@@ -63,7 +67,14 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning data-scroll-behavior="smooth">
-      <head />
+      <head>
+        <Script
+          async
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9758730673684519"
+          crossOrigin="anonymous"
+          strategy="afterInteractive"
+        />
+      </head>
       <body
         className={`${outfit.variable} ${geistMono.variable} antialiased min-h-full flex flex-col`}
         style={{ fontFamily: "var(--font-outfit), 'Outfit', sans-serif" }}
