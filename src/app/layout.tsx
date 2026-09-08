@@ -22,7 +22,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://splinzo.in'),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://www.splinzo.in'),
   title: "Splinzo — Smart Expense Sharing",
   description: "The smartest way to split expenses with friends, roommates, and groups. Track who owes who and settle up effortlessly.",
   keywords: ["expense sharing", "split bills", "group expenses", "roommate ledger", "trip budgeting app", "bill splitter"],
