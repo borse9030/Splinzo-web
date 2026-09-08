@@ -24,6 +24,7 @@ export function DashboardBannerAd({ className }: DashboardBannerAdProps) {
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
+        width: "100%",
         margin: "0 0 16px 0",
         position: "relative",
       }}

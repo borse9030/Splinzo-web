@@ -20,6 +20,7 @@ export function ArticleAd({ className }: ArticleAdProps) {
     <div
       className={className}
       style={{
+        width: "100%",
         margin: "32px 0",
         padding: "0",
         borderTop: "1px solid #F3F4F6",

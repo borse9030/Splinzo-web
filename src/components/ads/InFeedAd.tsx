@@ -20,6 +20,7 @@ export function InFeedAd({ className }: InFeedAdProps) {
     <div
       className={className}
       style={{
+        width: "100%",
         background: "white",
         borderRadius: "24px",
         border: "1px solid #F3F4F6",

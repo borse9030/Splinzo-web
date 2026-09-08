@@ -462,12 +462,12 @@ function Navbar() {
 
 /* ─── FEATURES DATA ──────────────────────────────────────── */
 const FEATURES = [
-  { icon: Zap,           color:"#F9B912", bg:"#FFF8E1", title:"Smart Splitting",    desc:"Our algorithm minimizes total transactions so everyone settles up faster with fewer payments." },
-  { icon: Users,         color:"#6366F1", bg:"#EEF2FF", title:"Group Management",   desc:"Create unlimited groups for roommates, travel buddies, couples, and office teams." },
-  { icon: Map,           color:"#10B981", bg:"#D1FAE5", title:"Trip Planning",      desc:"Organize group trips with built-in itinerary tools and per-trip expense tracking." },
-  { icon: MessageCircle, color:"#F59E0B", bg:"#FEF3C7", title:"In-App Chat",        desc:"Keep all conversations next to the expenses they're about — no context switching." },
-  { icon: Bell,          color:"#EF4444", bg:"#FEE2E2", title:"Smart Reminders",    desc:"Gentle nudges that help you collect money without awkward conversations." },
-  { icon: Shield,        color:"#3B82F6", bg:"#DBEAFE", title:"Bank-Grade Security", desc:"Your financial data is encrypted end-to-end and never sold to third parties." },
+  { icon: Zap,           color:"#F9B912", bg:"#FFF8E1", title:"Easy Expense Tracking",  desc:"Track expense spending, manage shared budgets, and settle up smoothly within your friend groups." },
+  { icon: Sparkles,      color:"#F9A825", bg:"#FFF8E1", title:"Fair Split Options",     desc:"Split equally, by exact amounts, or by percentage so everyone pays their accurate share." },
+  { icon: Wallet,        color:"#F9B912", bg:"#FFF8E1", title:"Debt Simplification",    desc:"Our smart algorithm minimizes total transactions so everyone settles up faster with fewer transfers." },
+  { icon: Users,         color:"#F9A825", bg:"#FFF8E1", title:"Group Budgets",          desc:"Create unlimited groups for roommates, travel companions, couples, and office teams." },
+  { icon: MessageCircle, color:"#F9B912", bg:"#FFF8E1", title:"In-App Group Chat",      desc:"Keep all conversations and receipts right next to the expenses they belong to." },
+  { icon: ShieldCheck,   color:"#F9A825", bg:"#FFF8E1", title:"Bank-Grade Security",    desc:"Your financial records are encrypted end-to-end and completely private." },
 ];
 
 /* ─── HOW IT WORKS DATA ──────────────────────────────────── */
@@ -552,23 +552,30 @@ export default function Home() {
               </span>
 
               <h1 className="text-5xl sm:text-6xl xl:text-7xl font-black tracking-tight text-gray-900 mb-6 leading-[1.08]">
-                Split expenses.{" "}
+                Split Expenses &{" "}
                 <span className="block"
                       style={{background:"linear-gradient(135deg,#F9A825,#FF8F00,#F9B912)",
                               WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent", backgroundClip:"text"}}>
-                  Stay even.
+                  Group Trips Without The Drama
                 </span>
               </h1>
 
               <p className="text-xl text-gray-500 mb-10 leading-relaxed max-w-lg">
-                Splinzo is the smartest way to share expenses with friends, roommates, and groups.
-                Know exactly who owes what and settle up in one tap — no awkward conversations.
+                Effortlessly track spending, manage shared budgets, and settle up fairly within your friend groups and travel companions.
               </p>
 
               <div className="flex flex-wrap gap-4">
+                {/* Primary CTA */}
+                <Link href="/signup"
+                      className="inline-flex items-center gap-2 px-7 py-4 rounded-2xl font-bold text-base transition-transform hover:scale-105 shadow-lg"
+                      style={{background:AMBER, color:"#1a1a1a"}}>
+                  Get Started
+                  <ArrowRight size={18}/>
+                </Link>
+
                 {/* Play Store CTA */}
                 <a href="#" onClick={(e) => { e.preventDefault(); alert("App will be available soon!"); }}
-                   className="inline-flex items-center gap-3 px-7 py-4 rounded-2xl text-white font-bold text-base transition-transform hover:scale-105 shadow-xl"
+                   className="inline-flex items-center gap-3 px-7 py-4 rounded-2xl text-white font-bold text-base transition-transform hover:scale-105 shadow-md"
                    style={{background:"linear-gradient(135deg,#1a1a1a,#2d2d2d)"}}>
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
                     <path d="M3.18 23.4C3.06 23.08 3 22.73 3 22.37V1.63C3 1.27 3.06.92 3.18.6L13.5 12 3.18 23.4Z" fill="#EA4335"/>
@@ -581,14 +588,6 @@ export default function Home() {
                     <div className="text-sm font-black leading-none">Google Play</div>
                   </div>
                 </a>
-
-                {/* Web app CTA */}
-                <Link href="/signup"
-                      className="inline-flex items-center gap-2 px-7 py-4 rounded-2xl font-bold text-base transition-transform hover:scale-105 shadow-md"
-                      style={{background:AMBER, color:"#1a1a1a"}}>
-                  Try for Free
-                  <ArrowRight size={18}/>
-                </Link>
               </div>
 
               {/* Social proof mini */}
@@ -676,7 +675,7 @@ export default function Home() {
           <Section className="text-center mb-16">
             <span className="text-sm font-bold uppercase tracking-widest" style={{color:AMBER}}>Features</span>
             <h2 className="text-4xl md:text-5xl font-black text-gray-900 mt-3">
-              Everything you need to <span style={{color:AMBER}}>split smarter</span>
+              Simplify Your <span style={{color:AMBER}}>Group Finances</span>
             </h2>
           </Section>
 

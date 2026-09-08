@@ -123,58 +123,43 @@ export default function DashboardPage() {
         </Link>
       </motion.header>
 
-      {/* ══ BALANCE CARD (DARK PREMIUM) ══════════════════ */}
+      {/* ══ BALANCE CARD (GOLDEN AMBER SIGNATURE) ══════════════════ */}
       <motion.div variants={fadeUp}>
         <div
           className="rounded-3xl p-6 relative overflow-hidden"
           style={{
-            background: "linear-gradient(145deg, #1C1C1E 0%, #2A2200 60%, #111008 100%)",
-            boxShadow: "0 24px 60px rgba(0,0,0,0.28), 0 4px 16px rgba(249,185,18,0.12)",
+            background: "linear-gradient(135deg, #FFB800 0%, #FFA000 100%)",
+            boxShadow: "0 20px 40px rgba(255, 184, 0, 0.25), 0 4px 12px rgba(0,0,0,0.05)",
             minHeight: "180px",
           }}
         >
-          {/* Ambient amber glow */}
+          {/* Subtle glowing circular accents */}
           <div
-            className="absolute top-[-40%] right-[-15%] w-64 h-64 rounded-full blur-3xl opacity-25"
-            style={{ background: AMBER }}
+            className="absolute top-[-30%] right-[-10%] w-60 h-60 rounded-full blur-2xl opacity-30 bg-white pointer-events-none"
           />
           <div
-            className="absolute bottom-[-30%] left-[-5%] w-40 h-40 rounded-full blur-2xl opacity-10"
-            style={{ background: AMBER }}
-          />
-
-          {/* Sketch grid overlay */}
-          <div
-            className="absolute inset-0 opacity-[0.03]"
-            style={{
-              backgroundImage: "linear-gradient(#F9B912 1px,transparent 1px),linear-gradient(90deg,#F9B912 1px,transparent 1px)",
-              backgroundSize: "32px 32px",
-            }}
+            className="absolute bottom-[-20%] right-[30%] w-40 h-40 rounded-full blur-xl opacity-20 bg-white pointer-events-none"
           />
 
           <div className="relative z-10">
             {/* Label */}
-            <div className="flex items-center gap-2 mb-4">
-              <div
-                className="h-8 w-8 rounded-xl flex items-center justify-center"
-                style={{ background: "rgba(249,185,18,0.15)", border: "1px solid rgba(249,185,18,0.2)" }}
-              >
-                <Wallet className="h-4 w-4" style={{ color: AMBER }} />
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <div
+                  className="h-8 w-8 rounded-xl flex items-center justify-center bg-black/10 border border-black/10"
+                >
+                  <Wallet className="h-4 w-4 text-gray-900" />
+                </div>
+                <span className="text-sm font-bold text-gray-900/80">Total Balance</span>
               </div>
-              <span className="text-sm font-semibold text-white/50">Total Balance</span>
+              <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-black/10 text-gray-900">
+                Active
+              </span>
             </div>
 
             {/* Balance amount */}
             <div className="mb-5">
-              <p
-                className="text-5xl font-black tracking-tight"
-                style={{
-                  background: `linear-gradient(135deg, #FFFFFF 0%, ${AMBER} 100%)`,
-                  WebkitBackgroundClip: "text",
-                  WebkitTextFillColor: "transparent",
-                  backgroundClip: "text",
-                }}
-              >
+              <p className="text-5xl font-black tracking-tight text-gray-950">
                 ₹0.00
               </p>
             </div>
@@ -182,30 +167,22 @@ export default function DashboardPage() {
             {/* You owe / You get */}
             <div className="grid grid-cols-2 gap-3">
               <div
-                className="rounded-2xl px-4 py-3"
-                style={{
-                  background: "rgba(239,68,68,0.12)",
-                  border: "1px solid rgba(239,68,68,0.2)",
-                }}
+                className="rounded-2xl px-4 py-3 bg-white/70 backdrop-blur-md border border-white/60 shadow-sm"
               >
                 <div className="flex items-center gap-1.5 mb-1">
-                  <TrendingDown className="h-3.5 w-3.5 text-red-400" />
-                  <p className="text-xs font-semibold text-red-300">You owe</p>
+                  <TrendingDown className="h-3.5 w-3.5 text-red-600" />
+                  <p className="text-xs font-bold text-gray-700">You owe</p>
                 </div>
-                <p className="text-xl font-black text-red-400">₹0</p>
+                <p className="text-xl font-black text-red-600">₹0</p>
               </div>
               <div
-                className="rounded-2xl px-4 py-3"
-                style={{
-                  background: "rgba(16,185,129,0.12)",
-                  border: "1px solid rgba(16,185,129,0.2)",
-                }}
+                className="rounded-2xl px-4 py-3 bg-white/70 backdrop-blur-md border border-white/60 shadow-sm"
               >
                 <div className="flex items-center gap-1.5 mb-1">
-                  <TrendingUp className="h-3.5 w-3.5 text-emerald-400" />
-                  <p className="text-xs font-semibold text-emerald-300">You get</p>
+                  <TrendingUp className="h-3.5 w-3.5 text-emerald-600" />
+                  <p className="text-xs font-bold text-gray-700">You get</p>
                 </div>
-                <p className="text-xl font-black text-emerald-400">₹0</p>
+                <p className="text-xl font-black text-emerald-700">₹0</p>
               </div>
             </div>
           </div>
