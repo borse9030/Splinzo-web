@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useGroup } from "@/hooks/useGroup";
 import { invitationService } from "@/services/invitationService";
 import { Invitation } from "@/types/invitation";
+import { GroupMember } from "@/types/group";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { UserPlus, Mail, AlertCircle, CheckCircle2, X, Clock } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { MemberProfileDialog } from "@/components/groups/MemberProfileDialog";
 
 const AMBER = "#F9B912";
 const AMBER_LIGHT = "#FFF8E1";
@@ -32,6 +34,7 @@ export default function GroupMembersPage({
   const [pendingInvites, setPendingInvites] = useState<Invitation[]>([]);
   const [loadingInvites, setLoadingInvites] = useState(true);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [selectedMember, setSelectedMember] = useState<GroupMember | null>(null);
 
   // Fetch pending invitations for this group
   useEffect(() => {
@@ -209,9 +212,13 @@ export default function GroupMembersPage({
           Members ({group?.members?.length || 0})
         </h3>
         {group?.members?.map((member) => (
-          <Card key={member.id} className="border-none shadow-sm rounded-2xl bg-white">
+          <Card
+            key={member.id}
+            onClick={() => setSelectedMember(member)}
+            className="border-none shadow-sm rounded-2xl bg-white hover:shadow-md transition-all cursor-pointer group active:scale-[0.99]"
+          >
             <CardContent className="p-4 flex items-center gap-4">
-              <Avatar className="h-12 w-12">
+              <Avatar className="h-12 w-12 ring-2 ring-transparent group-hover:ring-amber-300 transition-all">
                 <AvatarImage src={member.photoUrl || member.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=${member.id}`} />
                 <AvatarFallback
                   className="font-bold"
@@ -222,7 +229,7 @@ export default function GroupMembersPage({
               </Avatar>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h4 className="font-bold text-gray-900 truncate">
+                  <h4 className="font-bold text-gray-900 truncate group-hover:text-amber-600 transition-colors">
                     {member.name} {member.id === appUser?.id && "(You)"}
                   </h4>
                   {(member.role === "admin" || group.createdBy === member.id) && (
@@ -236,10 +243,23 @@ export default function GroupMembersPage({
                 </div>
                 <p className="text-sm text-gray-400 truncate font-medium">{member.email}</p>
               </div>
+              <div className="text-xs font-semibold text-gray-400 group-hover:text-amber-500 transition-colors flex items-center gap-1">
+                <span>View</span>
+                <span className="text-base leading-none">›</span>
+              </div>
             </CardContent>
           </Card>
         ))}
       </div>
+
+      {/* Member Profile Pop-up Modal */}
+      <MemberProfileDialog
+        isOpen={!!selectedMember}
+        onClose={() => setSelectedMember(null)}
+        member={selectedMember}
+        group={group}
+        isCurrentUser={selectedMember?.id === appUser?.id}
+      />
     </div>
   );
 }

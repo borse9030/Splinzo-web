@@ -22,7 +22,8 @@ import {
   Check, 
   ChevronDown, 
   ChevronUp,
-  Sparkles
+  Sparkles,
+  AlertTriangle
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -396,8 +397,8 @@ export default function SettleUpPage({
                 <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-600" />
               </div>
 
-              {/* Receiver details preview */}
-              {receiverDetails?.upiId && (
+              {/* Receiver details preview / Missing Warning */}
+              {receiverDetails?.upiId ? (
                 <div className="flex items-center justify-between p-2.5 bg-gray-50 rounded-xl border border-gray-100 text-xs">
                   <span className="text-gray-500">Paying to UPI ID: <strong className="text-gray-800">{receiverDetails.upiId}</strong></span>
                   <button 
@@ -406,6 +407,18 @@ export default function SettleUpPage({
                   >
                     {copiedUpi ? <Check className="h-3.5 w-3.5 text-green-600" /> : <Copy className="h-3.5 w-3.5" />}
                   </button>
+                </div>
+              ) : (
+                <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 flex items-start gap-2.5 text-xs">
+                  <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-bold text-amber-900">
+                      {selectedSettlement?.toUserName} has not added a UPI ID
+                    </p>
+                    <p className="text-[11px] text-amber-700 mt-0.5 leading-relaxed">
+                      Direct automated payment to their personal bank account is unavailable. You can remind them to add their UPI ID in their Splinzo profile, or settle manually offline.
+                    </p>
+                  </div>
                 </div>
               )}
 
