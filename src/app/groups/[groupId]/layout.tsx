@@ -1,10 +1,10 @@
 "use client";
 
-import { use } from "react";
+import { use, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useGroup } from "@/hooks/useGroup";
-import { ChevronLeft, PhoneCall, Plus, Scale, Trash2 } from "lucide-react";
+import { ChevronLeft, PhoneCall, Plus, Scale, Trash2, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Navigation } from "@/components/layout/Navigation";
@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { useCall } from "@/contexts/CallContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { groupService } from "@/services/groupService";
+import { AddMemberDialog } from "@/components/groups/AddMemberDialog";
 
 const AMBER = "#F9B912";
 
@@ -28,6 +29,11 @@ export default function GroupLayout({
   const { appUser } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
+  const [addMemberOpen, setAddMemberOpen] = useState(false);
+
+  const isAdmin =
+    group?.members?.find((m) => m.id === appUser?.id)?.role === "admin" ||
+    group?.createdBy === appUser?.id;
 
   const tabs = [
     { name: "Expenses", href: `/groups/${resolvedParams.groupId}` },
@@ -103,6 +109,14 @@ export default function GroupLayout({
               <span className="text-white font-semibold text-base">{group?.name}</span>
             )}
             <div className="flex gap-2">
+              <button
+                onClick={() => setAddMemberOpen(true)}
+                className="h-9 w-9 rounded-full flex items-center justify-center cursor-pointer hover:bg-white/30 transition-colors"
+                style={{ background: "rgba(255,255,255,0.2)" }}
+                title="Add Member"
+              >
+                <UserPlus className="h-4 w-4 text-white" />
+              </button>
               {group?.createdBy === appUser?.id && (
                 <button
                   onClick={async () => {
@@ -231,6 +245,17 @@ export default function GroupLayout({
             )}
           </div>
         </div>
+
+        {group && (
+          <AddMemberDialog
+            isOpen={addMemberOpen}
+            onClose={() => setAddMemberOpen(false)}
+            groupId={group.id}
+            groupName={group.name}
+            groupMembers={group.members}
+            isAdmin={isAdmin}
+          />
+        )}
       </main>
     </div>
   );

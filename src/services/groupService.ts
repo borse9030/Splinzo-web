@@ -1,4 +1,4 @@
-import { collection, query, where, onSnapshot, doc, setDoc, deleteDoc, getDocs, writeBatch, Timestamp } from "firebase/firestore";
+import { collection, query, where, onSnapshot, doc, setDoc, deleteDoc, getDocs, writeBatch, Timestamp, updateDoc, arrayUnion, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase/config";
 import { storageService } from "@/services/storageService";
 import { Group, GroupMember } from "@/types/group";
@@ -43,6 +43,74 @@ export const groupService = {
 
     await setDoc(groupRef, newGroup);
     return groupId;
+  },
+
+  async addMemberToGroup(groupId: string, email: string): Promise<GroupMember> {
+    const normalizedEmail = email.toLowerCase().trim();
+    if (!normalizedEmail || !normalizedEmail.includes("@")) {
+      throw new Error("Please enter a valid email address.");
+    }
+
+    // 1. Find user by email in Firestore users collection
+    const userQuery = query(collection(db, "users"), where("email", "==", normalizedEmail));
+    const userSnap = await getDocs(userQuery);
+    if (userSnap.empty) {
+      throw new Error(`User with email ${normalizedEmail} not found. They must sign up first.`);
+    }
+
+    const targetUserDoc = userSnap.docs[0];
+    const userData = targetUserDoc.data();
+    const userId = targetUserDoc.id;
+    const userName = userData.displayName || userData.name || normalizedEmail.split("@")[0];
+    const userPhoto = userData.photoUrl || userData.photoURL || "";
+
+    // 2. Check group doc
+    const groupRef = doc(db, "groups", groupId);
+    const groupSnap = await getDoc(groupRef);
+    if (!groupSnap.exists()) {
+      throw new Error("Group not found.");
+    }
+
+    const groupData = groupSnap.data();
+    const memberIds: string[] = groupData.memberIds || [];
+    if (memberIds.includes(userId)) {
+      throw new Error("User is already a member of this group.");
+    }
+
+    // 3. Create GroupMember object
+    const newMember: GroupMember = {
+      id: userId,
+      name: userName,
+      email: normalizedEmail,
+      photoUrl: userPhoto,
+      photoURL: userPhoto,
+      role: "member",
+      joinedAt: Timestamp.now(),
+    };
+
+    // 4. Update Firestore doc atomically
+    await updateDoc(groupRef, {
+      memberIds: arrayUnion(userId),
+      members: arrayUnion(newMember),
+    });
+
+    // 5. Mark any pending invitations for this email in this group as accepted
+    try {
+      const invQ = query(
+        collection(db, "invitations"),
+        where("groupId", "==", groupId),
+        where("inviteeEmail", "==", normalizedEmail),
+        where("status", "==", "pending")
+      );
+      const invSnap = await getDocs(invQ);
+      for (const d of invSnap.docs) {
+        await updateDoc(d.ref, { status: "accepted" });
+      }
+    } catch (err) {
+      console.warn("Could not auto-resolve pending invitation:", err);
+    }
+
+    return newMember;
   },
 
   subscribeToUserGroups(

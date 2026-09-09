@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc, serverTimestamp, Timestamp, collection, getDocs } from "firebase/firestore";
+import { doc, getDoc, setDoc, serverTimestamp, Timestamp, collection, getDocs, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase/config";
 import { AppUser } from "@/types/user";
 
@@ -17,6 +17,17 @@ export const userService = {
       return { id: docSnap.id, ...docSnap.data() } as AppUser;
     }
     return null;
+  },
+
+  async getUserByEmail(email: string): Promise<AppUser | null> {
+    const normalizedEmail = email.toLowerCase().trim();
+    const q = query(collection(db, "users"), where("email", "==", normalizedEmail));
+    const querySnap = await getDocs(q);
+    if (querySnap.empty) {
+      return null;
+    }
+    const doc = querySnap.docs[0];
+    return { id: doc.id, ...doc.data() } as AppUser;
   },
 
   async createUser(

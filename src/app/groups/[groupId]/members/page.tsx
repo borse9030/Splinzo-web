@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { UserPlus, Mail, AlertCircle, CheckCircle2, X, Clock } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MemberProfileDialog } from "@/components/groups/MemberProfileDialog";
+import { AddMemberDialog } from "@/components/groups/AddMemberDialog";
 
 const AMBER = "#F9B912";
 const AMBER_LIGHT = "#FFF8E1";
@@ -35,6 +36,7 @@ export default function GroupMembersPage({
   const [loadingInvites, setLoadingInvites] = useState(true);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [selectedMember, setSelectedMember] = useState<GroupMember | null>(null);
+  const [addMemberDialogOpen, setAddMemberDialogOpen] = useState(false);
 
   // Fetch pending invitations for this group
   useEffect(() => {
@@ -109,9 +111,8 @@ export default function GroupMembersPage({
 
   return (
     <div className="space-y-6 mt-4">
-      {/* Invite Form — only admin/creator sees this */}
-      {isAdmin && (
-        <Card className="border-none shadow-sm rounded-2xl bg-white">
+      {/* Invite Form */}
+      <Card className="border-none shadow-sm rounded-2xl bg-white">
           <CardContent className="p-5">
             <div className="flex items-center gap-3 mb-4">
               <div
@@ -166,7 +167,6 @@ export default function GroupMembersPage({
             )}
           </CardContent>
         </Card>
-      )}
 
       {/* Pending Invitations — visible to admin with Cancel button */}
       {isAdmin && !loadingInvites && pendingInvites.length > 0 && (
@@ -208,9 +208,20 @@ export default function GroupMembersPage({
 
       {/* Members List */}
       <div className="space-y-3">
-        <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider pl-1">
-          Members ({group?.members?.length || 0})
-        </h3>
+        <div className="flex items-center justify-between pl-1">
+          <h3 className="text-sm font-bold text-gray-400 uppercase tracking-wider">
+            Members ({group?.members?.length || 0})
+          </h3>
+          <Button
+            size="sm"
+            onClick={() => setAddMemberDialogOpen(true)}
+            className="rounded-full h-8 px-4 text-xs font-bold shadow-sm transition-all active:scale-95 flex items-center gap-1.5 cursor-pointer"
+            style={{ background: AMBER, color: "#1a1a1a" }}
+          >
+            <UserPlus className="h-3.5 w-3.5" />
+            <span>Add Member</span>
+          </Button>
+        </div>
         {group?.members?.map((member) => (
           <Card
             key={member.id}
@@ -260,6 +271,24 @@ export default function GroupMembersPage({
         group={group}
         isCurrentUser={selectedMember?.id === appUser?.id}
       />
+
+      {/* Add Member Dialog */}
+      {group && (
+        <AddMemberDialog
+          isOpen={addMemberDialogOpen}
+          onClose={() => setAddMemberDialogOpen(false)}
+          groupId={group.id}
+          groupName={group.name}
+          groupMembers={group.members}
+          isAdmin={isAdmin}
+          onSuccess={async () => {
+            if (group?.id) {
+              const updated = await invitationService.getGroupPendingInvitations(group.id);
+              setPendingInvites(updated);
+            }
+          }}
+        />
+      )}
     </div>
   );
 }

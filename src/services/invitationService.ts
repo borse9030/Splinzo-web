@@ -16,8 +16,31 @@ export const invitationService = {
     emailToInvite: string
   ): Promise<void> {
     const email = emailToInvite.toLowerCase().trim();
+    if (!email || !email.includes("@")) {
+      throw new Error("Please enter a valid email address.");
+    }
+
+    // 1. Verify user exists in Splinzo (matching mobile app's FirebaseGroupRepository)
+    const userQ = query(collection(db, "users"), where("email", "==", email));
+    const userSnap = await getDocs(userQ);
+    if (userSnap.empty) {
+      throw new Error(`User with email ${email} not found. They must sign up first.`);
+    }
+
+    // 2. Check if user is already a member of this group
+    const groupRef = doc(db, "groups", groupId);
+    const groupSnap = await getDoc(groupRef);
+    if (!groupSnap.exists()) {
+      throw new Error("Group not found.");
+    }
+    const groupData = groupSnap.data();
+    const existingMemberIds: string[] = groupData?.memberIds || [];
+    const targetUserId = userSnap.docs[0].id;
+    if (existingMemberIds.includes(targetUserId)) {
+      throw new Error("User is already a member of this group.");
+    }
     
-    // Check if invitation already exists
+    // 3. Check if invitation already exists and is pending
     const q = query(
       collection(db, "invitations"),
       where("groupId", "==", groupId),
@@ -29,11 +52,12 @@ export const invitationService = {
       throw new Error("An invitation is already pending for this email.");
     }
 
+    // 4. Create invitation doc
     const invRef = doc(collection(db, "invitations"));
     await setDoc(invRef, {
       groupId,
       groupName,
-      inviterName: inviter.displayName,
+      inviterName: inviter.displayName || inviter.name || "A member",
       inviteeEmail: email,
       status: "pending",
       createdAt: serverTimestamp(),
