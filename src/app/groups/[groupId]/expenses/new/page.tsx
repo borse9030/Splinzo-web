@@ -7,7 +7,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useGroup } from "@/hooks/useGroup";
 import { expenseService } from "@/services/expenseService";
 import { storageService } from "@/services/storageService";
-import { ChevronLeft, ArrowRight, Camera, X, Check } from "lucide-react";
+import { ChevronLeft, ArrowRight, Camera, X, Check, Users, Percent, PieChart, DollarSign, Repeat, Plus, Minus } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -35,7 +35,7 @@ function MemberAvatar({ photoURL, name, id, size = 44 }: {
     );
   }
   return (
-    <div className="rounded-full flex items-center justify-center text-white font-black"
+    <div className="rounded-full flex items-center justify-center text-white font-black shrink-0"
          style={{ width: size, height: size, background: avatarColor(id), fontSize: size * 0.38 }}>
       {(name || "?").charAt(0).toUpperCase()}
     </div>
@@ -104,9 +104,14 @@ export default function AddExpensePage({
   const [description,    setDescription]    = useState("");
   const [category,       setCategory]       = useState("General");
   const [payerId,        setPayerId]        = useState<string>(appUser?.id || "");
-  const [splitType,      setSplitType]      = useState<"equal" | "custom">("equal");
+  const [isMultiPayer,   setIsMultiPayer]   = useState(false);
+  const [payerAmounts,   setPayerAmounts]   = useState<{ [key: string]: number }>({});
+  const [isRecurring,    setIsRecurring]    = useState(false);
+  const [splitMode,      setSplitMode]      = useState<"equal" | "percentage" | "shares" | "custom">("equal");
   const [splitBetweenIds,setSplitBetweenIds]= useState<string[]>([]);
   const [customAmounts,  setCustomAmounts]  = useState<{ [key: string]: number }>({});
+  const [percentages,    setPercentages]    = useState<{ [key: string]: number }>({});
+  const [shares,         setShares]         = useState<{ [key: string]: number }>({});
   const [billImage,      setBillImage]      = useState<File | null>(null);
   const [imagePreview,   setImagePreview]   = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -127,7 +132,15 @@ export default function AddExpensePage({
       if (!description.trim())               { setError("Please enter a description."); return; }
       setError(""); setStep(2);
     } else if (step === 2) {
-      setStep(3);
+      if (isMultiPayer) {
+        const numAmount = parseFloat(amount);
+        const totalPaid = Object.values(payerAmounts).reduce((a, b) => a + b, 0);
+        if (Math.abs(totalPaid - numAmount) > 0.05) {
+          setError(`Total paid must equal ${currSymbol}${numAmount}. Currently: ${currSymbol}${totalPaid.toFixed(2)}`);
+          return;
+        }
+      }
+      setError(""); setStep(3);
     }
   };
 
@@ -135,16 +148,61 @@ export default function AddExpensePage({
     setCustomAmounts(prev => ({ ...prev, [memberId]: parseFloat(value) || 0 }));
   };
 
+  const handlePercentageChange = (memberId: string, value: string) => {
+    setPercentages(prev => ({ ...prev, [memberId]: parseFloat(value) || 0 }));
+  };
+
+  const handleShareChange = (memberId: string, delta: number) => {
+    setShares(prev => {
+      const current = prev[memberId] || 1;
+      const next = Math.max(1, current + delta);
+      return { ...prev, [memberId]: next };
+    });
+  };
+
+  const handleAutoPercentages = () => {
+    if (splitBetweenIds.length === 0) return;
+    const equalPct = Number((100 / splitBetweenIds.length).toFixed(1));
+    const next: { [key: string]: number } = {};
+    splitBetweenIds.forEach(id => { next[id] = equalPct; });
+    setPercentages(next);
+  };
+
   const handleSave = async () => {
     if (!group || !appUser) return;
     const numAmount = parseFloat(amount);
-    if (splitType === "custom") {
-      const sum = Object.values(customAmounts).reduce((a, b) => a + b, 0);
-      if (Math.abs(sum - numAmount) > 0.01) {
-        setError(`Custom amounts must equal ${group.currency}${numAmount}. Currently: ${sum.toFixed(2)}`);
+    
+    // Validation based on split mode
+    let computedCustomAmounts: { [key: string]: number } | null = null;
+
+    if (splitMode === "percentage") {
+      const sumPct = splitBetweenIds.reduce((sum, id) => sum + (percentages[id] || 0), 0);
+      if (Math.abs(sumPct - 100) > 0.5) {
+        setError(`Percentages must add up to 100%. Currently: ${sumPct.toFixed(1)}%`);
         return;
       }
+      computedCustomAmounts = {};
+      splitBetweenIds.forEach(id => {
+        computedCustomAmounts![id] = Number((numAmount * ((percentages[id] || 0) / 100)).toFixed(2));
+      });
+    } else if (splitMode === "shares") {
+      let totalShares = 0;
+      splitBetweenIds.forEach(id => { totalShares += (shares[id] || 1); });
+      if (totalShares <= 0) totalShares = 1;
+      computedCustomAmounts = {};
+      splitBetweenIds.forEach(id => {
+        const s = shares[id] || 1;
+        computedCustomAmounts![id] = Number((numAmount * (s / totalShares)).toFixed(2));
+      });
+    } else if (splitMode === "custom") {
+      const sum = Object.values(customAmounts).reduce((a, b) => a + b, 0);
+      if (Math.abs(sum - numAmount) > 0.05) {
+        setError(`Custom amounts must equal ${group.currency} ${numAmount}. Currently: ${sum.toFixed(2)}`);
+        return;
+      }
+      computedCustomAmounts = customAmounts;
     }
+
     setError("");
 
     // Optimistic UI: Route away instantly
@@ -156,10 +214,21 @@ export default function AddExpensePage({
         let finalImageUrl = null;
         if (billImage) finalImageUrl = await storageService.uploadFile(billImage);
         await expenseService.addExpense(group.id, {
-          description, amount: numAmount, payerId, currency: group.currency,
-          createdBy: appUser.id, splitBetweenIds,
-          customSplitAmounts: splitType === "custom" ? customAmounts : null,
-          billImageUrl: finalImageUrl, category,
+          description,
+          amount: numAmount,
+          payerId,
+          currency: group.currency,
+          createdBy: appUser.id,
+          splitBetweenIds,
+          customSplitAmounts: computedCustomAmounts,
+          splitMode,
+          splitPercentages: splitMode === "percentage" ? percentages : null,
+          splitShares: splitMode === "shares" ? shares : null,
+          payers: isMultiPayer ? payerAmounts : null,
+          isRecurring,
+          recurringInterval: isRecurring ? "monthly" : undefined,
+          billImageUrl: finalImageUrl,
+          category,
         });
       } catch (err: any) {
         console.error("Failed to add expense:", err.message || "Unknown error");
@@ -258,57 +327,93 @@ export default function AddExpensePage({
                     onFocus={() => setDescFocused(true)} onBlur={() => setDescFocused(false)}
                     className="w-full h-12 px-4 rounded-2xl text-sm font-medium outline-none transition-all"
                     style={{
-                      background: descFocused ? "var(--background)" : "var(--muted)",
+                      background: "var(--muted)",
+                      border: `1.5px solid ${descFocused ? AMBER : "var(--border)"}`,
                       color: "var(--foreground)",
-                      border: `2px solid ${descFocused ? AMBER : "var(--border)"}`,
-                      boxShadow: descFocused ? `0 0 0 4px rgba(249,185,18,0.12)` : "none",
                     }}
                   />
                 </div>
 
-                {/* Bill image upload */}
-                <div
-                  className="rounded-2xl p-5 flex flex-col items-center justify-center cursor-pointer transition-all hover:scale-[1.01]"
-                  onClick={() => fileInputRef.current?.click()}
-                  style={{
-                    border: `2px dashed ${imagePreview ? AMBER : "var(--border)"}`,
-                    background: imagePreview ? "rgba(249,185,18,0.04)" : "var(--muted)",
-                    minHeight: "100px",
-                  }}
-                >
+                {/* Recurring Expense switch */}
+                <div className="p-3.5 rounded-2xl flex items-center justify-between border"
+                     style={{ background: "var(--muted)", borderColor: "var(--border)" }}>
+                  <div className="flex items-center gap-3">
+                    <div className="h-9 w-9 rounded-xl flex items-center justify-center"
+                         style={{ background: isRecurring ? AMBER : "var(--card)", color: isRecurring ? "#1a1a1a" : "var(--muted-foreground)" }}>
+                      <Repeat className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <div className="text-sm font-bold" style={{ color: "var(--foreground)" }}>Monthly Recurring</div>
+                      <div className="text-xs" style={{ color: "var(--muted-foreground)" }}>Repeats every month automatically</div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsRecurring(!isRecurring)}
+                    className="w-12 h-6 rounded-full transition-colors relative"
+                    style={{ background: isRecurring ? AMBER : "#CBD5E1" }}
+                  >
+                    <div className={`w-5 h-5 rounded-full bg-white transition-transform ${isRecurring ? 'translate-x-6' : 'translate-x-1'}`} />
+                  </button>
+                </div>
+
+                {/* Category selector */}
+                <div className="flex flex-col gap-2">
+                  <label className="text-sm font-bold" style={{ color: "var(--foreground)" }}>Category</label>
+                  <div className="flex flex-wrap gap-2">
+                    {["General", "Food", "Travel", "Stay", "Fun", "Bills", "Shopping"].map((cat) => {
+                      const sel = category === cat;
+                      return (
+                        <button
+                          key={cat} type="button"
+                          onClick={() => setCategory(cat)}
+                          className="px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all"
+                          style={{
+                            background: sel ? AMBER : "var(--muted)",
+                            color: sel ? "#1a1a1a" : "var(--muted-foreground)",
+                            boxShadow: sel ? "0 2px 8px rgba(249,185,18,0.3)" : "none",
+                          }}
+                        >
+                          {cat}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Bill Photo */}
+                <div className="flex items-center gap-3">
+                  <input
+                    type="file" accept="image/*" ref={fileInputRef}
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) {
+                        setBillImage(f);
+                        setImagePreview(URL.createObjectURL(f));
+                      }
+                    }}
+                    className="hidden"
+                  />
                   {imagePreview ? (
-                    <div className="relative flex flex-col items-center w-full">
-                      <img src={imagePreview} alt="Preview" className="h-32 object-contain rounded-xl mb-2" />
-                      <span className="text-xs font-semibold bg-white text-gray-900 px-3 py-1 rounded-full shadow-sm border">
-                        Tap to change
-                      </span>
+                    <div className="relative inline-block">
+                      <img src={imagePreview} alt="Receipt preview" className="h-14 w-14 rounded-xl object-cover border" />
                       <button
-                        className="absolute top-0 right-0 h-7 w-7 rounded-full flex items-center justify-center shadow-md"
-                        style={{ background: "#1a1a1a" }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setBillImage(null); setImagePreview(null);
-                          if (fileInputRef.current) fileInputRef.current.value = "";
-                        }}
+                        onClick={() => { setBillImage(null); setImagePreview(null); }}
+                        className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full bg-red-500 text-white flex items-center justify-center text-xs"
                       >
-                        <X className="h-3.5 w-3.5 text-white" />
+                        <X className="h-3 w-3" />
                       </button>
                     </div>
                   ) : (
-                    <>
-                      <div className="h-10 w-10 rounded-xl flex items-center justify-center mb-2"
-                           style={{ background: "rgba(249,185,18,0.12)" }}>
-                        <Camera className="h-5 w-5" style={{ color: AMBER }} />
-                      </div>
-                      <span className="text-sm font-semibold" style={{ color: "var(--muted-foreground)" }}>Add Bill Image</span>
-                      <span className="text-xs mt-0.5" style={{ color: "var(--muted-foreground)" }}>Optional · tap to upload</span>
-                    </>
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold border transition-colors hover:bg-black/5"
+                      style={{ borderColor: "var(--border)", color: "var(--muted-foreground)" }}
+                    >
+                      <Camera className="h-4 w-4" /> Add Bill Photo
+                    </button>
                   )}
-                  <input type="file" accept="image/*,.heic,.heif" className="hidden" ref={fileInputRef}
-                         onChange={(e) => {
-                           const file = e.target.files?.[0];
-                           if (file) { setBillImage(file); setImagePreview(URL.createObjectURL(file)); }
-                         }} />
                 </div>
               </motion.div>
             )}
@@ -318,49 +423,113 @@ export default function AddExpensePage({
               <motion.div key="step2"
                           initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }}
                           exit={{ opacity: 0, x: -30 }} transition={{ duration: 0.25 }}
-                          className="space-y-4">
-                <p className="text-sm font-bold text-center mb-6" style={{ color: "var(--muted-foreground)" }}>Who paid for this?</p>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {group?.members.map((member: any) => {
-                    const isSelected = payerId === member.id;
-                    const mName = (member.name || member.displayName || "?");
-                    return (
-                      <motion.div
-                        key={member.id}
-                        whileHover={{ y: -2 }}
-                        whileTap={{ scale: 0.96 }}
-                        onClick={() => setPayerId(member.id)}
-                        className="relative flex flex-col items-center gap-2.5 p-4 rounded-2xl cursor-pointer transition-all"
-                        style={{
-                          border: `2px solid ${isSelected ? AMBER : "var(--border)"}`,
-                          background: isSelected ? "rgba(249,185,18,0.06)" : "var(--card)",
-                          boxShadow: isSelected ? `0 4px 16px rgba(249,185,18,0.2)` : "0 1px 4px rgba(0,0,0,0.04)",
-                        }}
-                      >
-                        {isSelected && (
-                          <div className="absolute top-2 right-2 h-5 w-5 rounded-full flex items-center justify-center"
-                               style={{ background: AMBER }}>
-                            <Check className="h-3 w-3 text-gray-900" />
-                          </div>
-                        )}
-                        <MemberAvatar 
-                          photoURL={member.id === appUser?.id ? (appUser?.photoUrl || appUser?.photoURL || member.photoURL || member.photoUrl) : (member.photoURL || member.photoUrl)} 
-                          name={mName} 
-                          id={member.id} 
-                          size={44} 
-                        />
-                        <div className="text-center">
-                          <div className="text-sm font-bold truncate max-w-[80px]" style={{ color: "var(--foreground)" }}>
-                            {mName.split(" ")[0]}
-                          </div>
-                          {member.id === appUser?.id && (
-                            <div className="text-[10px] font-semibold mt-0.5" style={{ color: AMBER_DARK }}>You</div>
-                          )}
-                        </div>
-                      </motion.div>
-                    );
-                  })}
+                          className="space-y-6">
+
+                {/* Single vs Multi-Payer switch */}
+                <div className="flex p-1 rounded-2xl" style={{ background: "var(--muted)" }}>
+                  <button
+                    type="button"
+                    onClick={() => setIsMultiPayer(false)}
+                    className="flex-1 py-2 text-xs font-bold rounded-xl transition-all"
+                    style={{
+                      background: !isMultiPayer ? AMBER : "transparent",
+                      color: !isMultiPayer ? "#1a1a1a" : "var(--muted-foreground)",
+                      boxShadow: !isMultiPayer ? "0 2px 8px rgba(249,185,18,0.3)" : "none",
+                    }}
+                  >
+                    Single Payer
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMultiPayer(true);
+                      if (Object.keys(payerAmounts).length === 0 && payerId) {
+                        setPayerAmounts({ [payerId]: parseFloat(amount) || 0 });
+                      }
+                    }}
+                    className="flex-1 py-2 text-xs font-bold rounded-xl transition-all"
+                    style={{
+                      background: isMultiPayer ? AMBER : "transparent",
+                      color: isMultiPayer ? "#1a1a1a" : "var(--muted-foreground)",
+                      boxShadow: isMultiPayer ? "0 2px 8px rgba(249,185,18,0.3)" : "none",
+                    }}
+                  >
+                    Multiple People Paid
+                  </button>
                 </div>
+
+                {!isMultiPayer ? (
+                  <div>
+                    <label className="text-sm font-bold block mb-3" style={{ color: "var(--foreground)" }}>
+                      Who paid for this?
+                    </label>
+                    <div className="grid grid-cols-3 gap-3">
+                      {group?.members.map((member: any) => {
+                        const sel = payerId === member.id;
+                        const mName = member.name || member.displayName || "?";
+                        return (
+                          <motion.div
+                            key={member.id}
+                            onClick={() => setPayerId(member.id)}
+                            whileHover={{ scale: 1.03 }}
+                            whileTap={{ scale: 0.97 }}
+                            className="p-3.5 rounded-2xl flex flex-col items-center gap-2 cursor-pointer transition-all text-center"
+                            style={{
+                              background: sel ? "rgba(249,185,18,0.12)" : "var(--muted)",
+                              border: `2px solid ${sel ? AMBER : "var(--border)"}`,
+                            }}
+                          >
+                            <MemberAvatar 
+                              photoURL={member.id === appUser?.id ? (appUser?.photoUrl || appUser?.photoURL || member.photoURL || member.photoUrl) : (member.photoURL || member.photoUrl)} 
+                              name={mName} 
+                              id={member.id} 
+                              size={44} 
+                            />
+                            <div className="text-center">
+                              <div className="text-sm font-bold truncate max-w-[80px]" style={{ color: "var(--foreground)" }}>
+                                {mName.split(" ")[0]}
+                              </div>
+                              {member.id === appUser?.id && (
+                                <div className="text-[10px] font-semibold mt-0.5" style={{ color: AMBER_DARK }}>You</div>
+                              )}
+                            </div>
+                          </motion.div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <label className="text-sm font-bold block" style={{ color: "var(--foreground)" }}>
+                      Enter amount paid by each person
+                    </label>
+                    {group?.members.map((member: any) => {
+                      const mName = member.name || member.displayName || "?";
+                      return (
+                        <div key={member.id} className="flex items-center justify-between p-3 rounded-2xl border"
+                             style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+                          <div className="flex items-center gap-2.5">
+                            <MemberAvatar name={mName} id={member.id} size={32} />
+                            <span className="text-sm font-bold" style={{ color: "var(--foreground)" }}>{mName.split(" ")[0]}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <span className="text-xs font-bold" style={{ color: "var(--muted-foreground)" }}>{currSymbol}</span>
+                            <input
+                              type="number" step="0.01" placeholder="0.00"
+                              value={payerAmounts[member.id] || ""}
+                              onChange={(e) => {
+                                const val = parseFloat(e.target.value) || 0;
+                                setPayerAmounts(prev => ({ ...prev, [member.id]: val }));
+                              }}
+                              className="w-24 h-8 text-right rounded-xl text-sm font-bold outline-none px-2 border"
+                              style={{ background: "var(--muted)", borderColor: "var(--border)", color: "var(--foreground)" }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </motion.div>
             )}
 
@@ -371,30 +540,69 @@ export default function AddExpensePage({
                           exit={{ opacity: 0, x: -30 }} transition={{ duration: 0.25 }}
                           className="space-y-5">
 
-                {/* Split type toggle */}
-                <div className="flex p-1 rounded-2xl" style={{ background: "var(--muted)" }}>
-                  {(["equal", "custom"] as const).map((t) => (
-                    <button
-                      key={t}
-                      onClick={() => setSplitType(t)}
-                      className="flex-1 py-2.5 text-sm font-bold rounded-xl transition-all"
-                      style={{
-                        background: splitType === t ? AMBER : "transparent",
-                        color: splitType === t ? "#1a1a1a" : "var(--muted-foreground)",
-                        boxShadow: splitType === t ? "0 2px 8px rgba(249,185,18,0.3)" : "none",
-                      }}
-                    >
-                      {t === "equal" ? "Split Equally" : "Custom Amounts"}
-                    </button>
-                  ))}
+                {/* 4-Way Split Mode Segment */}
+                <div className="grid grid-cols-4 p-1 rounded-2xl gap-1" style={{ background: "var(--muted)" }}>
+                  {[
+                    { id: "equal", label: "Equal", icon: Users },
+                    { id: "percentage", label: "Percent %", icon: Percent },
+                    { id: "shares", label: "Shares", icon: PieChart },
+                    { id: "custom", label: "Exact", icon: DollarSign },
+                  ].map((tab) => {
+                    const sel = splitMode === tab.id;
+                    const Icon = tab.icon;
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        onClick={() => setSplitMode(tab.id as any)}
+                        className="py-2 px-1 flex flex-col items-center gap-1 rounded-xl text-[11px] font-bold transition-all"
+                        style={{
+                          background: sel ? AMBER : "transparent",
+                          color: sel ? "#1a1a1a" : "var(--muted-foreground)",
+                          boxShadow: sel ? "0 2px 8px rgba(249,185,18,0.3)" : "none",
+                        }}
+                      >
+                        <Icon className="h-3.5 w-3.5" />
+                        {tab.label}
+                      </button>
+                    );
+                  })}
                 </div>
+
+                {splitMode === "percentage" && (
+                  <div className="flex justify-between items-center px-1">
+                    <span className="text-xs font-bold" style={{ color: "var(--muted-foreground)" }}>Assign % to each member</span>
+                    <button
+                      type="button"
+                      onClick={handleAutoPercentages}
+                      className="text-xs font-bold px-2 py-1 rounded-lg"
+                      style={{ background: "rgba(249,185,18,0.15)", color: AMBER_DARK }}
+                    >
+                      Auto 100%
+                    </button>
+                  </div>
+                )}
+
+                {splitMode === "shares" && (
+                  <div className="px-1 text-xs" style={{ color: "var(--muted-foreground)" }}>
+                    Assign shares (e.g. 2 for couples, nights stayed, or portions)
+                  </div>
+                )}
 
                 {/* Member rows */}
                 <div className="space-y-2">
                   {group?.members.map((member: any) => {
                     const mName      = (member.name || member.displayName || "?");
                     const isIncluded = splitBetweenIds.includes(member.id);
-                    const equalShare = parseFloat(amount) / (splitBetweenIds.length || 1);
+                    const numAmount  = parseFloat(amount) || 0;
+                    const equalShare = numAmount / (splitBetweenIds.length || 1);
+
+                    // Shares calculation
+                    let totalShares = 0;
+                    splitBetweenIds.forEach(id => { totalShares += (shares[id] || 1); });
+                    if (totalShares <= 0) totalShares = 1;
+                    const currentShare = shares[member.id] || 1;
+                    const shareAmount = numAmount * (currentShare / totalShares);
 
                     return (
                       <div key={member.id}
@@ -406,6 +614,7 @@ export default function AddExpensePage({
 
                         {/* Amber checkbox */}
                         <button
+                          type="button"
                           onClick={() => {
                             if (isIncluded) setSplitBetweenIds(prev => prev.filter(id => id !== member.id));
                             else setSplitBetweenIds(prev => [...prev, member.id]);
@@ -435,13 +644,65 @@ export default function AddExpensePage({
                           )}
                         </div>
 
-                        {/* Amount */}
-                        {splitType === "equal" ? (
+                        {/* Input or Display according to split mode */}
+                        {splitMode === "equal" && (
                           <span className="text-sm font-black"
                                 style={{ color: isIncluded ? "var(--foreground)" : "var(--muted-foreground)" }}>
                             {isIncluded ? `${currSymbol}${equalShare.toFixed(2)}` : `${currSymbol}0.00`}
                           </span>
-                        ) : (
+                        )}
+
+                        {splitMode === "percentage" && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>
+                              {currSymbol}{((numAmount * (percentages[member.id] || 0)) / 100).toFixed(2)}
+                            </span>
+                            <div className="flex items-center">
+                              <input
+                                type="number" placeholder="0"
+                                disabled={!isIncluded}
+                                value={percentages[member.id] || ""}
+                                onChange={(e) => handlePercentageChange(member.id, e.target.value)}
+                                className="w-16 h-8 text-right rounded-xl text-sm font-bold outline-none px-2 border"
+                                style={{
+                                  background: isIncluded ? "var(--card)" : "var(--muted)",
+                                  borderColor: isIncluded ? AMBER : "var(--border)",
+                                  color: isIncluded ? "var(--foreground)" : "var(--muted-foreground)",
+                                }}
+                              />
+                              <span className="ml-1 text-xs font-bold" style={{ color: "var(--muted-foreground)" }}>%</span>
+                            </div>
+                          </div>
+                        )}
+
+                        {splitMode === "shares" && (
+                          <div className="flex items-center gap-3">
+                            <span className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>
+                              {currSymbol}{shareAmount.toFixed(2)}
+                            </span>
+                            <div className="flex items-center gap-1.5 bg-black/5 dark:bg-white/5 p-1 rounded-xl">
+                              <button
+                                type="button"
+                                disabled={!isIncluded || currentShare <= 1}
+                                onClick={() => handleShareChange(member.id, -1)}
+                                className="h-6 w-6 rounded-lg flex items-center justify-center disabled:opacity-30 hover:bg-black/10"
+                              >
+                                <Minus className="h-3 w-3" />
+                              </button>
+                              <span className="text-xs font-black w-4 text-center">{currentShare}</span>
+                              <button
+                                type="button"
+                                disabled={!isIncluded}
+                                onClick={() => handleShareChange(member.id, 1)}
+                                className="h-6 w-6 rounded-lg flex items-center justify-center disabled:opacity-30 hover:bg-black/10"
+                              >
+                                <Plus className="h-3 w-3" />
+                              </button>
+                            </div>
+                          </div>
+                        )}
+
+                        {splitMode === "custom" && (
                           <div className="flex items-center gap-1">
                             <span className="text-xs font-bold" style={{ color: "var(--muted-foreground)" }}>{currSymbol}</span>
                             <input

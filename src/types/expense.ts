@@ -17,4 +17,12 @@ export interface Expense {
   category: string;
   originalAmount?: number | null;
   originalCurrency?: string | null;
+  splitMode?: string; // 'equal' | 'percentage' | 'shares' | 'custom'
+  splitPercentages?: { [userId: string]: number } | null;
+  splitShares?: { [userId: string]: number } | null;
+  splitAdjustments?: { [userId: string]: number } | null;
+  payers?: { [userId: string]: number } | null;
+  isRecurring?: boolean;
+  recurringInterval?: string; // 'daily' | 'weekly' | 'monthly'
+  itemizedItems?: Array<{ name: string; price: number; assignedTo: string[] }> | null;
 }

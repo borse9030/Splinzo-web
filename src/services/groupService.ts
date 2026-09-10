@@ -30,6 +30,7 @@ export const groupService = {
       joinedAt: Timestamp.now(),
     };
 
+    const inviteCode = groupId.substring(0, 6).toUpperCase();
     const newGroup: Partial<Group> = {
       name,
       type,
@@ -39,6 +40,7 @@ export const groupService = {
       createdAt: Timestamp.now(),
       memberIds: [currentUser.id],
       members: [adminMember],
+      inviteCode,
     };
 
     await setDoc(groupRef, newGroup);
@@ -255,5 +257,29 @@ export const groupService = {
     // 4. Finally, delete the group document itself
     const groupRef = doc(db, "groups", groupId);
     await deleteDoc(groupRef);
-  }
+  },
+
+  async addShadowMember(groupId: string, name: string): Promise<GroupMember> {
+    const trimmedName = name.trim();
+    if (!trimmedName) throw new Error("Member name cannot be empty.");
+
+    const shadowId = `shadow_${Date.now()}_${trimmedName.toLowerCase().replace(/[^a-z0-9]/g, "")}`;
+    const shadowMember: GroupMember = {
+      id: shadowId,
+      name: trimmedName,
+      email: "",
+      role: "member",
+      joinedAt: Timestamp.now(),
+      isShadow: true,
+    };
+
+    const groupRef = doc(db, "groups", groupId);
+    await updateDoc(groupRef, {
+      memberIds: arrayUnion(shadowId),
+      members: arrayUnion(shadowMember),
+    });
+
+    return shadowMember;
+  },
 };
+

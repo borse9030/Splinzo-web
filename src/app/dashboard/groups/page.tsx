@@ -1,13 +1,15 @@
 "use client";
 
+import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useGroups } from "@/hooks/useGroups";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, ChevronRight } from "lucide-react";
+import { Plus, ChevronRight, LogIn } from "lucide-react";
 import Link from "next/link";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DashboardBannerAd } from "@/components/ads/DashboardBannerAd";
+import { JoinGroupDialog } from "@/components/groups/JoinGroupDialog";
 
 const AMBER = "#F9B912";
 const AMBER_LIGHT = "#FFF8E1";
@@ -15,6 +17,7 @@ const AMBER_LIGHT = "#FFF8E1";
 export default function DashboardGroupsPage() {
   const { appUser } = useAuth();
   const { groups, loading, error } = useGroups();
+  const [joinDialogOpen, setJoinDialogOpen] = useState(false);
 
   return (
     <div className="space-y-6">
@@ -31,20 +34,27 @@ export default function DashboardGroupsPage() {
       <DashboardBannerAd />
 
       <div className="space-y-4">
-        <div className="flex items-center justify-end">
+        <div className="grid grid-cols-2 sm:flex sm:items-center sm:justify-end gap-2.5">
+          <Button
+            type="button"
+            onClick={() => setJoinDialogOpen(true)}
+            className="flex items-center justify-center gap-2 h-11 rounded-2xl font-bold text-sm border border-gray-200 bg-white text-gray-800 hover:border-amber-400 hover:text-amber-700 shadow-xs transition-colors cursor-pointer whitespace-nowrap"
+          >
+            <LogIn className="h-4 w-4 mr-1 text-blue-600 shrink-0" />
+            <span>Join Group</span>
+          </Button>
           <Button
             asChild
-            size="sm"
-            className="rounded-full px-4 h-9 font-semibold text-sm border"
+            className="flex items-center justify-center gap-2 h-11 rounded-2xl font-bold text-sm shadow-sm hover:shadow-md transition-all cursor-pointer whitespace-nowrap"
             style={{
-              background: AMBER_LIGHT,
-              color: "#B8860B",
-              borderColor: "#FFE082",
+              background: `linear-gradient(135deg, ${AMBER} 0%, #F9A000 100%)`,
+              color: "#1a1a1a",
+              border: "none",
             }}
           >
             <Link href="/groups/new">
-              <Plus className="h-4 w-4 mr-1" />
-              New Group
+              <Plus className="h-4 w-4 mr-1 shrink-0" />
+              <span>New Group</span>
             </Link>
           </Button>
         </div>
@@ -145,6 +155,11 @@ export default function DashboardGroupsPage() {
           </div>
         )}
       </div>
+
+      <JoinGroupDialog
+        isOpen={joinDialogOpen}
+        onClose={() => setJoinDialogOpen(false)}
+      />
     </div>
   );
 }

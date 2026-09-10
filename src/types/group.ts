@@ -9,6 +9,8 @@ export interface GroupMember {
   photoURL?: string;
   role: string; // 'admin', 'member'
   joinedAt: Timestamp;
+  isShadow?: boolean;
+  claimedByUid?: string;
 }
 
 export interface Group {
@@ -22,4 +24,6 @@ export interface Group {
   createdAt: Timestamp;
   memberIds: string[];
   members: GroupMember[];
+  inviteCode?: string;
 }
+

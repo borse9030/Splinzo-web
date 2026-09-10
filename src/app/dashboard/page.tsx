@@ -1,12 +1,15 @@
 "use client";
 
+import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useGroups } from "@/hooks/useGroups";
 import { motion } from "framer-motion";
-import { Plus, ChevronRight, Users, TrendingDown, TrendingUp, Wallet } from "lucide-react";
+import { Plus, ChevronRight, Users, TrendingDown, TrendingUp, Wallet, LogIn } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { DashboardBannerAd } from "@/components/ads/DashboardBannerAd";
+import { PocketLedger } from "@/components/personal/PocketLedger";
+import { JoinGroupDialog } from "@/components/groups/JoinGroupDialog";
 
 const AMBER      = "#F9B912";
 const AMBER_DARK = "#F9A000";
@@ -85,6 +88,8 @@ function MemberAvatars({ members }: { members: any[] }) {
 export default function DashboardPage() {
   const { appUser } = useAuth();
   const { groups, loading, error } = useGroups();
+  const [viewMode, setViewMode] = useState<"groups" | "personal">("groups");
+  const [joinDialogOpen, setJoinDialogOpen] = useState(false);
 
   const firstName = appUser?.displayName?.split(" ")[0] || "there";
 
@@ -123,8 +128,40 @@ export default function DashboardPage() {
         </Link>
       </motion.header>
 
-      {/* ══ BALANCE CARD (GOLDEN AMBER SIGNATURE) ══════════════════ */}
-      <motion.div variants={fadeUp}>
+      {/* ══ SWITCHER: Groups vs Pocket Ledger ══ */}
+      <motion.div variants={fadeUp} className="flex p-1 rounded-2xl max-w-sm" style={{ background: "var(--muted)" }}>
+        <button
+          onClick={() => setViewMode("groups")}
+          className="flex-1 py-2.5 px-4 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-2"
+          style={{
+            background: viewMode === "groups" ? "var(--card)" : "transparent",
+            color: viewMode === "groups" ? "var(--foreground)" : "var(--muted-foreground)",
+            boxShadow: viewMode === "groups" ? "0 2px 8px rgba(0,0,0,0.06)" : "none",
+          }}
+        >
+          <Users className="h-4 w-4" />
+          Group Balances
+        </button>
+        <button
+          onClick={() => setViewMode("personal")}
+          className="flex-1 py-2.5 px-4 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-2"
+          style={{
+            background: viewMode === "personal" ? "var(--card)" : "transparent",
+            color: viewMode === "personal" ? "var(--foreground)" : "var(--muted-foreground)",
+            boxShadow: viewMode === "personal" ? "0 2px 8px rgba(0,0,0,0.06)" : "none",
+          }}
+        >
+          <Wallet className="h-4 w-4" />
+          Pocket Ledger (Solo)
+        </button>
+      </motion.div>
+
+      {viewMode === "personal" ? (
+        <PocketLedger />
+      ) : (
+        <>
+          {/* ══ BALANCE CARD (GOLDEN AMBER SIGNATURE) ══════════════════ */}
+          <motion.div variants={fadeUp}>
         <div
           className="rounded-3xl p-6 relative overflow-hidden"
           style={{
@@ -197,12 +234,12 @@ export default function DashboardPage() {
       {/* ══ GROUPS SECTION ═══════════════════════════════ */}
       <motion.div variants={fadeUp} className="space-y-4">
         {/* Section header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center gap-2.5">
-            <h2 className="text-xl font-black tracking-tight" style={{ color: "var(--foreground)" }}>My Groups</h2>
+            <h2 className="text-xl font-black tracking-tight whitespace-nowrap" style={{ color: "var(--foreground)" }}>My Groups</h2>
             {!loading && groups.length > 0 && (
               <span
-                className="text-xs font-bold px-2 py-0.5 rounded-full"
+                className="text-xs font-bold px-2.5 py-0.5 rounded-full shadow-xs"
                 style={{ background: AMBER_BG, color: AMBER_DARK }}
               >
                 {groups.length}
@@ -210,27 +247,40 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {/* New Group button */}
-          <Link href="/groups/new">
-            <motion.div
-              whileHover={{ scale: 1.04 }}
-              whileTap={{ scale: 0.97 }}
-              className="relative flex items-center gap-1.5 px-4 h-9 rounded-full text-sm font-bold overflow-hidden cursor-pointer"
-              style={{
-                background: `linear-gradient(135deg, ${AMBER} 0%, ${AMBER_DARK} 100%)`,
-                color: "#1a1a1a",
-                boxShadow: "0 4px 16px rgba(249,185,18,0.3)",
-              }}
+          <div className="grid grid-cols-2 sm:flex sm:items-center gap-2.5">
+            {/* Join Group with Code button */}
+            <motion.button
+              type="button"
+              onClick={() => setJoinDialogOpen(true)}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="flex items-center justify-center gap-2 px-4 h-11 rounded-2xl text-sm font-bold border border-gray-200 bg-white text-gray-800 hover:border-amber-400 hover:text-amber-700 transition-all shadow-xs cursor-pointer whitespace-nowrap"
             >
-              {/* Shimmer */}
-              <div
-                className="absolute inset-0 -translate-x-full hover:translate-x-full transition-transform duration-700"
-                style={{ background: "linear-gradient(90deg,transparent,rgba(255,255,255,0.25),transparent)" }}
-              />
-              <Plus className="h-3.5 w-3.5" />
-              New Group
-            </motion.div>
-          </Link>
+              <LogIn className="h-4 w-4 text-blue-600 shrink-0" />
+              <span>Join Group</span>
+            </motion.button>
+
+            {/* New Group button */}
+            <Link href="/groups/new" className="block">
+              <motion.div
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className="relative flex items-center justify-center gap-2 px-4 h-11 rounded-2xl text-sm font-bold overflow-hidden cursor-pointer whitespace-nowrap shadow-sm hover:shadow-md transition-all"
+                style={{
+                  background: `linear-gradient(135deg, ${AMBER} 0%, ${AMBER_DARK} 100%)`,
+                  color: "#1a1a1a",
+                }}
+              >
+                {/* Shimmer */}
+                <div
+                  className="absolute inset-0 -translate-x-full hover:translate-x-full transition-transform duration-700"
+                  style={{ background: "linear-gradient(90deg,transparent,rgba(255,255,255,0.25),transparent)" }}
+                />
+                <Plus className="h-4 w-4 shrink-0" />
+                <span>New Group</span>
+              </motion.div>
+            </Link>
+          </div>
         </div>
 
         {/* Error */}
@@ -365,6 +415,14 @@ export default function DashboardPage() {
           </motion.div>
         )}
       </motion.div>
+    </>
+  )}
+
+      {/* Join Group Dialog */}
+      <JoinGroupDialog
+        isOpen={joinDialogOpen}
+        onClose={() => setJoinDialogOpen(false)}
+      />
     </motion.div>
   );
 }

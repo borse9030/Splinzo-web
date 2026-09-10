@@ -23,7 +23,8 @@ import {
   ChevronDown, 
   ChevronUp,
   Sparkles,
-  AlertTriangle
+  AlertTriangle,
+  MessageSquare
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -250,13 +251,30 @@ export default function SettleUpPage({
                         </div>
                       </div>
 
-                      {iAmPaying && (
+                      {iAmPaying ? (
                         <Button 
                           onClick={() => handleOpenDialog(s)} 
                           className="rounded-xl px-8 w-full sm:w-auto font-bold shadow-sm"
                         >
                           <Zap className="h-4 w-4 mr-2 fill-amber-400 text-amber-400" />
                           Settle & Pay
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            const amt = s.amount.toFixed(2);
+                            const code = group.inviteCode || "";
+                            const link = code ? `${window.location.origin}/join/${code}` : window.location.origin;
+                            const text = encodeURIComponent(
+                              `Hey ${s.fromUserName}! 👋 Just a gentle reminder about your pending balance of ${group.currency === 'INR' ? '₹' : group.currency} ${amt} on Splinzo for "${group.name}".\n\nYou can view and settle here: ${link}\n\nThanks! 😊`
+                            );
+                            window.open(`https://wa.me/?text=${text}`, "_blank");
+                          }}
+                          className="rounded-xl px-5 w-full sm:w-auto font-bold border-green-200 bg-green-50 text-green-700 hover:bg-green-100 shadow-sm"
+                        >
+                          <MessageSquare className="h-4 w-4 mr-2 text-green-600" />
+                          WhatsApp Nudge
                         </Button>
                       )}
                     </div>

@@ -251,8 +251,15 @@ export default function GroupMembersPage({
                       {member.role === "admin" ? "Admin" : "Creator"}
                     </span>
                   )}
+                  {member.isShadow && (
+                    <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-amber-500/15 text-amber-500 border border-amber-500/20">
+                      Ghost
+                    </span>
+                  )}
                 </div>
-                <p className="text-sm text-gray-400 truncate font-medium">{member.email}</p>
+                <p className="text-sm text-gray-400 truncate font-medium">
+                  {member.isShadow ? "Temporary ghost member (no account)" : member.email}
+                </p>
               </div>
               <div className="text-xs font-semibold text-gray-400 group-hover:text-amber-500 transition-colors flex items-center gap-1">
                 <span>View</span>
@@ -279,6 +286,7 @@ export default function GroupMembersPage({
           onClose={() => setAddMemberDialogOpen(false)}
           groupId={group.id}
           groupName={group.name}
+          inviteCode={group.inviteCode}
           groupMembers={group.members}
           isAdmin={isAdmin}
           onSuccess={async () => {

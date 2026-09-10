@@ -77,7 +77,7 @@ export default function RootLayout({
         className={`${outfit.variable} ${geistMono.variable} antialiased min-h-full flex flex-col`}
         style={{ fontFamily: "var(--font-outfit), 'Outfit', sans-serif" }}
       >
-        <ThemeProvider attribute="class" defaultTheme="light">
+        <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
           <ErrorHandler />
           <AuthProvider>
             <AuthGuard>
