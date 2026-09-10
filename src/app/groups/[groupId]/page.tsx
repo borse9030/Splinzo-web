@@ -102,7 +102,8 @@ export default function GroupExpensesPage({
   return (
     <div className="space-y-4 mt-4">
       <div className="space-y-3">
-      {expenses.map((expense) => {
+        {expenses.map((expense) => {
+        const hasMultiplePayers = expense.payers && Object.keys(expense.payers).length > 1;
         const isPayer = expense.payerId === appUser?.id;
         const isInvolved = expense.splitBetweenIds.includes(appUser?.id || "");
         
@@ -110,35 +111,69 @@ export default function GroupExpensesPage({
         const payerName = payerMember?.name || payerMember?.displayName || "Unknown";
         const payerPhoto = payerMember?.photoURL || payerMember?.photoUrl;
         
-        // Payer label: "You" or first name
-        const payerLabel = isPayer ? "You" : payerName.split(" ")[0];
+        // Payer label: "Multiple people", "You", or first name
+        const payerLabel = hasMultiplePayers 
+          ? "Multiple people" 
+          : (isPayer ? "You" : payerName.split(" ")[0]);
+
+        const currencySymbol = expense.currency === "INR" ? "₹" : expense.currency;
+
+        // Calculate user's paid amount and share
+        const myPaid = expense.payers && appUser?.id && expense.payers[appUser.id] !== undefined
+          ? expense.payers[appUser.id]
+          : (isPayer ? expense.amount : 0);
+
+        let myShare = 0;
+        if (isInvolved) {
+          if (expense.customSplitAmounts && expense.customSplitAmounts[appUser?.id || ""] !== undefined) {
+            myShare = expense.customSplitAmounts[appUser?.id || ""];
+          } else if (expense.splitBetweenIds.length > 0) {
+            myShare = expense.amount / expense.splitBetweenIds.length;
+          }
+        }
+
+        const net = myPaid - myShare;
 
         let statusText = "";
         let statusColor = "text-gray-400";
         let statusBg = "bg-gray-100";
 
-        if (isPayer && expense.splitBetweenIds.length > 1) {
-          statusText = "you paid";
-          statusColor = "text-emerald-600";
-          statusBg = "bg-emerald-50";
-        } else if (isInvolved && !isPayer) {
-          let myShare = 0;
-          if (expense.customSplitAmounts && expense.customSplitAmounts[appUser?.id || ""]) {
-            myShare = expense.customSplitAmounts[appUser?.id || ""];
+        if (hasMultiplePayers) {
+          if (net > 0.005) {
+            statusText = `you lent ${currencySymbol}${net.toFixed(2)}`;
+            statusColor = "text-emerald-600";
+            statusBg = "bg-emerald-50";
+          } else if (net < -0.005) {
+            statusText = `you owe ${currencySymbol}${Math.abs(net).toFixed(2)}`;
+            statusColor = "text-red-600";
+            statusBg = "bg-red-50";
+          } else if (myPaid > 0 || isInvolved) {
+            statusText = "settled";
+            statusColor = "text-gray-500";
+            statusBg = "bg-gray-100";
           } else {
-            myShare = expense.amount / expense.splitBetweenIds.length;
+            statusText = "not involved";
+            statusColor = "text-gray-400";
+            statusBg = "bg-gray-100";
           }
-          statusText = `you owe ${expense.currency === "INR" ? "₹" : expense.currency}${myShare.toFixed(2)}`;
-          statusColor = "text-red-600";
-          statusBg = "bg-red-50";
-        } else if (isPayer && expense.splitBetweenIds.length === 1 && isInvolved) {
-          statusText = "you paid for yourself";
-          statusColor = "text-gray-500";
-          statusBg = "bg-gray-100";
         } else {
-          statusText = "not involved";
-          statusColor = "text-gray-400";
-          statusBg = "bg-gray-100";
+          if (isPayer && expense.splitBetweenIds.length > 1) {
+            statusText = "you paid";
+            statusColor = "text-emerald-600";
+            statusBg = "bg-emerald-50";
+          } else if (isInvolved && !isPayer) {
+            statusText = `you owe ${currencySymbol}${myShare.toFixed(2)}`;
+            statusColor = "text-red-600";
+            statusBg = "bg-red-50";
+          } else if (isPayer && expense.splitBetweenIds.length === 1 && isInvolved) {
+            statusText = "you paid for yourself";
+            statusColor = "text-gray-500";
+            statusBg = "bg-gray-100";
+          } else {
+            statusText = "not involved";
+            statusColor = "text-gray-400";
+            statusBg = "bg-gray-100";
+          }
         }
 
         const dateStr = expense.createdAt

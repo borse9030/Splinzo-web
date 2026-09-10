@@ -8,17 +8,48 @@ export const expenseService = {
     expenseData: Omit<Expense, "id" | "createdAt" | "groupId">
   ): Promise<Expense> {
     const expenseRef = doc(collection(db, `groups/${groupId}/expenses`));
-    const newExpense = {
+
+    // Filter payers map to only users who contributed > 0
+    let cleanedPayers: { [userId: string]: number } | null = null;
+    if (expenseData.payers && Object.keys(expenseData.payers).length > 0) {
+      cleanedPayers = {};
+      for (const [uid, amt] of Object.entries(expenseData.payers)) {
+        if (typeof amt === "number" && amt > 0) {
+          cleanedPayers[uid] = Number(amt.toFixed(2));
+        }
+      }
+      if (Object.keys(cleanedPayers).length === 0) cleanedPayers = null;
+    }
+
+    // Determine effective payerId
+    let effectivePayerId = expenseData.payerId;
+    if (cleanedPayers && Object.keys(cleanedPayers).length > 0) {
+      // Find the highest contributor as the primary payerId
+      const topPayer = Object.entries(cleanedPayers).sort((a, b) => b[1] - a[1])[0];
+      effectivePayerId = topPayer ? topPayer[0] : expenseData.payerId;
+    }
+
+    // Deep sanitize to prevent any undefined values from crashing Firestore setDoc
+    const rawExpense: Record<string, any> = {
       ...expenseData,
+      payerId: effectivePayerId,
+      payers: cleanedPayers,
       groupId,
       createdAt: serverTimestamp(),
     };
 
-    await setDoc(expenseRef, newExpense);
+    const sanitizedExpense: Record<string, any> = {};
+    for (const [key, value] of Object.entries(rawExpense)) {
+      if (value !== undefined) {
+        sanitizedExpense[key] = value;
+      }
+    }
+
+    await setDoc(expenseRef, sanitizedExpense);
 
     return {
       id: expenseRef.id,
-      ...newExpense,
+      ...sanitizedExpense,
       createdAt: Timestamp.now(), // Fallback for local state
     } as Expense;
   },

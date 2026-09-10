@@ -63,18 +63,27 @@ export default function ExpenseDetailsPage({
   };
   const payerName = payer.displayName || "Unknown User";
 
-  // Calculate my share if I'm not the payer
-  let myShare = 0;
+  // Multi-payer support
+  const hasMultiplePayers = expense.payers && Object.keys(expense.payers).length > 1;
+  const currencySymbol = expense.currency === "INR" ? "₹" : expense.currency;
+
+  // Calculate my share & paid amounts
   const amIInvolved = expense.splitBetweenIds.includes(appUser?.id || "");
   const amIPayer = expense.payerId === appUser?.id;
-  
-  if (amIInvolved && !amIPayer) {
-    if (expense.customSplitAmounts && expense.customSplitAmounts[appUser!.id]) {
-      myShare = expense.customSplitAmounts[appUser!.id];
-    } else {
+
+  let myShare = 0;
+  if (amIInvolved) {
+    if (expense.customSplitAmounts && expense.customSplitAmounts[appUser?.id || ""] !== undefined) {
+      myShare = expense.customSplitAmounts[appUser?.id || ""];
+    } else if (expense.splitBetweenIds.length > 0) {
       myShare = expense.amount / expense.splitBetweenIds.length;
     }
   }
+
+  const myPaid = expense.payers && appUser?.id && expense.payers[appUser.id] !== undefined
+    ? expense.payers[appUser.id]
+    : (amIPayer ? expense.amount : 0);
+  const myNet = myPaid - myShare;
 
   // Find if there's already a payment for this expense
   const myPaymentToPayer = payments?.find(
@@ -134,24 +143,48 @@ export default function ExpenseDetailsPage({
               {expense.description}
             </h2>
             <p className="text-3xl font-black mt-2 tracking-tight" style={{ color: AMBER }}>
-              {expense.currency === "INR" ? "₹" : expense.currency}{expense.amount.toFixed(2)}
+              {currencySymbol}{expense.amount.toFixed(2)}
             </p>
           </div>
 
           <div className="space-y-3 pt-4 border-t border-gray-100 text-sm font-medium text-gray-600">
-            <div className="flex items-center gap-2.5">
-              <User className="h-4 w-4 text-gray-400" />
-              <span>
-                <strong className="text-gray-900">{payerName}</strong> paid
-              </span>
-            </div>
+            {hasMultiplePayers ? (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2.5">
+                  <User className="h-4 w-4 text-gray-400" />
+                  <span>
+                    <strong className="text-gray-900">Multiple people</strong> paid
+                  </span>
+                </div>
+                <div className="p-3 bg-amber-50/60 rounded-2xl border border-amber-100/80 space-y-1.5">
+                  <p className="text-[11px] font-bold text-amber-800 uppercase tracking-wider">Paid by:</p>
+                  {Object.entries(expense.payers || {}).map(([pId, pAmt]) => {
+                    const pMember = group?.members?.find((m: any) => m.id === pId);
+                    const name = pMember?.displayName || pMember?.name || (pId === appUser?.id ? "You" : "Unknown Member");
+                    return (
+                      <div key={pId} className="flex justify-between items-center text-xs font-semibold text-amber-950">
+                        <span>{name} {pId === appUser?.id && "(You)"}</span>
+                        <span className="font-bold">{currencySymbol}{Number(pAmt).toFixed(2)}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2.5">
+                <User className="h-4 w-4 text-gray-400" />
+                <span>
+                  <strong className="text-gray-900">{payerName}</strong> paid
+                </span>
+              </div>
+            )}
             <div className="flex items-center gap-2.5">
               <Calendar className="h-4 w-4 text-gray-400" />
               <span>{dateStr}</span>
             </div>
             <div className="flex items-center gap-2.5">
               <Receipt className="h-4 w-4 text-gray-400" />
-              <span>Split equally between {expense.splitBetweenIds.length} people</span>
+              <span>Split between {expense.splitBetweenIds.length} people</span>
             </div>
           </div>
 
@@ -171,6 +204,11 @@ export default function ExpenseDetailsPage({
                 } else {
                   shareAmount = expense.amount / expense.splitBetweenIds.length;
                 }
+
+                const userPaid = (expense.payers && expense.payers[userId] !== undefined)
+                  ? expense.payers[userId]
+                  : (userId === expense.payerId ? expense.amount : 0);
+                const userNet = userPaid - shareAmount;
 
                 const isMe = userId === appUser?.id;
                 const isPayerMember = userId === expense.payerId;
@@ -193,7 +231,20 @@ export default function ExpenseDetailsPage({
                         <p className="font-semibold text-sm text-gray-900">
                           {memberName} {isMe && "(You)"}
                         </p>
-                        {isPayerMember ? (
+                        {hasMultiplePayers ? (
+                          <div className="flex items-center gap-1.5 text-[11px] font-bold">
+                            {userPaid > 0 && (
+                              <span className="text-amber-700">Paid {currencySymbol}{userPaid.toFixed(2)} ·</span>
+                            )}
+                            {userNet > 0.005 ? (
+                              <span className="text-emerald-600">Lent {currencySymbol}{userNet.toFixed(2)}</span>
+                            ) : userNet < -0.005 ? (
+                              <span className="text-red-600">Owes {currencySymbol}{Math.abs(userNet).toFixed(2)}</span>
+                            ) : (
+                              <span className="text-gray-400 font-medium">Settled</span>
+                            )}
+                          </div>
+                        ) : isPayerMember ? (
                           <span className="text-[11px] font-bold text-emerald-600">Paid original bill</span>
                         ) : isSettled ? (
                           <span className="text-[11px] font-bold text-emerald-600 flex items-center gap-1">
@@ -210,7 +261,7 @@ export default function ExpenseDetailsPage({
                     </div>
                     <div className="text-right">
                       <p className="font-bold text-sm text-gray-900">
-                        {expense.currency === "INR" ? "₹" : expense.currency}{shareAmount.toFixed(2)}
+                        {currencySymbol}{shareAmount.toFixed(2)}
                       </p>
                     </div>
                   </div>
@@ -222,11 +273,13 @@ export default function ExpenseDetailsPage({
       </Card>
 
       {/* Payment Action Bar */}
-      {amIInvolved && !amIPayer && myShare > 0 && !myPaymentToPayer && (
+      {amIInvolved && myNet < -0.01 && !myPaymentToPayer && (
         <Card className="border-none shadow-sm rounded-3xl overflow-hidden bg-blue-50/50 border border-blue-100">
           <CardContent className="p-6 text-center">
-            <h3 className="font-bold text-gray-900 mb-1">You owe {payerName}</h3>
-            <p className="text-2xl font-extrabold text-blue-600 mb-4">{expense.currency === "INR" ? "₹" : expense.currency}{myShare.toFixed(2)}</p>
+            <h3 className="font-bold text-gray-900 mb-1">
+              {hasMultiplePayers ? "You owe on this expense" : `You owe ${payerName}`}
+            </h3>
+            <p className="text-2xl font-extrabold text-blue-600 mb-4">{currencySymbol}{Math.abs(myNet).toFixed(2)}</p>
             <Button asChild className="w-full rounded-full h-12 text-base font-bold bg-blue-600 hover:bg-blue-700 shadow-md">
               <Link href={`/groups/${group?.id || groupId}/settle`}>
                 <Zap className="h-4 w-4 mr-2 fill-amber-400 text-amber-400" />

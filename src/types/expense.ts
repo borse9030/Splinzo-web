@@ -23,6 +23,6 @@ export interface Expense {
   splitAdjustments?: { [userId: string]: number } | null;
   payers?: { [userId: string]: number } | null;
   isRecurring?: boolean;
-  recurringInterval?: string; // 'daily' | 'weekly' | 'monthly'
+  recurringInterval?: string | null; // 'daily' | 'weekly' | 'monthly'
   itemizedItems?: Array<{ name: string; price: number; assignedTo: string[] }> | null;
 }

@@ -204,36 +204,49 @@ export default function AddExpensePage({
     }
 
     setError("");
+    setLoading(true);
 
-    // Optimistic UI: Route away instantly
-    router.push(`/groups/${group.id}`);
-
-    // Fire and forget backend updates
-    Promise.resolve().then(async () => {
-      try {
-        let finalImageUrl = null;
-        if (billImage) finalImageUrl = await storageService.uploadFile(billImage);
-        await expenseService.addExpense(group.id, {
-          description,
-          amount: numAmount,
-          payerId,
-          currency: group.currency,
-          createdBy: appUser.id,
-          splitBetweenIds,
-          customSplitAmounts: computedCustomAmounts,
-          splitMode,
-          splitPercentages: splitMode === "percentage" ? percentages : null,
-          splitShares: splitMode === "shares" ? shares : null,
-          payers: isMultiPayer ? payerAmounts : null,
-          isRecurring,
-          recurringInterval: isRecurring ? "monthly" : undefined,
-          billImageUrl: finalImageUrl,
-          category,
-        });
-      } catch (err: any) {
-        console.error("Failed to add expense:", err.message || "Unknown error");
+    try {
+      let finalImageUrl: string | null = null;
+      if (billImage) {
+        finalImageUrl = await storageService.uploadFile(billImage);
       }
-    });
+
+      // Filter payers map if multi-payer is active
+      let cleanedPayers: { [key: string]: number } | null = null;
+      if (isMultiPayer) {
+        cleanedPayers = {};
+        for (const [uid, amt] of Object.entries(payerAmounts)) {
+          if (typeof amt === "number" && amt > 0) {
+            cleanedPayers[uid] = Number(amt.toFixed(2));
+          }
+        }
+      }
+
+      await expenseService.addExpense(group.id, {
+        description: description.trim(),
+        amount: numAmount,
+        payerId: isMultiPayer ? (Object.keys(cleanedPayers || {})[0] || payerId) : payerId,
+        currency: group.currency || "INR",
+        createdBy: appUser.id,
+        splitBetweenIds,
+        customSplitAmounts: computedCustomAmounts,
+        splitMode,
+        splitPercentages: splitMode === "percentage" ? percentages : null,
+        splitShares: splitMode === "shares" ? shares : null,
+        payers: cleanedPayers,
+        isRecurring,
+        recurringInterval: isRecurring ? "monthly" : null,
+        billImageUrl: finalImageUrl,
+        category,
+      });
+
+      router.push(`/groups/${group.id}`);
+    } catch (err: any) {
+      console.error("Failed to add expense:", err);
+      setError(err.message || "Failed to save expense. Please check your connection and try again.");
+      setLoading(false);
+    }
   };
 
   const currSymbol = group?.currency === "INR" ? "₹" : group?.currency || "₹";

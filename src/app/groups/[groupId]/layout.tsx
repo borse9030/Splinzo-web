@@ -4,6 +4,7 @@ import { use, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useGroup } from "@/hooks/useGroup";
+import { useExpenses } from "@/hooks/useExpenses";
 import { ChevronLeft, PhoneCall, Plus, Scale, Trash2, UserPlus, QrCode } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -25,12 +26,16 @@ export default function GroupLayout({
 }) {
   const resolvedParams = use(params);
   const { group, loading, error } = useGroup(resolvedParams.groupId);
+  const { expenses } = useExpenses(resolvedParams.groupId);
   const { startCall, isConnecting } = useCall();
   const { appUser } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
   const [addMemberOpen, setAddMemberOpen] = useState(false);
   const [initialTab, setInitialTab] = useState<"email" | "ghost" | "qr">("email");
+
+  const totalExpenses = expenses.reduce((sum, exp) => sum + (Number(exp.amount) || 0), 0);
+  const currencySymbol = (group?.currency || "INR") === "INR" ? "₹" : (group?.currency || "INR");
 
   const isAdmin =
     group?.members?.find((m) => m.id === appUser?.id)?.role === "admin" ||
@@ -183,7 +188,9 @@ export default function GroupLayout({
             ) : (
               <>
                 <h1 className="text-2xl font-extrabold text-white tracking-tight">{group?.name}</h1>
-                <p className="text-white/80 text-sm font-medium">▣ Total: INR 0.00</p>
+                <p className="text-white/80 text-sm font-medium">
+                  ▣ Total: {currencySymbol} {totalExpenses.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </p>
               </>
             )}
           </div>

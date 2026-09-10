@@ -30,26 +30,30 @@ export const balanceService = {
 
     // Process expenses
     expenses.forEach((expense) => {
-      // Payer gets credit for the full amount
-      if (balances[expense.payerId] !== undefined) {
-        balances[expense.payerId] += expense.amount;
+      // Credit payers (support multi-payer)
+      if (expense.payers && Object.keys(expense.payers).length > 0) {
+        for (const [payerId, paidAmount] of Object.entries(expense.payers)) {
+          const amt = Number(paidAmount) || 0;
+          if (amt > 0) {
+            balances[payerId] = (balances[payerId] || 0) + amt;
+          }
+        }
+      } else if (expense.payerId) {
+        balances[expense.payerId] = (balances[expense.payerId] || 0) + expense.amount;
       }
 
       // Subtract shares from participants
       if (expense.customSplitAmounts && Object.keys(expense.customSplitAmounts).length > 0) {
         // Custom split
         for (const [userId, amount] of Object.entries(expense.customSplitAmounts)) {
-          if (balances[userId] !== undefined) {
-            balances[userId] -= amount;
-          }
+          const share = Number(amount) || 0;
+          balances[userId] = (balances[userId] || 0) - share;
         }
-      } else {
+      } else if (expense.splitBetweenIds && expense.splitBetweenIds.length > 0) {
         // Equal split
         const share = expense.amount / expense.splitBetweenIds.length;
         expense.splitBetweenIds.forEach((userId) => {
-          if (balances[userId] !== undefined) {
-            balances[userId] -= share;
-          }
+          balances[userId] = (balances[userId] || 0) - share;
         });
       }
     });
