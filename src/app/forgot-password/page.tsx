@@ -4,6 +4,8 @@ import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
+import { sendPasswordResetEmail } from "firebase/auth";
+import { auth } from "@/lib/firebase/config";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   AlertCircle,
@@ -186,25 +188,46 @@ function ForgotPasswordForm() {
     setError("");
 
     try {
-      const res = await fetch("/api/auth/send-reset-email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: cleanEmail }),
-      });
-      let data: any = null;
+      let emailSent = false;
       try {
-        data = await res.json();
-      } catch {
-        // non-JSON response fallback
+        const res = await fetch("/api/auth/send-reset-email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: cleanEmail }),
+        });
+        const data = await res.json().catch(() => null);
+        if (res.ok && data?.success) {
+          emailSent = true;
+        } else if (res.status === 404) {
+          throw new Error("No Splinzo account found with this email address.");
+        }
+      } catch (apiErr: any) {
+        if (apiErr?.message?.includes("No Splinzo account")) {
+          throw apiErr;
+        }
+        console.warn("[forgot-password] Custom API failed, falling back to Firebase client:", apiErr);
       }
-      if (!res.ok) {
-        throw new Error(data?.error || "Unable to send reset email. Please try again.");
+
+      if (!emailSent) {
+        const actionCodeSettings = {
+          url: "https://www.splinzo.in/reset-password",
+          handleCodeInApp: false,
+        };
+        await sendPasswordResetEmail(auth, cleanEmail, actionCodeSettings);
       }
+
       setIsSuccess(true);
       setResendCountdown(60);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Failed to send password reset email.";
-      setError(message);
+      const code = (err as { code?: string })?.code;
+      if (code === "auth/user-not-found") {
+        setError("No account found with this email address.");
+      } else if (code === "auth/invalid-email") {
+        setError("The email address is improperly formatted.");
+      } else {
+        const message = err instanceof Error ? err.message : "Failed to send password reset email.";
+        setError(message);
+      }
       triggerShake();
     } finally {
       setLoading(false);
