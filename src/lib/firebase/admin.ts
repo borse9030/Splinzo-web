@@ -46,12 +46,11 @@ export function getFirebaseAdmin(): { app: App; auth: Auth; db: Firestore } {
         }),
       });
     } catch (e) {
-      console.error("[firebase/admin] Failed to init with privateKey/clientEmail:", e);
+      console.error("[firebase/admin] Failed to init with cert:", e);
     }
   }
 
   if (!adminApp) {
-    // Fallback initialize
     adminApp = initializeApp({ projectId });
   }
 

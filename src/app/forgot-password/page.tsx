@@ -191,9 +191,14 @@ function ForgotPasswordForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: cleanEmail }),
       });
-      const data = await res.json();
+      let data: any = null;
+      try {
+        data = await res.json();
+      } catch {
+        // non-JSON response fallback
+      }
       if (!res.ok) {
-        throw new Error(data.error || "Failed to send password reset email.");
+        throw new Error(data?.error || "Unable to send reset email. Please try again.");
       }
       setIsSuccess(true);
       setResendCountdown(60);
@@ -207,9 +212,9 @@ function ForgotPasswordForm() {
   };
 
   const fadeUp = (delay: number) => ({
-    initial: { opacity: 0, y: 20 },
+    initial: { opacity: 0, y: 15 },
     animate: { opacity: 1, y: 0 },
-    transition: { duration: 0.5, delay },
+    transition: { duration: 0.4, delay },
   });
 
   return (
@@ -258,8 +263,12 @@ function ForgotPasswordForm() {
             {/* Form */}
             <form onSubmit={handleSendReset} className="flex flex-col gap-4">
               <motion.div
-                {...fadeUp(0.15)}
-                animate={shake && !!error ? { x: [0, -8, 8, -6, 6, -4, 4, 0] } : { x: 0 }}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{
+                  opacity: 1,
+                  y: 0,
+                  x: shake && !!error ? [0, -8, 8, -6, 6, -4, 4, 0] : 0,
+                }}
                 transition={{ duration: 0.4 }}
                 className="flex flex-col gap-1.5"
               >
