@@ -1,6 +1,7 @@
 "use client";
 
 import { Navigation } from "@/components/layout/Navigation";
+import { StickyBottomAd } from "@/components/ads/StickyBottomAd";
 
 export default function DashboardLayout({
   children,
@@ -17,6 +18,9 @@ export default function DashboardLayout({
           {children}
         </div>
       </main>
+
+      {/* Floating Viewable Bottom Ad Unit */}
+      <StickyBottomAd />
     </div>
   );
 }

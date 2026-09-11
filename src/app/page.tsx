@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 
 import { blogs } from "@/data/blogs";
+import { AdsterraBanner } from "@/components/ads/AdsterraBanner";
 
 /* ─── CONSTANTS ─────────────────────────────────────────── */
 const AMBER       = "#F9B912";
@@ -842,6 +843,14 @@ export default function Home() {
           </div>
         </div>
       </Section>
+
+      {/* ══ PRE-FOOTER SPONSOR BANNER ═══════════════════ */}
+      <div className="max-w-4xl mx-auto px-5 py-10 flex flex-col items-center">
+        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">
+          Sponsored
+        </span>
+        <AdsterraBanner width={728} height={90} />
+      </div>
 
       {/* ══ FOOTER ═════════════════════════════════════════ */}
       <footer className="bg-gray-900 text-gray-400 pt-16 pb-8 px-5">

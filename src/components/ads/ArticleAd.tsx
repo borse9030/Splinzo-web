@@ -1,6 +1,6 @@
 "use client";
 
-import { AdUnit } from "./AdUnit";
+import { AdsterraBanner } from "./AdsterraBanner";
 
 interface ArticleAdProps {
   className?: string;
@@ -8,12 +8,8 @@ interface ArticleAdProps {
 
 /**
  * In-article responsive display ad for blog posts.
- *
  * Placement: After the first major content section and at the end of the article.
- * Max 2 per article to comply with Google's Better Ads Standards.
- *
- * TODO: Replace YYYYYYYYYY with your real in-article ad slot ID from AdSense:
- *   Ads → By ad unit → Create new ad unit → In-article
+ * Powered by Adsterra
  */
 export function ArticleAd({ className }: ArticleAdProps) {
   return (
@@ -22,17 +18,20 @@ export function ArticleAd({ className }: ArticleAdProps) {
       style={{
         width: "100%",
         margin: "32px 0",
-        padding: "0",
-        borderTop: "1px solid #F3F4F6",
-        borderBottom: "1px solid #F3F4F6",
+        padding: "16px 0",
+        borderTop: "1px solid var(--border, #F1F5F9)",
+        borderBottom: "1px solid var(--border, #F1F5F9)",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
       }}
     >
       <p
         style={{
           textAlign: "center",
           fontSize: 10,
-          fontWeight: 600,
-          color: "#D1D5DB",
+          fontWeight: 700,
+          color: "#94A3B8",
           letterSpacing: "1px",
           marginBottom: 8,
           textTransform: "uppercase",
@@ -40,12 +39,20 @@ export function ArticleAd({ className }: ArticleAdProps) {
       >
         Advertisement
       </p>
-      <AdUnit
-        slot="YYYYYYYYYY" // TODO: replace with real in-article slot ID
-        format="auto"
-        fullWidthResponsive={true}
-        style={{ minHeight: 90 }}
-      />
+      <div
+        style={{
+          width: "100%",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+        }}
+      >
+        <AdsterraBanner
+          adKey="ae9d16cc9abc184e693997fd2e0102fb"
+          width={728}
+          height={90}
+        />
+      </div>
     </div>
   );
 }

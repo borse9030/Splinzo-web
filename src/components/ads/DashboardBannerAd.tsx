@@ -1,6 +1,6 @@
 "use client";
 
-import { AdUnit } from "./AdUnit";
+import { AdsterraBanner } from "./AdsterraBanner";
 
 interface DashboardBannerAdProps {
   className?: string;
@@ -13,8 +13,7 @@ interface DashboardBannerAdProps {
  * Styled subtly so it blends with dashboard cards without disrupting
  * any active task flow.
  *
- * TODO: Replace ZZZZZZZZZ with your real display/leaderboard slot ID from AdSense:
- *   Ads → By ad unit → Create new ad unit → Display ads (horizontal format)
+ * Powered by Adsterra 728x90 Leaderboard Unit
  */
 export function DashboardBannerAd({ className }: DashboardBannerAdProps) {
   return (
@@ -33,30 +32,34 @@ export function DashboardBannerAd({ className }: DashboardBannerAdProps) {
       <span
         style={{
           fontSize: 9,
-          fontWeight: 600,
-          color: "#D1D5DB",
+          fontWeight: 700,
+          color: "#94A3B8",
           letterSpacing: "0.8px",
           textTransform: "uppercase",
           marginBottom: 4,
         }}
       >
-        Ad
+        Sponsored
       </span>
       <div
         style={{
           width: "100%",
           borderRadius: 16,
           overflow: "hidden",
-          background: "white",
-          border: "1px solid #F3F4F6",
-          boxShadow: "0 1px 8px rgba(0,0,0,0.04)",
+          background: "var(--card, #FFFFFF)",
+          border: "1px solid var(--border, #F1F5F9)",
+          boxShadow: "0 1px 8px rgba(0,0,0,0.03)",
           minHeight: 90,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "4px 0",
         }}
       >
-        <AdUnit
-          slot="ZZZZZZZZZ" // TODO: replace with real display slot ID
-          format="horizontal"
-          fullWidthResponsive={true}
+        <AdsterraBanner
+          adKey="ae9d16cc9abc184e693997fd2e0102fb"
+          width={728}
+          height={90}
         />
       </div>
     </div>

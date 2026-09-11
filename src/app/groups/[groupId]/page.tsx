@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { AlertCircle, Receipt, Image as ImageIcon } from "lucide-react";
 import Link from "next/link";
 import { Skeleton } from "@/components/ui/skeleton";
+import { DashboardBannerAd } from "@/components/ads/DashboardBannerAd";
 
 const AMBER = "#F9B912";
 const AMBER_LIGHT = "#FFF8E1";
@@ -237,6 +238,11 @@ export default function GroupExpensesPage({
             </Link>
           );
         })}
+      </div>
+
+      {/* Group Bottom Sponsor Banner */}
+      <div className="pt-6">
+        <DashboardBannerAd />
       </div>
     </div>
   );

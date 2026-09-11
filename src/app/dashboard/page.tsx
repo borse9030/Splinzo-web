@@ -157,7 +157,12 @@ export default function DashboardPage() {
       </motion.div>
 
       {viewMode === "personal" ? (
-        <PocketLedger />
+        <>
+          <PocketLedger />
+          <motion.div variants={fadeUp} className="pt-4">
+            <DashboardBannerAd />
+          </motion.div>
+        </>
       ) : (
         <>
           {/* ══ BALANCE CARD (GOLDEN AMBER SIGNATURE) ══════════════════ */}
