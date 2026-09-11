@@ -35,6 +35,21 @@ export const CATEGORIES = [
   { name: "General", icon: Tag, color: "#6B7280", bg: "rgba(107, 114, 128, 0.12)" },
 ];
 
+function parseExpenseDate(date: any): Date {
+  if (!date) return new Date();
+  if (typeof date?.toDate === "function") {
+    return date.toDate();
+  }
+  if (date instanceof Date) {
+    return date;
+  }
+  if (typeof date?.seconds === "number") {
+    return new Date(date.seconds * 1000);
+  }
+  const parsed = new Date(date);
+  return isNaN(parsed.getTime()) ? new Date() : parsed;
+}
+
 export function PocketLedger() {
   const { appUser } = useAuth();
   const [expenses, setExpenses] = useState<PersonalExpenseItem[]>([]);
@@ -121,14 +136,7 @@ export function PocketLedger() {
   // Filter expenses by selected month
   const monthExpenses = useMemo(() => {
     return expenses.filter(e => {
-      let d: Date;
-      if (e.date?.toDate) {
-        d = e.date.toDate();
-      } else if (e.date instanceof Date) {
-        d = e.date;
-      } else {
-        d = new Date(e.date);
-      }
+      const d = parseExpenseDate(e.date);
       return (
         d.getMonth() === currentMonthDate.getMonth() &&
         d.getFullYear() === currentMonthDate.getFullYear()
@@ -411,14 +419,7 @@ export function PocketLedger() {
           {filtered.map(item => {
             const meta = getCategoryMeta(item.category);
             const Icon = meta.icon;
-            let dateObj: Date;
-            if (item.date?.toDate) {
-              dateObj = item.date.toDate();
-            } else if (item.date instanceof Date) {
-              dateObj = item.date;
-            } else {
-              dateObj = new Date(item.date);
-            }
+            const dateObj = parseExpenseDate(item.date);
             const formattedDate = dateObj.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
 
             return (

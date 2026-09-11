@@ -6,7 +6,7 @@ export interface PersonalExpenseItem {
   description: string;
   amount: number;
   category: string;
-  date: Timestamp;
+  date: any;
   notes?: string;
 }
 
