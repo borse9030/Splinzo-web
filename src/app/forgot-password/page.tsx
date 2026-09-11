@@ -4,8 +4,6 @@ import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useSearchParams } from "next/navigation";
-import { sendPasswordResetEmail } from "firebase/auth";
-import { auth } from "@/lib/firebase/config";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   AlertCircle,
@@ -188,29 +186,20 @@ function ForgotPasswordForm() {
     setError("");
 
     try {
-      const actionCodeSettings = {
-        url: typeof window !== "undefined"
-          ? `${window.location.origin}/reset-password`
-          : "https://www.splinzo.in/reset-password",
-        handleCodeInApp: false,
-      };
-      await sendPasswordResetEmail(auth, cleanEmail, actionCodeSettings);
+      const res = await fetch("/api/auth/send-reset-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: cleanEmail }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to send password reset email.");
+      }
       setIsSuccess(true);
       setResendCountdown(60);
     } catch (err: unknown) {
-      const code = (err as { code?: string })?.code;
-      if (code === "auth/user-not-found") {
-        setError("No account found with this email address.");
-      } else if (code === "auth/invalid-email") {
-        setError("The email address is improperly formatted.");
-      } else if (code === "auth/too-many-requests") {
-        setError("Too many attempts. Please wait a few minutes before trying again.");
-      } else if (code === "auth/network-request-failed") {
-        setError("Network connection failed. Please check your internet connection.");
-      } else {
-        const message = err instanceof Error ? err.message : "Failed to send password reset email.";
-        setError(message);
-      }
+      const message = err instanceof Error ? err.message : "Failed to send password reset email.";
+      setError(message);
       triggerShake();
     } finally {
       setLoading(false);
