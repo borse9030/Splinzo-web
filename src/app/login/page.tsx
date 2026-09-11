@@ -554,7 +554,8 @@ export default function LoginPage() {
                 value={password} onChange={setPassword}
                 error={shake && !!error}
                 extra={
-                  <Link href="/forgot-password"
+                  <Link href={email ? `/forgot-password?email=${encodeURIComponent(email)}` : "/forgot-password"}
+                        onClick={(e) => e.stopPropagation()}
                         className="text-xs font-bold transition-colors hover:opacity-80"
                         style={{ color: AMBER }}>
                     Forgot password?

@@ -21,6 +21,8 @@ export function isPublicRoute(pathname: string): boolean {
     "/contact",
     "/login",
     "/signup",
+    "/forgot-password",
+    "/reset-password",
     "/ads.txt",
   ];
 
@@ -34,6 +36,8 @@ export function isPublicRoute(pathname: string): boolean {
     "/blog/",
     "/join/",
     "/admin",
+    "/forgot-password",
+    "/reset-password",
   ];
 
   return publicPrefixes.some((prefix) => cleanPath.startsWith(prefix));
@@ -57,7 +61,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
         // We'll let the signup/login pages handle the redirect.
       } else {
         // Logged in and has appUser document
-        if (pathname === "/login" || pathname === "/signup") {
+        if (pathname === "/login" || pathname === "/signup" || pathname === "/forgot-password") {
           setTimeout(() => router.push("/dashboard"), 0);
         }
       }
