@@ -4,18 +4,51 @@ import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 
+export function isPublicRoute(pathname: string): boolean {
+  if (!pathname) return false;
+
+  // Normalize path by stripping trailing slash
+  const cleanPath = pathname.length > 1 && pathname.endsWith("/")
+    ? pathname.slice(0, -1)
+    : pathname;
+
+  const publicExactRoutes = [
+    "/",
+    "/about",
+    "/blog",
+    "/privacy-policy",
+    "/terms",
+    "/contact",
+    "/login",
+    "/signup",
+    "/ads.txt",
+  ];
+
+  if (publicExactRoutes.includes(cleanPath)) {
+    return true;
+  }
+
+  // Allow sub-routes for public dynamic sections (e.g. /blog/[slug], /join/[code])
+  // and /admin (handled specifically by AdminGuard)
+  const publicPrefixes = [
+    "/blog/",
+    "/join/",
+    "/admin",
+  ];
+
+  return publicPrefixes.some((prefix) => cleanPath.startsWith(prefix));
+}
+
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, appUser, loading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
-  const PUBLIC_PATHS = ["/login", "/signup", "/", "/privacy-policy", "/terms", "/contact"];
-
   useEffect(() => {
     if (!loading) {
       if (!user) {
-        // Not logged in, redirect to login
-        if (!PUBLIC_PATHS.includes(pathname)) {
+        // Not logged in, redirect to login if attempting to access protected route
+        if (!isPublicRoute(pathname)) {
           setTimeout(() => router.push("/login"), 0);
         }
       } else if (user && !appUser) {
@@ -40,7 +73,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   }
 
   // Prevent flashing protected content before redirect
-  if (!user && !PUBLIC_PATHS.includes(pathname)) {
+  if (!user && !isPublicRoute(pathname)) {
     return null;
   }
 

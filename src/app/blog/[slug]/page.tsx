@@ -55,7 +55,7 @@ export default async function BlogPostPage({ params }: Props) {
   }
 
   return (
-    <div className="min-h-screen bg-white pt-28 pb-20 px-5" style={{ fontFamily: "'Outfit', sans-serif" }}>
+    <div className="py-14 px-5 bg-white min-h-full">
       <article className="max-w-3xl mx-auto">
         <Link href="/blog" className="inline-flex items-center gap-2 text-sm font-bold text-gray-400 hover:text-gray-900 transition-colors mb-10">
           <ArrowLeft size={16} />

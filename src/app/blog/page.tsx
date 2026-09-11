@@ -1,5 +1,6 @@
 "use client";
 
+import { Fragment } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { ArrowRight, BookOpen, Clock } from "lucide-react";
@@ -10,7 +11,7 @@ const AMBER = "#F9B912";
 
 export default function BlogIndexPage() {
   return (
-    <div className="min-h-screen bg-gray-50 pt-28 pb-20 px-5" style={{ fontFamily: "'Outfit', sans-serif" }}>
+    <div className="py-14 px-5 bg-gray-50/60 min-h-full">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <motion.div 
@@ -35,9 +36,8 @@ export default function BlogIndexPage() {
         {/* Blog Grid */}
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
           {blogs.map((blog, i) => (
-            <>
+            <Fragment key={blog.slug}>
               <motion.div
-                key={blog.slug}
                 initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5, delay: i * 0.1 }}
@@ -84,7 +84,7 @@ export default function BlogIndexPage() {
                   <InFeedAd className="h-full" />
                 </motion.div>
               )}
-            </>
+            </Fragment>
           ))}
         </div>
       </div>

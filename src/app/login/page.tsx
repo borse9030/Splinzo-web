@@ -8,7 +8,9 @@ import { signInWithEmailAndPassword, signInWithPopup } from "firebase/auth";
 import { auth, googleProvider } from "@/lib/firebase/config";
 import { userService } from "@/services/userService";
 import { motion, AnimatePresence } from "framer-motion";
-import { AlertCircle, Eye, EyeOff, Star, ArrowRight } from "lucide-react";
+import { AlertCircle, Eye, EyeOff, Star, ArrowRight, ShieldCheck } from "lucide-react";
+import { verifyStaffKey, setAdminSession, setStaffMemberSession } from "@/lib/adminAuth";
+import { staffService } from "@/services/staffService";
 
 /* ─── CONSTANTS ─────────────────────────────────────────── */
 const AMBER = "#F9B912";
@@ -389,6 +391,45 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setError("");
+
+    const cleanUser = email.trim().toLowerCase();
+
+    // 1. Super Admin Secret Login check
+    if (
+      cleanUser === "adminsplinzo147" ||
+      cleanUser === "admin" ||
+      cleanUser === "adminsplinzo147@splinzo.in" ||
+      cleanUser === "adminsplinzo147@gmail.com"
+    ) {
+      if (verifyStaffKey(password)) {
+        setAdminSession(password.trim());
+        router.push("/admin");
+        return;
+      } else {
+        setError("Invalid credentials. Access denied.");
+        triggerShake();
+        setLoading(false);
+        return;
+      }
+    }
+
+    // 2. Created Staff Member Secret Login check
+    try {
+      const staffMember = await staffService.authenticateStaff(email, password);
+      if (staffMember) {
+        setStaffMemberSession(staffMember);
+        router.push("/admin/workspace");
+        return;
+      }
+    } catch (staffErr: unknown) {
+      const msg = staffErr instanceof Error ? staffErr.message : "Staff access error";
+      setError(msg);
+      triggerShake();
+      setLoading(false);
+      return;
+    }
+
+    // 3. Normal Customer Firebase Login
     try {
       await signInWithEmailAndPassword(auth, email, password);
       router.push("/dashboard");
@@ -500,9 +541,9 @@ export default function LoginPage() {
           <form onSubmit={handleEmailLogin} className="flex flex-col gap-4">
             <motion.div {...fadeUp(0.3)}>
               <AnimatedInput
-                id="login-email" label="Email" type="email"
+                id="login-email" label="Email" type="text"
                 value={email} onChange={setEmail}
-                placeholder="name@example.com" autoComplete="email"
+                placeholder="name@example.com" autoComplete="username"
                 error={shake && !!error}
               />
             </motion.div>

@@ -1,22 +1,70 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Mail, MessageSquare, MapPin, Share2, ExternalLink } from "lucide-react";
+import { Mail, MessageSquare, MapPin, Share2, ExternalLink, CheckCircle2, Copy } from "lucide-react";
 import Image from "next/image";
+import { ticketService } from "@/services/ticketService";
+import { useAuth } from "@/contexts/AuthContext";
+import { TicketCategory } from "@/types/ticket";
 
 export default function Contact() {
+  const { user, appUser } = useAuth();
   const [form, setForm] = useState({ name: "", email: "", subject: "", message: "" });
-  const [submitted, setSubmitted] = useState(false);
+  const [submittedTicketNumber, setSubmittedTicketNumber] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (appUser || user) {
+      setForm(f => ({
+        ...f,
+        name: f.name || appUser?.displayName || appUser?.name || user?.displayName || "",
+        email: f.email || appUser?.email || user?.email || "",
+      }));
+    }
+  }, [user, appUser]);
+
+  const mapSubjectToCategory = (subj: string): TicketCategory => {
+    switch (subj) {
+      case "billing":
+        return "billing_settlement";
+      case "support":
+        return "bug_report";
+      case "feedback":
+        return "feedback_feature";
+      case "privacy":
+        return "account_security";
+      default:
+        return "general";
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    // Simulate submission — replace with real API call
-    await new Promise(r => setTimeout(r, 1400));
-    setLoading(false);
-    setSubmitted(true);
+    try {
+      const ticket = await ticketService.createTicket({
+        userId: user?.uid || null,
+        userName: form.name,
+        userEmail: form.email,
+        subject: form.subject || "General Inquiry",
+        message: form.message,
+        category: mapSubjectToCategory(form.subject),
+        priority: form.subject === "billing" ? "high" : "medium",
+        source: "web_contact",
+        deviceInfo: {
+          platform: "web",
+          browser: typeof navigator !== "undefined" ? navigator.userAgent : undefined,
+        },
+      });
+      setSubmittedTicketNumber(ticket.ticketNumber);
+    } catch (err) {
+      console.error("Failed to create ticket:", err);
+      alert("Failed to submit message. Please check your connection and try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -116,23 +164,64 @@ export default function Contact() {
 
         {/* Contact Form */}
         <div>
-          {submitted ? (
-            <div className="flex flex-col items-center text-center py-16 px-8 rounded-3xl border border-gray-100">
-              <div className="h-20 w-20 rounded-full flex items-center justify-center text-4xl mb-6"
+          {submittedTicketNumber ? (
+            <div className="flex flex-col items-center text-center py-14 px-8 rounded-3xl border border-gray-100 bg-white shadow-xl">
+              <div className="h-16 w-16 rounded-2xl flex items-center justify-center text-3xl mb-5 shadow-sm"
                    style={{ background: "#FFF8E1" }}>
-                🎉
+                ✅
               </div>
-              <h3 className="text-2xl font-black text-gray-900 mb-3">Message Sent!</h3>
-              <p className="text-gray-500 mb-8">
-                Thanks for reaching out! We&apos;ll get back to you within 24–48 hours.
+              <span className="text-xs font-bold uppercase tracking-wider text-amber-500 mb-1">
+                Support Ticket Created
+              </span>
+              <h3 className="text-2xl font-black text-gray-900 mb-2">Message Received!</h3>
+              <p className="text-gray-500 text-sm mb-6 max-w-sm">
+                Our support team has received your inquiry. Please save your ticket tracking number:
               </p>
-              <button
-                onClick={() => { setSubmitted(false); setForm({ name: "", email: "", subject: "", message: "" }); }}
-                className="px-6 py-2.5 rounded-full font-bold text-sm transition-transform hover:scale-105"
-                style={{ background: "#F9B912", color: "#1a1a1a" }}
-              >
-                Send Another Message
-              </button>
+
+              {/* Ticket Reference Badge */}
+              <div className="flex items-center gap-3 px-5 py-3 rounded-2xl border-2 border-dashed mb-6 w-full max-w-xs justify-between"
+                   style={{ borderColor: "#F9B91250", background: "#FFFDF6" }}>
+                <div className="text-left">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Reference ID</div>
+                  <div className="text-lg font-black text-gray-900 tracking-wide font-mono">
+                    #{submittedTicketNumber}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(submittedTicketNumber);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                  }}
+                  className="p-2 rounded-xl hover:bg-amber-100 transition-colors text-gray-600 hover:text-gray-900"
+                  title="Copy Ticket Reference"
+                >
+                  {copied ? <CheckCircle2 size={18} className="text-green-600" /> : <Copy size={18} />}
+                </button>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-3 w-full max-w-xs">
+                {user && (
+                  <Link
+                    href="/dashboard/support"
+                    className="flex-1 py-3 rounded-full font-bold text-sm text-center shadow-md transition-transform hover:scale-105"
+                    style={{ background: "#F9B912", color: "#1a1a1a" }}
+                  >
+                    View in Dashboard
+                  </Link>
+                )}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSubmittedTicketNumber(null);
+                    setForm({ name: "", email: "", subject: "", message: "" });
+                  }}
+                  className="flex-1 py-3 rounded-full font-bold text-sm text-center border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  Send Another
+                </button>
+              </div>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="flex flex-col gap-5">

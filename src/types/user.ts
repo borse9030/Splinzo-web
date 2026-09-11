@@ -13,6 +13,7 @@ export interface AppUser {
   defaultCurrency?: string;
   upiId?: string;
   paymentQrUrl?: string;
+  role?: "user" | "support_staff" | "admin" | "super_admin";
   createdAt: Timestamp;
   updatedAt?: any;
 }
