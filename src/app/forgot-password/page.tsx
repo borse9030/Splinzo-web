@@ -188,34 +188,13 @@ function ForgotPasswordForm() {
     setError("");
 
     try {
-      let emailSent = false;
-      try {
-        const res = await fetch("/api/auth/send-reset-email", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: cleanEmail }),
-        });
-        const data = await res.json().catch(() => null);
-        if (res.ok && data?.success) {
-          emailSent = true;
-        } else if (res.status === 404) {
-          throw new Error("No Splinzo account found with this email address.");
-        }
-      } catch (apiErr: any) {
-        if (apiErr?.message?.includes("No Splinzo account")) {
-          throw apiErr;
-        }
-        console.warn("[forgot-password] Custom API failed, falling back to Firebase client:", apiErr);
-      }
-
-      if (!emailSent) {
-        const actionCodeSettings = {
-          url: "https://www.splinzo.in/reset-password",
-          handleCodeInApp: false,
-        };
-        await sendPasswordResetEmail(auth, cleanEmail, actionCodeSettings);
-      }
-
+      const actionCodeSettings = {
+        url: typeof window !== "undefined"
+          ? `${window.location.origin}/reset-password`
+          : "https://www.splinzo.in/reset-password",
+        handleCodeInApp: false,
+      };
+      await sendPasswordResetEmail(auth, cleanEmail, actionCodeSettings);
       setIsSuccess(true);
       setResendCountdown(60);
     } catch (err: unknown) {
@@ -224,6 +203,10 @@ function ForgotPasswordForm() {
         setError("No account found with this email address.");
       } else if (code === "auth/invalid-email") {
         setError("The email address is improperly formatted.");
+      } else if (code === "auth/too-many-requests") {
+        setError("Too many attempts. Please wait a few minutes before trying again.");
+      } else if (code === "auth/network-request-failed") {
+        setError("Network connection failed. Please check your internet connection.");
       } else {
         const message = err instanceof Error ? err.message : "Failed to send password reset email.";
         setError(message);
