@@ -20,14 +20,26 @@ export const userService = {
   },
 
   async getUserByEmail(email: string): Promise<AppUser | null> {
-    const normalizedEmail = email.toLowerCase().trim();
+    const cleanEmail = email.trim();
+    if (!cleanEmail) return null;
+    const normalizedEmail = cleanEmail.toLowerCase();
     const q = query(collection(db, "users"), where("email", "==", normalizedEmail));
     const querySnap = await getDocs(q);
-    if (querySnap.empty) {
-      return null;
+    if (!querySnap.empty) {
+      const doc = querySnap.docs[0];
+      return { id: doc.id, ...doc.data() } as AppUser;
     }
-    const doc = querySnap.docs[0];
-    return { id: doc.id, ...doc.data() } as AppUser;
+
+    if (cleanEmail !== normalizedEmail) {
+      const qFallback = query(collection(db, "users"), where("email", "==", cleanEmail));
+      const fallbackSnap = await getDocs(qFallback);
+      if (!fallbackSnap.empty) {
+        const doc = fallbackSnap.docs[0];
+        return { id: doc.id, ...doc.data() } as AppUser;
+      }
+    }
+
+    return null;
   },
 
   async createUser(

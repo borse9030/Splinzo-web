@@ -6,6 +6,7 @@ import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { sendPasswordResetEmail } from "firebase/auth";
 import { auth } from "@/lib/firebase/config";
+import { userService } from "@/services/userService";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   AlertCircle,
@@ -15,7 +16,8 @@ import {
   RotateCw,
   Star,
   CheckCircle2,
-  Mail
+  Mail,
+  UserX,
 } from "lucide-react";
 
 /* ─── CONSTANTS ─────────────────────────────────────────── */
@@ -188,6 +190,16 @@ function ForgotPasswordForm() {
     setError("");
 
     try {
+      // 1. Verify that an account exists with this email in Splinzo
+      const existingUser = await userService.getUserByEmail(cleanEmail);
+      if (!existingUser) {
+        setError("account-not-found");
+        triggerShake();
+        setLoading(false);
+        return;
+      }
+
+      // 2. Dispatch the password reset email
       const actionCodeSettings = {
         url: typeof window !== "undefined"
           ? `${window.location.origin}/reset-password`
@@ -200,7 +212,7 @@ function ForgotPasswordForm() {
     } catch (err: unknown) {
       const code = (err as { code?: string })?.code;
       if (code === "auth/user-not-found") {
-        setError("No account found with this email address.");
+        setError("account-not-found");
       } else if (code === "auth/invalid-email") {
         setError("The email address is improperly formatted.");
       } else if (code === "auth/too-many-requests") {
@@ -287,7 +299,10 @@ function ForgotPasswordForm() {
                     type="email"
                     placeholder="name@example.com"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => {
+                      setEmail(e.target.value);
+                      if (error) setError("");
+                    }}
                     onFocus={() => setFocused(true)}
                     onBlur={() => setFocused(false)}
                     autoComplete="email"
@@ -296,9 +311,23 @@ function ForgotPasswordForm() {
                     style={{
                       height: 52,
                       background: focused ? "#FFFFFF" : "#F8F8F8",
-                      border: `2px solid ${error ? "#EF4444" : focused ? AMBER : "#EBEBEB"}`,
+                      border: `2px solid ${
+                        error
+                          ? error === "account-not-found"
+                            ? "#F59E0B"
+                            : "#EF4444"
+                          : focused
+                          ? AMBER
+                          : "#EBEBEB"
+                      }`,
                       boxShadow: focused
-                        ? `0 0 0 4px ${error ? "rgba(239,68,68,0.1)" : "rgba(249,185,18,0.15)"}`
+                        ? `0 0 0 4px ${
+                            error
+                              ? error === "account-not-found"
+                                ? "rgba(245,158,11,0.15)"
+                                : "rgba(239,68,68,0.1)"
+                              : "rgba(249,185,18,0.15)"
+                          }`
                         : "none",
                     }}
                   />
@@ -316,10 +345,39 @@ function ForgotPasswordForm() {
                     animate={{ opacity: 1, height: "auto", y: 0 }}
                     exit={{ opacity: 0, height: 0 }}
                     transition={{ duration: 0.25 }}
-                    className="flex items-start gap-2.5 text-sm text-red-600 bg-red-50 px-4 py-3 rounded-2xl border border-red-100"
+                    className={`rounded-2xl border p-4 text-sm ${
+                      error === "account-not-found"
+                        ? "bg-amber-50/90 border-amber-200 text-amber-950 shadow-sm"
+                        : "bg-red-50 text-red-600 border-red-100 flex items-start gap-2.5"
+                    }`}
                   >
-                    <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-                    <p className="font-medium">{error}</p>
+                    {error === "account-not-found" ? (
+                      <div className="flex items-start gap-3">
+                        <div className="w-8 h-8 rounded-xl bg-amber-100 border border-amber-300 flex items-center justify-center shrink-0 text-amber-700">
+                          <UserX className="h-4 w-4" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-bold text-gray-900 text-sm">Account Not Found</p>
+                          <p className="text-xs text-gray-600 mt-1 leading-relaxed">
+                            No Splinzo account exists with the email <span className="font-semibold text-gray-900">{email}</span>. Please verify your email address or create a new account.
+                          </p>
+                          <div className="mt-3 flex items-center gap-2">
+                            <Link
+                              href={`/signup?email=${encodeURIComponent(email)}`}
+                              className="inline-flex items-center gap-1 text-xs font-bold text-gray-950 bg-[#F9B912] hover:bg-[#F9A000] px-3.5 py-1.5 rounded-xl transition-all shadow-sm active:scale-95"
+                            >
+                              Create free account
+                              <ArrowRight size={13} />
+                            </Link>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                        <p className="font-medium">{error}</p>
+                      </>
+                    )}
                   </motion.div>
                 )}
               </AnimatePresence>

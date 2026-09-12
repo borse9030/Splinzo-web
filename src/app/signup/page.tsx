@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { createUserWithEmailAndPassword, signInWithPopup, updateProfile } from "firebase/auth";
 import { auth, googleProvider } from "@/lib/firebase/config";
 import { userService } from "@/services/userService";
@@ -258,11 +258,13 @@ function PasswordInput({ id, value, onChange, error }: {
   );
 }
 
-/* ─── MAIN SIGNUP PAGE ───────────────────────────────────── */
-export default function SignupPage() {
+/* ─── MAIN SIGNUP CONTENT ─────────────────────────────────── */
+function SignupContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const initialEmail = searchParams.get("email") || "";
   const [name, setName]         = useState("");
-  const [email, setEmail]       = useState("");
+  const [email, setEmail]       = useState(initialEmail);
   const [password, setPassword] = useState("");
   const [error, setError]       = useState("");
   const [loading, setLoading]   = useState(false);
@@ -459,5 +461,13 @@ export default function SignupPage() {
         </div>
       </motion.div>
     </div>
+  );
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-[#FAFAFA]" />}>
+      <SignupContent />
+    </Suspense>
   );
 }
