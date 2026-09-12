@@ -24,7 +24,10 @@ import {
   ChevronUp,
   Sparkles,
   AlertTriangle,
-  MessageSquare
+  MessageSquare,
+  Download,
+  FileText,
+  Share2
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -35,6 +38,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { userService } from "@/services/userService";
+import { exportService } from "@/services/exportService";
 
 interface SetuData {
   paymentId: string;
@@ -209,6 +213,45 @@ export default function SettleUpPage({
 
   return (
     <div className="space-y-8 mt-4">
+      {/* Tools bar: Export CSV, PDF Report, and Public Settlement Link */}
+      <div className="flex flex-wrap items-center justify-between gap-3 p-4 bg-white rounded-2xl border border-slate-100 shadow-2xs">
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => exportService.exportToCsv(expenses, group.members, group.name)}
+            className="rounded-xl text-xs font-bold border-slate-200 text-slate-700 hover:bg-slate-50"
+          >
+            <Download className="h-3.5 w-3.5 mr-1.5 text-blue-600" />
+            Export CSV
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => exportService.exportToPdf(expenses, group.members, group.name, group.currency)}
+            className="rounded-xl text-xs font-bold border-slate-200 text-slate-700 hover:bg-slate-50"
+          >
+            <FileText className="h-3.5 w-3.5 mr-1.5 text-red-500" />
+            Print-Ready PDF
+          </Button>
+        </div>
+
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={() => {
+            const url = `${window.location.origin}/g/${group.id}`;
+            navigator.clipboard.writeText(url);
+            alert("Public settlement link copied! Friends can view balances & scan UPI QR without logging in.");
+          }}
+          className="rounded-xl text-xs font-bold bg-amber-50 text-amber-900 hover:bg-amber-100 border border-amber-200"
+        >
+          <Share2 className="h-3.5 w-3.5 mr-1.5 text-amber-600" />
+          Copy Public Settle Link
+        </Button>
+      </div>
+
       {mySettlements.length > 0 && (
         <section>
           <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4">Your Settlements</h3>
@@ -264,10 +307,22 @@ export default function SettleUpPage({
                           variant="outline"
                           onClick={() => {
                             const amt = s.amount.toFixed(2);
-                            const code = group.inviteCode || "";
-                            const link = code ? `${window.location.origin}/join/${code}` : window.location.origin;
+                            const myName = appUser?.displayName || appUser?.name || "Your friend";
+                            const myUpi = appUser?.upiId?.trim();
+                            const breakdownLink = `${window.location.origin}/g/${group.id}`;
+                            
+                            let upiBlock = "";
+                            if (myUpi) {
+                              const upiUri = `upi://pay?pa=${myUpi}&pn=${encodeURIComponent(myName)}&am=${amt}&cu=INR&tn=${encodeURIComponent(`Splinzo ${group.name}`)}`;
+                              upiBlock = `⚡ *Tap to pay instantly via UPI (GPay/PhonePe/Paytm):*\n${upiUri}\n\n`;
+                            }
+
                             const text = encodeURIComponent(
-                              `Hey ${s.fromUserName}! 👋 Just a gentle reminder about your pending balance of ${group.currency === 'INR' ? '₹' : group.currency} ${amt} on Splinzo for "${group.name}".\n\nYou can view and settle here: ${link}\n\nThanks! 😊`
+                              `👋 Hey ${s.fromUserName}!\n\n` +
+                              `Just a friendly reminder for your pending balance of *${group.currency === 'INR' ? '₹' : group.currency}${amt}* in Splinzo for "*${group.name}*".\n\n` +
+                              upiBlock +
+                              `📊 *View group breakdown & settle:*\n${breakdownLink}\n\n` +
+                              `Thanks! ✨`
                             );
                             window.open(`https://wa.me/?text=${text}`, "_blank");
                           }}

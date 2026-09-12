@@ -1,15 +1,16 @@
 "use client";
 
-import { useState, use, useRef } from "react";
+import { useState, useEffect, use, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { useGroup } from "@/hooks/useGroup";
 import { expenseService } from "@/services/expenseService";
 import { storageService } from "@/services/storageService";
-import { ChevronLeft, ArrowRight, Camera, X, Check, Users, Percent, PieChart, DollarSign, Repeat, Plus, Minus } from "lucide-react";
+import { ChevronLeft, ArrowRight, Camera, X, Check, Users, Percent, PieChart, DollarSign, Repeat, Plus, Minus, Zap, Globe } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion, AnimatePresence } from "framer-motion";
+import { currencyService, SUPPORTED_CURRENCIES } from "@/services/currencyService";
 
 const AMBER      = "#F9B912";
 const AMBER_DARK = "#F9A000";
@@ -107,6 +108,9 @@ export default function AddExpensePage({
   const [isMultiPayer,   setIsMultiPayer]   = useState(false);
   const [payerAmounts,   setPayerAmounts]   = useState<{ [key: string]: number }>({});
   const [isRecurring,    setIsRecurring]    = useState(false);
+  const [recurringInterval, setRecurringInterval] = useState<"monthly" | "weekly" | "yearly">("monthly");
+  const [selectedCurrency, setSelectedCurrency] = useState<string>("INR");
+  const [liveFxRate,     setLiveFxRate]     = useState<number>(1);
   const [splitMode,      setSplitMode]      = useState<"equal" | "percentage" | "shares" | "custom">("equal");
   const [splitBetweenIds,setSplitBetweenIds]= useState<string[]>([]);
   const [customAmounts,  setCustomAmounts]  = useState<{ [key: string]: number }>({});
@@ -119,6 +123,26 @@ export default function AddExpensePage({
   const [error,          setError]          = useState("");
   const [amountFocused,  setAmountFocused]  = useState(false);
   const [descFocused,    setDescFocused]    = useState(false);
+
+  /* Sync currency with group */
+  useEffect(() => {
+    if (group?.currency && selectedCurrency === "INR") {
+      setSelectedCurrency(group.currency);
+    }
+  }, [group?.currency]);
+
+  /* Fetch live FX rate when currency changes */
+  useEffect(() => {
+    if (group?.currency) {
+      if (selectedCurrency === group.currency) {
+        setLiveFxRate(1);
+      } else {
+        currencyService.getExchangeRate(selectedCurrency, group.currency)
+          .then(setLiveFxRate)
+          .catch(() => setLiveFxRate(1));
+      }
+    }
+  }, [selectedCurrency, group?.currency]);
 
   /* Initialise split when group loads */
   if (group && splitBetweenIds.length === 0 && !groupLoading) {
@@ -223,11 +247,23 @@ export default function AddExpensePage({
         }
       }
 
+      let effectiveAmount = numAmount;
+      let originalAmount: number | null = null;
+      let originalCurrency: string | null = null;
+
+      if (selectedCurrency !== group.currency) {
+        effectiveAmount = Number((numAmount * liveFxRate).toFixed(2));
+        originalAmount = numAmount;
+        originalCurrency = selectedCurrency;
+      }
+
       await expenseService.addExpense(group.id, {
         description: description.trim(),
-        amount: numAmount,
+        amount: effectiveAmount,
         payerId: isMultiPayer ? (Object.keys(cleanedPayers || {})[0] || payerId) : payerId,
         currency: group.currency || "INR",
+        originalAmount,
+        originalCurrency,
         createdBy: appUser.id,
         splitBetweenIds,
         customSplitAmounts: computedCustomAmounts,
@@ -236,7 +272,7 @@ export default function AddExpensePage({
         splitShares: splitMode === "shares" ? shares : null,
         payers: cleanedPayers,
         isRecurring,
-        recurringInterval: isRecurring ? "monthly" : null,
+        recurringInterval: isRecurring ? recurringInterval : null,
         billImageUrl: finalImageUrl,
         category,
       });
@@ -311,14 +347,30 @@ export default function AddExpensePage({
 
                 {/* Amount field */}
                 <div className="flex flex-col items-center gap-2">
-                  <span className="text-xs font-bold uppercase tracking-widest" style={{ color: "var(--muted-foreground)" }}>Amount</span>
-                  <div className="flex items-center justify-center gap-2"
+                  <span className="text-xs font-bold uppercase tracking-widest" style={{ color: "var(--muted-foreground)" }}>Amount & Currency</span>
+                  <div className="flex items-center justify-center gap-3"
                        style={{ borderBottom: `3px solid ${amountFocused ? AMBER : "var(--muted)"}`,
                                 transition: "border-color 0.2s",
                                 paddingBottom: "8px",
                                 boxShadow: amountFocused ? `0 4px 0 -2px rgba(249,185,18,0.15)` : "none" }}>
-                    <span className="text-4xl font-black" style={{ color: amountFocused ? AMBER : "var(--muted-foreground)" }}>
-                      {currSymbol}
+                    
+                    {/* Currency Dropdown Selector */}
+                    <div className="relative">
+                      <select
+                        value={selectedCurrency}
+                        onChange={(e) => setSelectedCurrency(e.target.value)}
+                        className="text-sm font-black rounded-xl px-2.5 py-1.5 border border-slate-200 bg-white/90 text-slate-800 shadow-2xs outline-none cursor-pointer hover:border-amber-400 transition-colors"
+                      >
+                        {SUPPORTED_CURRENCIES.map((c) => (
+                          <option key={c.code} value={c.code}>
+                            {c.flag} {c.code} ({c.symbol})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <span className="text-3xl font-black" style={{ color: amountFocused ? AMBER : "var(--muted-foreground)" }}>
+                      {currencyService.getSymbol(selectedCurrency)}
                     </span>
                     <input
                       type="number" step="0.01" placeholder="0.00"
@@ -329,13 +381,30 @@ export default function AddExpensePage({
                       style={{ appearance: "textfield", color: "var(--foreground)" }}
                     />
                   </div>
+
+                  {/* Live FX Conversion Preview Chip */}
+                  {selectedCurrency !== group?.currency && parseFloat(amount) > 0 && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="mt-1 px-3.5 py-1.5 rounded-full text-xs font-bold bg-amber-50 text-amber-900 border border-amber-200/90 flex items-center gap-1.5 shadow-2xs"
+                    >
+                      <Zap className="h-3.5 w-3.5 text-amber-500 fill-amber-500" />
+                      <span>
+                        ≈ {currSymbol}{(parseFloat(amount) * liveFxRate).toFixed(2)} {group?.currency} 
+                        <span className="opacity-75 font-normal ml-1">
+                          (1 {selectedCurrency} = {currSymbol}{liveFxRate.toFixed(2)})
+                        </span>
+                      </span>
+                    </motion.div>
+                  )}
                 </div>
 
                 {/* Description */}
                 <div className="flex flex-col gap-1.5">
                   <label className="text-sm font-bold" style={{ color: "var(--foreground)" }}>What was this for?</label>
                   <input
-                    type="text" placeholder="e.g. Dinner at Goa"
+                    type="text" placeholder="e.g. Dinner, Flight tickets, Netflix"
                     value={description} onChange={(e) => setDescription(e.target.value)}
                     onFocus={() => setDescFocused(true)} onBlur={() => setDescFocused(false)}
                     className="w-full h-12 px-4 rounded-2xl text-sm font-medium outline-none transition-all"
@@ -347,27 +416,57 @@ export default function AddExpensePage({
                   />
                 </div>
 
-                {/* Recurring Expense switch */}
-                <div className="p-3.5 rounded-2xl flex items-center justify-between border"
+                {/* Recurring Expense switch & Interval Selector */}
+                <div className="p-4 rounded-2xl border space-y-3"
                      style={{ background: "var(--muted)", borderColor: "var(--border)" }}>
-                  <div className="flex items-center gap-3">
-                    <div className="h-9 w-9 rounded-xl flex items-center justify-center"
-                         style={{ background: isRecurring ? AMBER : "var(--card)", color: isRecurring ? "#1a1a1a" : "var(--muted-foreground)" }}>
-                      <Repeat className="h-5 w-5" />
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="h-9 w-9 rounded-xl flex items-center justify-center"
+                           style={{ background: isRecurring ? AMBER : "var(--card)", color: isRecurring ? "#1a1a1a" : "var(--muted-foreground)" }}>
+                        <Repeat className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <div className="text-sm font-bold" style={{ color: "var(--foreground)" }}>Recurring Expense</div>
+                        <div className="text-xs" style={{ color: "var(--muted-foreground)" }}>
+                          Subscriptions, Rent, OTT, Wi-Fi bills
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <div className="text-sm font-bold" style={{ color: "var(--foreground)" }}>Monthly Recurring</div>
-                      <div className="text-xs" style={{ color: "var(--muted-foreground)" }}>Repeats every month automatically</div>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsRecurring(!isRecurring)}
+                      className="w-12 h-6 rounded-full transition-colors relative"
+                      style={{ background: isRecurring ? AMBER : "#CBD5E1" }}
+                    >
+                      <div className={`w-5 h-5 rounded-full bg-white transition-transform ${isRecurring ? 'translate-x-6' : 'translate-x-1'}`} />
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setIsRecurring(!isRecurring)}
-                    className="w-12 h-6 rounded-full transition-colors relative"
-                    style={{ background: isRecurring ? AMBER : "#CBD5E1" }}
-                  >
-                    <div className={`w-5 h-5 rounded-full bg-white transition-transform ${isRecurring ? 'translate-x-6' : 'translate-x-1'}`} />
-                  </button>
+
+                  {isRecurring && (
+                    <motion.div 
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      className="pt-2 border-t border-slate-200/60 flex items-center justify-between text-xs"
+                    >
+                      <span className="font-semibold text-slate-500">Repeats every:</span>
+                      <div className="flex gap-1 bg-white p-1 rounded-xl border border-slate-200">
+                        {(["weekly", "monthly", "yearly"] as const).map((interval) => (
+                          <button
+                            key={interval}
+                            type="button"
+                            onClick={() => setRecurringInterval(interval)}
+                            className={`px-3 py-1 rounded-lg font-bold capitalize transition-all ${
+                              recurringInterval === interval
+                                ? "bg-amber-400 text-slate-900 shadow-2xs"
+                                : "text-slate-500 hover:text-slate-900"
+                            }`}
+                          >
+                            {interval}
+                          </button>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
                 </div>
 
                 {/* Category selector */}
