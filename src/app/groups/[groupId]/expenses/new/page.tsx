@@ -7,10 +7,11 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useGroup } from "@/hooks/useGroup";
 import { expenseService } from "@/services/expenseService";
 import { storageService } from "@/services/storageService";
-import { ChevronLeft, ArrowRight, Camera, X, Check, Users, Percent, PieChart, DollarSign, Repeat, Plus, Minus, Zap, Globe } from "lucide-react";
+import { ChevronLeft, ArrowRight, Camera, X, Check, Users, Percent, PieChart, DollarSign, Repeat, Plus, Minus, Zap, Globe, SlidersHorizontal } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { motion, AnimatePresence } from "framer-motion";
 import { currencyService, SUPPORTED_CURRENCIES } from "@/services/currencyService";
+import { SplitResolver } from "@/lib/fintech/splitResolver";
 
 const AMBER      = "#F9B912";
 const AMBER_DARK = "#F9A000";
@@ -111,11 +112,13 @@ export default function AddExpensePage({
   const [recurringInterval, setRecurringInterval] = useState<"monthly" | "weekly" | "yearly">("monthly");
   const [selectedCurrency, setSelectedCurrency] = useState<string>("INR");
   const [liveFxRate,     setLiveFxRate]     = useState<number>(1);
-  const [splitMode,      setSplitMode]      = useState<"equal" | "percentage" | "shares" | "custom">("equal");
+  const [splitMode,      setSplitMode]      = useState<"equal" | "percentage" | "shares" | "adjustment" | "custom">("equal");
   const [splitBetweenIds,setSplitBetweenIds]= useState<string[]>([]);
   const [customAmounts,  setCustomAmounts]  = useState<{ [key: string]: number }>({});
   const [percentages,    setPercentages]    = useState<{ [key: string]: number }>({});
   const [shares,         setShares]         = useState<{ [key: string]: number }>({});
+  const [adjustments,    setAdjustments]    = useState<{ [key: string]: number }>({});
+  const [adjustmentSigns,setAdjustmentSigns]= useState<{ [key: string]: "+" | "-" }>({});
   const [billImage,      setBillImage]      = useState<File | null>(null);
   const [imagePreview,   setImagePreview]   = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -160,7 +163,7 @@ export default function AddExpensePage({
         const numAmount = parseFloat(amount);
         const totalPaid = Object.values(payerAmounts).reduce((a, b) => a + b, 0);
         if (Math.abs(totalPaid - numAmount) > 0.05) {
-          setError(`Total paid must equal ${currSymbol}${numAmount}. Currently: ${currSymbol}${totalPaid.toFixed(2)}`);
+          setError(`Total paid must equal ${currSymbol}${numAmount.toFixed(2)}. Currently: ${currSymbol}${totalPaid.toFixed(2)}`);
           return;
         }
       }
@@ -174,6 +177,17 @@ export default function AddExpensePage({
 
   const handlePercentageChange = (memberId: string, value: string) => {
     setPercentages(prev => ({ ...prev, [memberId]: parseFloat(value) || 0 }));
+  };
+
+  const handleAdjustmentChange = (memberId: string, value: string) => {
+    setAdjustments(prev => ({ ...prev, [memberId]: Math.max(0, parseFloat(value) || 0) }));
+  };
+
+  const toggleAdjustmentSign = (memberId: string) => {
+    setAdjustmentSigns(prev => ({
+      ...prev,
+      [memberId]: prev[memberId] === "-" ? "+" : "-",
+    }));
   };
 
   const handleShareChange = (memberId: string, delta: number) => {
@@ -192,12 +206,40 @@ export default function AddExpensePage({
     setPercentages(next);
   };
 
+  const handleSplitPaidEqually = () => {
+    const numAmount = parseFloat(amount) || 0;
+    const members = group?.members || [];
+    if (members.length === 0 || numAmount <= 0) return;
+    const tempExpense = {
+      amount: numAmount,
+      splitBetweenIds: members.map((m: any) => m.id),
+      splitMode: "equal",
+    } as any;
+    const shares = SplitResolver.resolveMemberShares(tempExpense);
+    setPayerAmounts(shares);
+  };
+
+  const handleSplitRestEquallyCustom = () => {
+    const numAmount = parseFloat(amount) || 0;
+    const assignedSum = splitBetweenIds.reduce((sum, id) => sum + (customAmounts[id] || 0), 0);
+    const remaining = numAmount - assignedSum;
+    const unassignedMembers = splitBetweenIds.filter(id => !customAmounts[id] || customAmounts[id] === 0);
+    if (remaining <= 0 || unassignedMembers.length === 0) return;
+    const tempExpense = {
+      amount: remaining,
+      splitBetweenIds: unassignedMembers,
+      splitMode: "equal",
+    } as any;
+    const remShares = SplitResolver.resolveMemberShares(tempExpense);
+    setCustomAmounts(prev => ({ ...prev, ...remShares }));
+  };
+
   const handleSave = async () => {
     if (!group || !appUser) return;
     const numAmount = parseFloat(amount);
     
     // Validation based on split mode
-    let computedCustomAmounts: { [key: string]: number } | null = null;
+    let resolvedAdjustments: { [key: string]: number } | null = null;
 
     if (splitMode === "percentage") {
       const sumPct = splitBetweenIds.reduce((sum, id) => sum + (percentages[id] || 0), 0);
@@ -205,26 +247,25 @@ export default function AddExpensePage({
         setError(`Percentages must add up to 100%. Currently: ${sumPct.toFixed(1)}%`);
         return;
       }
-      computedCustomAmounts = {};
-      splitBetweenIds.forEach(id => {
-        computedCustomAmounts![id] = Number((numAmount * ((percentages[id] || 0) / 100)).toFixed(2));
-      });
-    } else if (splitMode === "shares") {
-      let totalShares = 0;
-      splitBetweenIds.forEach(id => { totalShares += (shares[id] || 1); });
-      if (totalShares <= 0) totalShares = 1;
-      computedCustomAmounts = {};
-      splitBetweenIds.forEach(id => {
-        const s = shares[id] || 1;
-        computedCustomAmounts![id] = Number((numAmount * (s / totalShares)).toFixed(2));
-      });
     } else if (splitMode === "custom") {
-      const sum = Object.values(customAmounts).reduce((a, b) => a + b, 0);
+      const sum = splitBetweenIds.reduce((sum, id) => sum + (customAmounts[id] || 0), 0);
       if (Math.abs(sum - numAmount) > 0.05) {
-        setError(`Custom amounts must equal ${group.currency} ${numAmount}. Currently: ${sum.toFixed(2)}`);
+        setError(`Custom amounts must equal ${group.currency} ${numAmount.toFixed(2)}. Currently: ${sum.toFixed(2)}`);
         return;
       }
-      computedCustomAmounts = customAmounts;
+    } else if (splitMode === "adjustment") {
+      resolvedAdjustments = {};
+      let totalAdj = 0;
+      splitBetweenIds.forEach((id) => {
+        const sign = adjustmentSigns[id] === "-" ? -1 : 1;
+        const raw = (adjustments[id] || 0) * sign;
+        resolvedAdjustments![id] = raw;
+        totalAdj += raw;
+      });
+      if (totalAdj >= numAmount) {
+        setError(`Total plus adjustments (${totalAdj.toFixed(2)}) must be less than total amount (${numAmount.toFixed(2)}) so a base pool remains.`);
+        return;
+      }
     }
 
     setError("");
@@ -257,6 +298,18 @@ export default function AddExpensePage({
         originalCurrency = selectedCurrency;
       }
 
+      // Compute exact penny-conserved customSplitAmounts with zero-sum guarantee
+      const computedCustomAmounts = SplitResolver.resolveMemberShares({
+        amount: effectiveAmount,
+        splitBetweenIds,
+        splitMode,
+        splitPercentages: splitMode === "percentage" ? percentages : null,
+        splitShares: splitMode === "shares" ? shares : null,
+        splitAdjustments: splitMode === "adjustment" ? resolvedAdjustments : null,
+        customSplitAmounts: splitMode === "custom" ? customAmounts : null,
+        payerId: isMultiPayer ? (Object.keys(cleanedPayers || {})[0] || payerId) : payerId,
+      } as any);
+
       await expenseService.addExpense(group.id, {
         description: description.trim(),
         amount: effectiveAmount,
@@ -270,6 +323,7 @@ export default function AddExpensePage({
         splitMode,
         splitPercentages: splitMode === "percentage" ? percentages : null,
         splitShares: splitMode === "shares" ? shares : null,
+        splitAdjustments: splitMode === "adjustment" ? resolvedAdjustments : null,
         payers: cleanedPayers,
         isRecurring,
         recurringInterval: isRecurring ? recurringInterval : null,
@@ -612,9 +666,41 @@ export default function AddExpensePage({
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    <label className="text-sm font-bold block" style={{ color: "var(--foreground)" }}>
-                      Enter amount paid by each person
-                    </label>
+                    <div className="flex justify-between items-center">
+                      <label className="text-sm font-bold block" style={{ color: "var(--foreground)" }}>
+                        Enter amount paid by each person
+                      </label>
+                      <button
+                        type="button"
+                        onClick={handleSplitPaidEqually}
+                        className="text-xs font-bold px-2 py-1 rounded-lg transition-all"
+                        style={{ background: "rgba(249,185,18,0.15)", color: AMBER_DARK }}
+                      >
+                        Split paid equally
+                      </button>
+                    </div>
+
+                    {/* Paid balance banner */}
+                    {(() => {
+                      const totalPaid = Object.values(payerAmounts).reduce((a, b) => a + b, 0);
+                      const expected = parseFloat(amount) || 0;
+                      const diff = totalPaid - expected;
+                      const isBalanced = Math.abs(diff) <= 0.01;
+                      return (
+                        <div
+                          className="p-3 rounded-2xl flex items-center justify-between text-xs font-bold"
+                          style={{
+                            background: isBalanced ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.1)",
+                            color: isBalanced ? "#16a34a" : "#dc2626",
+                            border: `1px solid ${isBalanced ? "rgba(34,197,94,0.2)" : "rgba(239,68,68,0.2)"}`,
+                          }}
+                        >
+                          <span>Paid: {currSymbol}{totalPaid.toFixed(2)} / {currSymbol}{expected.toFixed(2)}</span>
+                          <span>{isBalanced ? "✓ Balanced" : diff > 0 ? `+${currSymbol}${diff.toFixed(2)} over` : `${currSymbol}${Math.abs(diff).toFixed(2)} remaining`}</span>
+                        </div>
+                      );
+                    })()}
+
                     {group?.members.map((member: any) => {
                       const mName = member.name || member.displayName || "?";
                       return (
@@ -646,135 +732,243 @@ export default function AddExpensePage({
             )}
 
             {/* ══ STEP 3 ══ */}
-            {step === 3 && (
-              <motion.div key="step3"
-                          initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }}
-                          exit={{ opacity: 0, x: -30 }} transition={{ duration: 0.25 }}
-                          className="space-y-5">
+            {step === 3 && (() => {
+              const numAmount = parseFloat(amount) || 0;
+              let totalAdjustments = 0;
+              splitBetweenIds.forEach(id => {
+                const sign = adjustmentSigns[id] === "-" ? -1 : 1;
+                totalAdjustments += (adjustments[id] || 0) * sign;
+              });
+              const remainingBasePool = Math.max(0, numAmount - totalAdjustments);
+              const basePerPerson = splitBetweenIds.length > 0 ? (remainingBasePool / splitBetweenIds.length) : 0;
 
-                {/* 4-Way Split Mode Segment */}
-                <div className="grid grid-cols-4 p-1 rounded-2xl gap-1" style={{ background: "var(--muted)" }}>
-                  {[
-                    { id: "equal", label: "Equal", icon: Users },
-                    { id: "percentage", label: "Percent %", icon: Percent },
-                    { id: "shares", label: "Shares", icon: PieChart },
-                    { id: "custom", label: "Exact", icon: DollarSign },
-                  ].map((tab) => {
-                    const sel = splitMode === tab.id;
-                    const Icon = tab.icon;
-                    return (
-                      <button
-                        key={tab.id}
-                        type="button"
-                        onClick={() => setSplitMode(tab.id as any)}
-                        className="py-2 px-1 flex flex-col items-center gap-1 rounded-xl text-[11px] font-bold transition-all"
-                        style={{
-                          background: sel ? AMBER : "transparent",
-                          color: sel ? "#1a1a1a" : "var(--muted-foreground)",
-                          boxShadow: sel ? "0 2px 8px rgba(249,185,18,0.3)" : "none",
-                        }}
-                      >
-                        <Icon className="h-3.5 w-3.5" />
-                        {tab.label}
-                      </button>
-                    );
-                  })}
-                </div>
+              return (
+                <motion.div key="step3"
+                            initial={{ opacity: 0, x: 30 }} animate={{ opacity: 1, x: 0 }}
+                            exit={{ opacity: 0, x: -30 }} transition={{ duration: 0.25 }}
+                            className="space-y-5">
 
-                {splitMode === "percentage" && (
-                  <div className="flex justify-between items-center px-1">
-                    <span className="text-xs font-bold" style={{ color: "var(--muted-foreground)" }}>Assign % to each member</span>
-                    <button
-                      type="button"
-                      onClick={handleAutoPercentages}
-                      className="text-xs font-bold px-2 py-1 rounded-lg"
-                      style={{ background: "rgba(249,185,18,0.15)", color: AMBER_DARK }}
-                    >
-                      Auto 100%
-                    </button>
-                  </div>
-                )}
-
-                {splitMode === "shares" && (
-                  <div className="px-1 text-xs" style={{ color: "var(--muted-foreground)" }}>
-                    Assign shares (e.g. 2 for couples, nights stayed, or portions)
-                  </div>
-                )}
-
-                {/* Member rows */}
-                <div className="space-y-2">
-                  {group?.members.map((member: any) => {
-                    const mName      = (member.name || member.displayName || "?");
-                    const isIncluded = splitBetweenIds.includes(member.id);
-                    const numAmount  = parseFloat(amount) || 0;
-                    const equalShare = numAmount / (splitBetweenIds.length || 1);
-
-                    // Shares calculation
-                    let totalShares = 0;
-                    splitBetweenIds.forEach(id => { totalShares += (shares[id] || 1); });
-                    if (totalShares <= 0) totalShares = 1;
-                    const currentShare = shares[member.id] || 1;
-                    const shareAmount = numAmount * (currentShare / totalShares);
-
-                    return (
-                      <div key={member.id}
-                           className="flex items-center gap-3 p-3 rounded-2xl transition-all"
-                           style={{
-                             background: isIncluded ? "rgba(249,185,18,0.05)" : "var(--muted)",
-                             border: `1.5px solid ${isIncluded ? "rgba(249,185,18,0.25)" : "var(--border)"}`,
-                           }}>
-
-                        {/* Amber checkbox */}
+                  {/* 5-Way Split Mode Segment */}
+                  <div className="grid grid-cols-5 p-1 rounded-2xl gap-1" style={{ background: "var(--muted)" }}>
+                    {[
+                      { id: "equal", label: "Equal", icon: Users },
+                      { id: "percentage", label: "Percent %", icon: Percent },
+                      { id: "shares", label: "Shares", icon: PieChart },
+                      { id: "adjustment", label: "Adjust ±", icon: SlidersHorizontal },
+                      { id: "custom", label: "Exact", icon: DollarSign },
+                    ].map((tab) => {
+                      const sel = splitMode === tab.id;
+                      const Icon = tab.icon;
+                      return (
                         <button
+                          key={tab.id}
                           type="button"
-                          onClick={() => {
-                            if (isIncluded) setSplitBetweenIds(prev => prev.filter(id => id !== member.id));
-                            else setSplitBetweenIds(prev => [...prev, member.id]);
-                          }}
-                          className="h-5 w-5 rounded-md flex items-center justify-center shrink-0 transition-all"
+                          onClick={() => setSplitMode(tab.id as any)}
+                          className="py-2 px-0.5 flex flex-col items-center gap-1 rounded-xl text-[10px] font-bold transition-all"
                           style={{
-                            background: isIncluded ? AMBER : "var(--card)",
-                            border: `2px solid ${isIncluded ? AMBER : "var(--border)"}`,
+                            background: sel ? AMBER : "transparent",
+                            color: sel ? "#1a1a1a" : "var(--muted-foreground)",
+                            boxShadow: sel ? "0 2px 8px rgba(249,185,18,0.3)" : "none",
                           }}
                         >
-                          {isIncluded && <Check className="h-3 w-3 text-gray-900" />}
+                          <Icon className="h-3.5 w-3.5" />
+                          {tab.label}
                         </button>
+                      );
+                    })}
+                  </div>
 
-                        {/* Avatar + name */}
-                        <MemberAvatar 
-                          photoURL={member.id === appUser?.id ? (appUser?.photoUrl || appUser?.photoURL || member.photoURL || member.photoUrl) : (member.photoURL || member.photoUrl)} 
-                          name={mName} 
-                          id={member.id} 
-                          size={34} 
-                        />
-                        <div className="flex-1 min-w-0">
-                          <span className="text-sm font-bold truncate block" style={{ color: "var(--foreground)" }}>
-                            {mName.split(" ")[0]}
-                          </span>
-                          {member.id === appUser?.id && (
-                            <span className="text-[10px] font-bold" style={{ color: AMBER_DARK }}>You</span>
-                          )}
-                        </div>
+                  {splitMode === "percentage" && (
+                    <div className="flex justify-between items-center px-1">
+                      <span className="text-xs font-bold" style={{ color: "var(--muted-foreground)" }}>Assign % to each member</span>
+                      <button
+                        type="button"
+                        onClick={handleAutoPercentages}
+                        className="text-xs font-bold px-2 py-1 rounded-lg"
+                        style={{ background: "rgba(249,185,18,0.15)", color: AMBER_DARK }}
+                      >
+                        Auto 100%
+                      </button>
+                    </div>
+                  )}
 
-                        {/* Input or Display according to split mode */}
-                        {splitMode === "equal" && (
-                          <span className="text-sm font-black"
-                                style={{ color: isIncluded ? "var(--foreground)" : "var(--muted-foreground)" }}>
-                            {isIncluded ? `${currSymbol}${equalShare.toFixed(2)}` : `${currSymbol}0.00`}
-                          </span>
-                        )}
+                  {splitMode === "shares" && (
+                    <div className="px-1 text-xs" style={{ color: "var(--muted-foreground)" }}>
+                      Assign shares (e.g. 2 for couples, nights stayed, or portions)
+                    </div>
+                  )}
 
-                        {splitMode === "percentage" && (
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>
-                              {currSymbol}{((numAmount * (percentages[member.id] || 0)) / 100).toFixed(2)}
+                  {splitMode === "adjustment" && (
+                    <div className="p-3 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs">
+                      <div className="flex justify-between items-center font-bold text-amber-800 dark:text-amber-300">
+                        <span>Adjustment Mode (±)</span>
+                        <span>Base pool: {currSymbol}{remainingBasePool.toFixed(2)}</span>
+                      </div>
+                      <p className="text-[11px] text-amber-700/80 dark:text-amber-400/80 mt-1">
+                        Base share is {currSymbol}{basePerPerson.toFixed(2)}/person. Add (+) or subtract (-) adjustments per person.
+                      </p>
+                    </div>
+                  )}
+
+                  {splitMode === "custom" && (
+                    <div className="flex justify-between items-center px-1">
+                      <span className="text-xs font-bold" style={{ color: "var(--muted-foreground)" }}>
+                        Assigned: {currSymbol}{splitBetweenIds.reduce((sum, id) => sum + (customAmounts[id] || 0), 0).toFixed(2)} / {currSymbol}{numAmount.toFixed(2)}
+                      </span>
+                      {Math.abs(splitBetweenIds.reduce((sum, id) => sum + (customAmounts[id] || 0), 0) - numAmount) > 0.01 && (
+                        <button
+                          type="button"
+                          onClick={handleSplitRestEquallyCustom}
+                          className="text-xs font-bold px-2 py-1 rounded-lg"
+                          style={{ background: "rgba(249,185,18,0.15)", color: AMBER_DARK }}
+                        >
+                          Split rest equally
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Member rows */}
+                  <div className="space-y-2">
+                    {group?.members.map((member: any) => {
+                      const mName      = (member.name || member.displayName || "?");
+                      const isIncluded = splitBetweenIds.includes(member.id);
+                      const equalShare = numAmount / (splitBetweenIds.length || 1);
+
+                      // Shares calculation
+                      let totalShares = 0;
+                      splitBetweenIds.forEach(id => { totalShares += (shares[id] || 1); });
+                      if (totalShares <= 0) totalShares = 1;
+                      const currentShare = shares[member.id] || 1;
+                      const shareAmount = numAmount * (currentShare / totalShares);
+
+                      // Adjustment calculation
+                      const sign = adjustmentSigns[member.id] === "-" ? -1 : 1;
+                      const adjAmount = (adjustments[member.id] || 0) * sign;
+                      const adjIndividualShare = Math.max(0, basePerPerson + adjAmount);
+
+                      return (
+                        <div key={member.id}
+                             className="flex items-center gap-3 p-3 rounded-2xl transition-all"
+                             style={{
+                               background: isIncluded ? "rgba(249,185,18,0.05)" : "var(--muted)",
+                               border: `1.5px solid ${isIncluded ? "rgba(249,185,18,0.25)" : "var(--border)"}`,
+                             }}>
+
+                          {/* Amber checkbox */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (isIncluded) setSplitBetweenIds(prev => prev.filter(id => id !== member.id));
+                              else setSplitBetweenIds(prev => [...prev, member.id]);
+                            }}
+                            className="h-5 w-5 rounded-md flex items-center justify-center shrink-0 transition-all"
+                            style={{
+                              background: isIncluded ? AMBER : "var(--card)",
+                              border: `2px solid ${isIncluded ? AMBER : "var(--border)"}`,
+                            }}
+                          >
+                            {isIncluded && <Check className="h-3 w-3 text-gray-900" />}
+                          </button>
+
+                          {/* Avatar + name */}
+                          <MemberAvatar 
+                            photoURL={member.id === appUser?.id ? (appUser?.photoUrl || appUser?.photoURL || member.photoURL || member.photoUrl) : (member.photoURL || member.photoUrl)} 
+                            name={mName} 
+                            id={member.id} 
+                            size={34} 
+                          />
+                          <div className="flex-1 min-w-0">
+                            <span className="text-sm font-bold truncate block" style={{ color: "var(--foreground)" }}>
+                              {mName.split(" ")[0]}
                             </span>
-                            <div className="flex items-center">
-                              <input
-                                type="number" placeholder="0"
+                            {member.id === appUser?.id && (
+                              <span className="text-[10px] font-bold" style={{ color: AMBER_DARK }}>You</span>
+                            )}
+                          </div>
+
+                          {/* Input or Display according to split mode */}
+                          {splitMode === "equal" && (
+                            <span className="text-sm font-black"
+                                  style={{ color: isIncluded ? "var(--foreground)" : "var(--muted-foreground)" }}>
+                              {isIncluded ? `${currSymbol}${equalShare.toFixed(2)}` : `${currSymbol}0.00`}
+                            </span>
+                          )}
+
+                          {splitMode === "percentage" && (
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>
+                                {currSymbol}{((numAmount * (percentages[member.id] || 0)) / 100).toFixed(2)}
+                              </span>
+                              <div className="flex items-center">
+                                <input
+                                  type="number" placeholder="0"
+                                  disabled={!isIncluded}
+                                  value={percentages[member.id] || ""}
+                                  onChange={(e) => handlePercentageChange(member.id, e.target.value)}
+                                  className="w-16 h-8 text-right rounded-xl text-sm font-bold outline-none px-2 border"
+                                  style={{
+                                    background: isIncluded ? "var(--card)" : "var(--muted)",
+                                    borderColor: isIncluded ? AMBER : "var(--border)",
+                                    color: isIncluded ? "var(--foreground)" : "var(--muted-foreground)",
+                                  }}
+                                />
+                                <span className="ml-1 text-xs font-bold" style={{ color: "var(--muted-foreground)" }}>%</span>
+                              </div>
+                            </div>
+                          )}
+
+                          {splitMode === "shares" && (
+                            <div className="flex items-center gap-3">
+                              <span className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>
+                                {currSymbol}{shareAmount.toFixed(2)}
+                              </span>
+                              <div className="flex items-center gap-1.5 bg-black/5 dark:bg-white/5 p-1 rounded-xl">
+                                <button
+                                  type="button"
+                                  disabled={!isIncluded || currentShare <= 1}
+                                  onClick={() => handleShareChange(member.id, -1)}
+                                  className="h-6 w-6 rounded-lg flex items-center justify-center disabled:opacity-30 hover:bg-black/10"
+                                >
+                                  <Minus className="h-3 w-3" />
+                                </button>
+                                <span className="text-xs font-black w-4 text-center">{currentShare}</span>
+                                <button
+                                  type="button"
+                                  disabled={!isIncluded}
+                                  onClick={() => handleShareChange(member.id, 1)}
+                                  className="h-6 w-6 rounded-lg flex items-center justify-center disabled:opacity-30 hover:bg-black/10"
+                                >
+                                  <Plus className="h-3 w-3" />
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
+                          {splitMode === "adjustment" && (
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>
+                                {currSymbol}{isIncluded ? adjIndividualShare.toFixed(2) : "0.00"}
+                              </span>
+                              <button
+                                type="button"
                                 disabled={!isIncluded}
-                                value={percentages[member.id] || ""}
-                                onChange={(e) => handlePercentageChange(member.id, e.target.value)}
+                                onClick={() => toggleAdjustmentSign(member.id)}
+                                className="w-7 h-8 rounded-xl font-black text-sm flex items-center justify-center border transition-all"
+                                style={{
+                                  background: (adjustmentSigns[member.id] || "+") === "+" ? "rgba(34,197,94,0.15)" : "rgba(239,68,68,0.15)",
+                                  color: (adjustmentSigns[member.id] || "+") === "+" ? "#16a34a" : "#dc2626",
+                                  borderColor: (adjustmentSigns[member.id] || "+") === "+" ? "#22c55e" : "#ef4444",
+                                }}
+                              >
+                                {adjustmentSigns[member.id] || "+"}
+                              </button>
+                              <input
+                                type="number"
+                                placeholder="0"
+                                disabled={!isIncluded}
+                                value={adjustments[member.id] || ""}
+                                onChange={(e) => handleAdjustmentChange(member.id, e.target.value)}
                                 className="w-16 h-8 text-right rounded-xl text-sm font-bold outline-none px-2 border"
                                 style={{
                                   background: isIncluded ? "var(--card)" : "var(--muted)",
@@ -782,61 +976,33 @@ export default function AddExpensePage({
                                   color: isIncluded ? "var(--foreground)" : "var(--muted-foreground)",
                                 }}
                               />
-                              <span className="ml-1 text-xs font-bold" style={{ color: "var(--muted-foreground)" }}>%</span>
                             </div>
-                          </div>
-                        )}
+                          )}
 
-                        {splitMode === "shares" && (
-                          <div className="flex items-center gap-3">
-                            <span className="text-xs font-semibold" style={{ color: "var(--muted-foreground)" }}>
-                              {currSymbol}{shareAmount.toFixed(2)}
-                            </span>
-                            <div className="flex items-center gap-1.5 bg-black/5 dark:bg-white/5 p-1 rounded-xl">
-                              <button
-                                type="button"
-                                disabled={!isIncluded || currentShare <= 1}
-                                onClick={() => handleShareChange(member.id, -1)}
-                                className="h-6 w-6 rounded-lg flex items-center justify-center disabled:opacity-30 hover:bg-black/10"
-                              >
-                                <Minus className="h-3 w-3" />
-                              </button>
-                              <span className="text-xs font-black w-4 text-center">{currentShare}</span>
-                              <button
-                                type="button"
+                          {splitMode === "custom" && (
+                            <div className="flex items-center gap-1">
+                              <span className="text-xs font-bold" style={{ color: "var(--muted-foreground)" }}>{currSymbol}</span>
+                              <input
+                                type="number" placeholder="0.00"
                                 disabled={!isIncluded}
-                                onClick={() => handleShareChange(member.id, 1)}
-                                className="h-6 w-6 rounded-lg flex items-center justify-center disabled:opacity-30 hover:bg-black/10"
-                              >
-                                <Plus className="h-3 w-3" />
-                              </button>
+                                value={customAmounts[member.id] || ""}
+                                onChange={(e) => handleCustomAmountChange(member.id, e.target.value)}
+                                className="w-20 h-8 text-right rounded-xl text-sm font-bold outline-none px-2 transition-all"
+                                style={{
+                                  background: isIncluded ? "var(--card)" : "var(--muted)",
+                                  border: `1.5px solid ${isIncluded ? AMBER : "var(--border)"}`,
+                                  color: isIncluded ? "var(--foreground)" : "var(--muted-foreground)",
+                                }}
+                              />
                             </div>
-                          </div>
-                        )}
-
-                        {splitMode === "custom" && (
-                          <div className="flex items-center gap-1">
-                            <span className="text-xs font-bold" style={{ color: "var(--muted-foreground)" }}>{currSymbol}</span>
-                            <input
-                              type="number" placeholder="0.00"
-                              disabled={!isIncluded}
-                              value={customAmounts[member.id] || ""}
-                              onChange={(e) => handleCustomAmountChange(member.id, e.target.value)}
-                              className="w-20 h-8 text-right rounded-xl text-sm font-bold outline-none px-2 transition-all"
-                              style={{
-                                background: isIncluded ? "var(--card)" : "var(--muted)",
-                                border: `1.5px solid ${isIncluded ? AMBER : "var(--border)"}`,
-                                color: isIncluded ? "var(--foreground)" : "var(--muted-foreground)",
-                              }}
-                            />
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </motion.div>
-            )}
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </motion.div>
+              );
+            })()}
           </AnimatePresence>
         </div>
 

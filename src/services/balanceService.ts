@@ -1,6 +1,7 @@
 import { Expense } from "@/types/expense";
 import { Payment } from "@/types/payment";
 import { GroupMember } from "@/types/group";
+import { SplitResolver } from "@/lib/fintech/splitResolver";
 
 export interface Settlement {
   fromUserId: string;
@@ -15,6 +16,7 @@ export const balanceService = {
    * Calculates the net balance for each user in a group based on expenses and approved payments.
    * Positive balance = user is owed money
    * Negative balance = user owes money
+   * Uses SplitResolver with largest-remainder penny conservation to strictly preserve zero-sum balances.
    */
   calculateBalances(
     members: GroupMember[],
@@ -28,33 +30,18 @@ export const balanceService = {
       balances[m.id] = 0;
     });
 
-    // Process expenses
+    // Process expenses with unified SplitResolver
     expenses.forEach((expense) => {
-      // Credit payers (support multi-payer)
-      if (expense.payers && Object.keys(expense.payers).length > 0) {
-        for (const [payerId, paidAmount] of Object.entries(expense.payers)) {
-          const amt = Number(paidAmount) || 0;
-          if (amt > 0) {
-            balances[payerId] = (balances[payerId] || 0) + amt;
-          }
-        }
-      } else if (expense.payerId) {
-        balances[expense.payerId] = (balances[expense.payerId] || 0) + expense.amount;
+      // 1. Credit payers (supports single and multi-payer distributions)
+      const payerCredits = SplitResolver.resolvePayerCredits(expense);
+      for (const [payerId, paidAmount] of Object.entries(payerCredits)) {
+        balances[payerId] = (balances[payerId] || 0) + paidAmount;
       }
 
-      // Subtract shares from participants
-      if (expense.customSplitAmounts && Object.keys(expense.customSplitAmounts).length > 0) {
-        // Custom split
-        for (const [userId, amount] of Object.entries(expense.customSplitAmounts)) {
-          const share = Number(amount) || 0;
-          balances[userId] = (balances[userId] || 0) - share;
-        }
-      } else if (expense.splitBetweenIds && expense.splitBetweenIds.length > 0) {
-        // Equal split
-        const share = expense.amount / expense.splitBetweenIds.length;
-        expense.splitBetweenIds.forEach((userId) => {
-          balances[userId] = (balances[userId] || 0) - share;
-        });
+      // 2. Subtract resolved member shares (penny-conserved across all 6 modes)
+      const memberShares = SplitResolver.resolveMemberShares(expense);
+      for (const [userId, share] of Object.entries(memberShares)) {
+        balances[userId] = (balances[userId] || 0) - share;
       }
     });
 
@@ -70,7 +57,14 @@ export const balanceService = {
       }
     });
 
-    return balances;
+    // Clean up floating point representation to 2 decimals
+    const roundedBalances: Record<string, number> = {};
+    for (const [uid, bal] of Object.entries(balances)) {
+      const rounded = Math.round(bal * 100) / 100;
+      roundedBalances[uid] = Object.is(rounded, -0) ? 0 : rounded;
+    }
+
+    return roundedBalances;
   },
 
   /**

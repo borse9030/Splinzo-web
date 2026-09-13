@@ -11,7 +11,6 @@ import { AlertCircle, Receipt, Image as ImageIcon, Repeat } from "lucide-react";
 import Link from "next/link";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DashboardBannerAd } from "@/components/ads/DashboardBannerAd";
-import GroupKittyCard from "@/components/groups/GroupKittyCard";
 import QuickAddExpenseBar from "@/components/groups/QuickAddExpenseBar";
 
 const AMBER = "#F9B912";
@@ -104,8 +103,6 @@ export default function GroupExpensesPage({
 
   return (
     <div className="space-y-4 mt-4">
-      <GroupKittyCard groupId={resolvedParams.groupId} currency={group?.currency || "INR"} />
-
       {/* Smart Natural Language Quick Add */}
       <QuickAddExpenseBar group={group} />
 

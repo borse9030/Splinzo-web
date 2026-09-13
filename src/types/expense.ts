@@ -25,5 +25,4 @@ export interface Expense {
   isRecurring?: boolean;
   recurringInterval?: string | null; // 'daily' | 'weekly' | 'monthly'
   itemizedItems?: Array<{ name: string; price: number; assignedTo: string[] }> | null;
-  isPaidFromKitty?: boolean;
 }

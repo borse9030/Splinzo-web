@@ -10,6 +10,7 @@ import { ChevronLeft, Receipt, Calendar, User, Zap } from "lucide-react";
 import Link from "next/link";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePayments } from "@/hooks/usePayments";
+import { SplitResolver } from "@/lib/fintech/splitResolver";
 
 const AMBER = "#F9B912";
 const AMBER_LIGHT = "#FFF8E1";
@@ -67,22 +68,15 @@ export default function ExpenseDetailsPage({
   const hasMultiplePayers = expense.payers && Object.keys(expense.payers).length > 1;
   const currencySymbol = expense.currency === "INR" ? "₹" : expense.currency;
 
+  // Zero-sum penny-conserved resolution for all split modes
+  const resolvedShares = SplitResolver.resolveMemberShares(expense);
+  const resolvedPayerCredits = SplitResolver.resolvePayerCredits(expense);
+
   // Calculate my share & paid amounts
   const amIInvolved = expense.splitBetweenIds.includes(appUser?.id || "");
-  const amIPayer = expense.payerId === appUser?.id;
-
-  let myShare = 0;
-  if (amIInvolved) {
-    if (expense.customSplitAmounts && expense.customSplitAmounts[appUser?.id || ""] !== undefined) {
-      myShare = expense.customSplitAmounts[appUser?.id || ""];
-    } else if (expense.splitBetweenIds.length > 0) {
-      myShare = expense.amount / expense.splitBetweenIds.length;
-    }
-  }
-
-  const myPaid = expense.payers && appUser?.id && expense.payers[appUser.id] !== undefined
-    ? expense.payers[appUser.id]
-    : (amIPayer ? expense.amount : 0);
+  const myShare = amIInvolved ? (resolvedShares[appUser?.id || ""] || 0) : 0;
+  const myPaid = resolvedPayerCredits[appUser?.id || ""] || 0;
+  const amIPayer = myPaid > 0 || expense.payerId === appUser?.id;
   const myNet = myPaid - myShare;
 
   // Find if there's already a payment for this expense
@@ -182,9 +176,25 @@ export default function ExpenseDetailsPage({
               <Calendar className="h-4 w-4 text-gray-400" />
               <span>{dateStr}</span>
             </div>
-            <div className="flex items-center gap-2.5">
-              <Receipt className="h-4 w-4 text-gray-400" />
-              <span>Split between {expense.splitBetweenIds.length} people</span>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <Receipt className="h-4 w-4 text-gray-400" />
+                <span>Split between {expense.splitBetweenIds.length} people</span>
+              </div>
+              <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full capitalize"
+                    style={{ background: AMBER_LIGHT, color: AMBER }}>
+                {expense.splitMode === "adjustment"
+                  ? "Adjust ±"
+                  : expense.splitMode === "shares"
+                  ? "Shares"
+                  : expense.splitMode === "percentage"
+                  ? "Percentage %"
+                  : expense.splitMode === "custom"
+                  ? "Exact"
+                  : expense.splitMode === "itemized"
+                  ? "Itemized"
+                  : "Equally"}
+              </span>
             </div>
           </div>
 
@@ -198,16 +208,8 @@ export default function ExpenseDetailsPage({
                 const member = group?.members.find((m: any) => m.id === userId);
                 const memberName: string = member?.displayName || member?.name || "Unknown Member";
 
-                let shareAmount = 0;
-                if (expense.customSplitAmounts && expense.customSplitAmounts[userId] !== undefined) {
-                  shareAmount = expense.customSplitAmounts[userId];
-                } else {
-                  shareAmount = expense.amount / expense.splitBetweenIds.length;
-                }
-
-                const userPaid = (expense.payers && expense.payers[userId] !== undefined)
-                  ? expense.payers[userId]
-                  : (userId === expense.payerId ? expense.amount : 0);
+                const shareAmount = resolvedShares[userId] || 0;
+                const userPaid = resolvedPayerCredits[userId] || 0;
                 const userNet = userPaid - shareAmount;
 
                 const isMe = userId === appUser?.id;
@@ -217,6 +219,17 @@ export default function ExpenseDetailsPage({
                 );
                 const isSettled = isPayerMember || memberPayment?.status === "approved";
                 const isVerifying = memberPayment?.status === "pending_approval";
+
+                // Contextual label for split mode
+                let splitModeDetail: string | null = null;
+                if (expense.splitMode === "percentage" && expense.splitPercentages?.[userId] !== undefined) {
+                  splitModeDetail = `${expense.splitPercentages[userId]}%`;
+                } else if (expense.splitMode === "shares" && expense.splitShares?.[userId] !== undefined) {
+                  splitModeDetail = `${expense.splitShares[userId]} ${expense.splitShares[userId] === 1 ? "share" : "shares"}`;
+                } else if (expense.splitMode === "adjustment" && expense.splitAdjustments?.[userId] !== undefined) {
+                  const adj = expense.splitAdjustments[userId];
+                  splitModeDetail = `adj ${adj >= 0 ? "+" : ""}${currencySymbol}${adj.toFixed(2)}`;
+                }
 
                 return (
                   <div key={userId} className="flex items-center justify-between p-2.5 rounded-2xl bg-gray-50/70">
@@ -228,9 +241,16 @@ export default function ExpenseDetailsPage({
                         {memberName.charAt(0).toUpperCase()}
                       </div>
                       <div>
-                        <p className="font-semibold text-sm text-gray-900">
-                          {memberName} {isMe && "(You)"}
-                        </p>
+                        <div className="flex items-center gap-1.5">
+                          <p className="font-semibold text-sm text-gray-900">
+                            {memberName} {isMe && "(You)"}
+                          </p>
+                          {splitModeDetail && (
+                            <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded bg-amber-100/70 text-amber-800">
+                              {splitModeDetail}
+                            </span>
+                          )}
+                        </div>
                         {hasMultiplePayers ? (
                           <div className="flex items-center gap-1.5 text-[11px] font-bold">
                             {userPaid > 0 && (
