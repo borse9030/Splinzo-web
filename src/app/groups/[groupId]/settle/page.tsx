@@ -27,7 +27,8 @@ import {
   MessageSquare,
   Download,
   FileText,
-  Share2
+  Share2,
+  Smile,
 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -39,6 +40,7 @@ import {
 } from "@/components/ui/dialog";
 import { userService } from "@/services/userService";
 import { exportService } from "@/services/exportService";
+import MemeNudgeModal from "@/components/groups/MemeNudgeModal";
 
 interface SetuData {
   paymentId: string;
@@ -75,6 +77,11 @@ export default function SettleUpPage({
   const [showQr, setShowQr] = useState(false);
   const [copiedUpi, setCopiedUpi] = useState(false);
   const [simulating, setSimulating] = useState(false);
+  const [nudgeModalData, setNudgeModalData] = useState<{
+    targetUid: string;
+    targetName: string;
+    amount: number;
+  } | null>(null);
 
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -303,34 +310,48 @@ export default function SettleUpPage({
                           Settle & Pay
                         </Button>
                       ) : (
-                        <Button
-                          variant="outline"
-                          onClick={() => {
-                            const amt = s.amount.toFixed(2);
-                            const myName = appUser?.displayName || appUser?.name || "Your friend";
-                            const myUpi = appUser?.upiId?.trim();
-                            const breakdownLink = `${window.location.origin}/g/${group.id}`;
-                            
-                            let upiBlock = "";
-                            if (myUpi) {
-                              const upiUri = `upi://pay?pa=${myUpi}&pn=${encodeURIComponent(myName)}&am=${amt}&cu=INR&tn=${encodeURIComponent(`Splinzo ${group.name}`)}`;
-                              upiBlock = `⚡ *Tap to pay instantly via UPI (GPay/PhonePe/Paytm):*\n${upiUri}\n\n`;
-                            }
+                        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                          <Button
+                            variant="outline"
+                            onClick={() => setNudgeModalData({
+                              targetUid: s.fromUserId,
+                              targetName: s.fromUserName,
+                              amount: s.amount,
+                            })}
+                            className="rounded-xl px-4 flex-1 sm:flex-initial font-bold border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100 shadow-xs"
+                          >
+                            <Smile className="h-4 w-4 mr-1.5 text-amber-600" />
+                            Meme Nudge
+                          </Button>
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              const amt = s.amount.toFixed(2);
+                              const myName = appUser?.displayName || appUser?.name || "Your friend";
+                              const myUpi = appUser?.upiId?.trim();
+                              const breakdownLink = `${window.location.origin}/g/${group.id}`;
+                              
+                              let upiBlock = "";
+                              if (myUpi) {
+                                const upiUri = `upi://pay?pa=${myUpi}&pn=${encodeURIComponent(myName)}&am=${amt}&cu=INR&tn=${encodeURIComponent(`Splinzo ${group.name}`)}`;
+                                upiBlock = `⚡ *Tap to pay instantly via UPI (GPay/PhonePe/Paytm):*\n${upiUri}\n\n`;
+                              }
 
-                            const text = encodeURIComponent(
-                              `👋 Hey ${s.fromUserName}!\n\n` +
-                              `Just a friendly reminder for your pending balance of *${group.currency === 'INR' ? '₹' : group.currency}${amt}* in Splinzo for "*${group.name}*".\n\n` +
-                              upiBlock +
-                              `📊 *View group breakdown & settle:*\n${breakdownLink}\n\n` +
-                              `Thanks! ✨`
-                            );
-                            window.open(`https://wa.me/?text=${text}`, "_blank");
-                          }}
-                          className="rounded-xl px-5 w-full sm:w-auto font-bold border-green-200 bg-green-50 text-green-700 hover:bg-green-100 shadow-sm"
-                        >
-                          <MessageSquare className="h-4 w-4 mr-2 text-green-600" />
-                          WhatsApp Nudge
-                        </Button>
+                              const text = encodeURIComponent(
+                                `👋 Hey ${s.fromUserName}!\n\n` +
+                                `Just a friendly reminder for your pending balance of *${group.currency === 'INR' ? '₹' : group.currency}${amt}* in Splinzo for "*${group.name}*".\n\n` +
+                                upiBlock +
+                                `📊 *View group breakdown & settle:*\n${breakdownLink}\n\n` +
+                                `Thanks! ✨`
+                              );
+                              window.open(`https://wa.me/?text=${text}`, "_blank");
+                            }}
+                            className="rounded-xl px-4 flex-1 sm:flex-initial font-bold border-green-200 bg-green-50 text-green-700 hover:bg-green-100 shadow-xs"
+                          >
+                            <MessageSquare className="h-4 w-4 mr-1.5 text-green-600" />
+                            WhatsApp
+                          </Button>
+                        </div>
                       )}
                     </div>
                   </CardContent>
@@ -576,6 +597,17 @@ export default function SettleUpPage({
 
         </DialogContent>
       </Dialog>
+
+      {/* Playful Meme Nudge Modal */}
+      <MemeNudgeModal
+        groupId={resolvedParams.groupId}
+        targetUid={nudgeModalData?.targetUid || ""}
+        targetName={nudgeModalData?.targetName || ""}
+        amount={nudgeModalData?.amount || 0}
+        currency={group?.currency === "INR" ? "₹" : (group?.currency || "₹")}
+        isOpen={!!nudgeModalData}
+        onClose={() => setNudgeModalData(null)}
+      />
     </div>
   );
 }

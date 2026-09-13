@@ -65,7 +65,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning data-scroll-behavior="smooth">
+    <html lang="en" suppressHydrationWarning data-scroll-behavior="smooth" className="overflow-x-clip max-w-full">
       <head>
         <script
           async
@@ -74,7 +74,7 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={`${outfit.variable} ${geistMono.variable} antialiased min-h-full flex flex-col`}
+        className={`${outfit.variable} ${geistMono.variable} antialiased min-h-full flex flex-col w-full max-w-full overflow-x-clip`}
         style={{ fontFamily: "var(--font-outfit), 'Outfit', sans-serif" }}
       >
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>

@@ -1,6 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+
+const emptySubscribe = () => () => {};
+function useIsMounted() {
+  return useSyncExternalStore(
+    emptySubscribe,
+    () => true,
+    () => false
+  );
+}
 
 interface AdsterraBannerProps {
   adKey?: string;
@@ -17,10 +26,9 @@ export function AdsterraBanner({
 }: AdsterraBannerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
-  const [mounted, setMounted] = useState(false);
+  const mounted = useIsMounted();
 
   useEffect(() => {
-    setMounted(true);
     const updateScale = () => {
       if (containerRef.current) {
         const clientWidth = containerRef.current.clientWidth;
@@ -90,6 +98,7 @@ export function AdsterraBanner({
       className={className}
       style={{
         width: "100%",
+        maxWidth: "100%",
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
@@ -108,6 +117,7 @@ export function AdsterraBanner({
           display: "flex",
           justifyContent: "center",
           alignItems: "center",
+          flexShrink: 0,
         }}
       >
         <iframe

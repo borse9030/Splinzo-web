@@ -1,16 +1,18 @@
 "use client";
 
-import { use } from "react";
+import { use, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useExpenses } from "@/hooks/useExpenses";
 import { useGroup } from "@/hooks/useGroup";
 import { usePayments } from "@/hooks/usePayments";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { AlertCircle, Receipt, Image as ImageIcon } from "lucide-react";
+import { AlertCircle, Receipt, Image as ImageIcon, Repeat } from "lucide-react";
 import Link from "next/link";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DashboardBannerAd } from "@/components/ads/DashboardBannerAd";
+import GroupKittyCard from "@/components/groups/GroupKittyCard";
+import QuickAddExpenseBar from "@/components/groups/QuickAddExpenseBar";
 
 const AMBER = "#F9B912";
 const AMBER_LIGHT = "#FFF8E1";
@@ -102,6 +104,18 @@ export default function GroupExpensesPage({
 
   return (
     <div className="space-y-4 mt-4">
+      <GroupKittyCard groupId={resolvedParams.groupId} currency={group?.currency || "INR"} />
+
+      {/* Smart Natural Language Quick Add */}
+      <QuickAddExpenseBar group={group} />
+
+      {/* Expenses Header */}
+      <div className="px-1">
+        <span className="text-xs font-bold uppercase tracking-wider text-gray-400">
+          All Expenses ({expenses.length})
+        </span>
+      </div>
+
       <div className="space-y-3">
         {expenses.map((expense) => {
         const hasMultiplePayers = expense.payers && Object.keys(expense.payers).length > 1;
@@ -212,7 +226,7 @@ export default function GroupExpensesPage({
                 <div className="flex-1 min-w-0 flex flex-col justify-center">
                   <div className="flex items-center gap-2 mb-1">
                     <h4 className="font-bold truncate text-sm sm:text-base" style={{ color: "var(--foreground)" }}>
-                      {expense.description}
+                      {expense.description.replace(/\s*\([A-Za-z]+\s+\d{4}\)/, "").trim() || expense.description}
                     </h4>
                   </div>
                   <div className="flex items-center gap-1.5 mt-0.5">
@@ -226,14 +240,14 @@ export default function GroupExpensesPage({
                 {/* Amount block */}
                 <div className="text-right shrink-0 flex flex-col items-end justify-center">
                   <p className="font-black text-sm sm:text-base tracking-tight mb-1" style={{ color: "var(--foreground)" }}>
-                    {expense.currency === "INR" ? "₹" : expense.currency}
-                    {expense.amount.toFixed(2)}
+                    {expense.currency === "INR" ? "₹" : expense.currency}{" "}
+                    {expense.amount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </p>
                   <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${statusColor} ${statusBg}`}>
                     {statusText}
                   </span>
-                  </div>
-                </CardContent>
+                </div>
+              </CardContent>
               </Card>
             </Link>
           );

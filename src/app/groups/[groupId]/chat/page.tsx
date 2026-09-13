@@ -17,7 +17,7 @@ import {
   Timestamp,
 } from "firebase/firestore";
 import { storageService } from "@/services/storageService";
-import { Send, ImageIcon, MessageSquare, X, Trash2, Edit2, Ban } from "lucide-react";
+import { Send, ImageIcon, MessageSquare, X, Trash2, Edit2, Ban, Zap } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 
 const AMBER     = "#F9B912";
@@ -71,6 +71,22 @@ interface ChatMessage {
   text?: string;
   imageUrl?: string;
   isCallLog?: boolean;
+  type?: string;
+  nudgeTargetUid?: string;
+  nudgeTargetName?: string;
+  nudgeAmount?: number;
+  nudgeMemeTitle?: string;
+  nudgeMemeText?: string;
+  expenseCardData?: {
+    expenseId: string;
+    title: string;
+    amount: number;
+    currency: string;
+    payerName: string;
+    payerId: string;
+    splitCount: number;
+    myShare: number;
+  };
   createdAt: Timestamp | null;
   editedAt?: Timestamp | null;
   isDeleted?: boolean;
@@ -95,6 +111,57 @@ export default function GroupChatPage({
   const [uploading,      setUploading]      = useState(false);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editText,         setEditText]         = useState("");
+
+  const [isQuickBillOpen, setIsQuickBillOpen] = useState(false);
+  const [quickBillTitle, setQuickBillTitle] = useState("");
+  const [quickBillAmount, setQuickBillAmount] = useState("");
+  const [isSubmittingQuickBill, setIsSubmittingQuickBill] = useState(false);
+
+  const handleQuickBillSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const amt = parseFloat(quickBillAmount);
+    if (!quickBillTitle.trim() || isNaN(amt) || amt <= 0 || !appUser) return;
+    setIsSubmittingQuickBill(true);
+    try {
+      const expRef = await addDoc(collection(db, "groups", groupId, "expenses"), {
+        groupId,
+        description: quickBillTitle.trim(),
+        amount: amt,
+        payerId: appUser.id,
+        currency: group?.currency || "INR",
+        createdAt: serverTimestamp(),
+        createdBy: appUser.id,
+        splitBetweenIds: group?.members?.map((m: any) => m.id) || [appUser.id],
+        category: "General",
+      });
+
+      const membersCount = group?.members?.length || 1;
+      await addDoc(collection(db, "groups", groupId, "messages"), {
+        groupId,
+        senderId: appUser.id,
+        type: "expense_card",
+        expenseCardData: {
+          expenseId: expRef.id,
+          title: quickBillTitle.trim(),
+          amount: amt,
+          currency: group?.currency === "INR" ? "₹" : (group?.currency || "₹"),
+          payerId: appUser.id,
+          payerName: appUser.name || appUser.displayName || "Member",
+          splitCount: membersCount,
+          myShare: amt / membersCount,
+        },
+        createdAt: serverTimestamp(),
+      });
+
+      setQuickBillTitle("");
+      setQuickBillAmount("");
+      setIsQuickBillOpen(false);
+    } catch (err) {
+      console.error("Failed to split bill in chat:", err);
+    } finally {
+      setIsSubmittingQuickBill(false);
+    }
+  };
 
   const bottomRef   = useRef<HTMLDivElement>(null);
   const fileInputRef= useRef<HTMLInputElement>(null);
@@ -398,6 +465,66 @@ export default function GroupChatPage({
                             </div>
                           )}
                         </div>
+                      ) : msg.type === "nudge" ? (
+                        /* Playful Meme Nudge Card */
+                        <div
+                          className="relative max-w-sm rounded-2xl p-4 shadow-sm border border-amber-200 text-slate-900"
+                          style={{
+                            background: "linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%)",
+                            borderRadius: isMe ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
+                          }}
+                        >
+                          <div className="flex items-center justify-between gap-2 pb-1.5 border-b border-amber-200/60">
+                            <span className="inline-flex items-center gap-1 rounded-full bg-amber-500 px-2 py-0.5 text-[9px] font-extrabold text-white tracking-wide">
+                              {msg.nudgeMemeTitle || "🎭 SPLINZO NUDGE"}
+                            </span>
+                            {msg.nudgeAmount && (
+                              <span className="font-extrabold text-xs text-amber-900">
+                                ₹{msg.nudgeAmount.toLocaleString("en-IN")}
+                              </span>
+                            )}
+                          </div>
+                          <p className="mt-2 text-xs font-semibold text-amber-950 leading-relaxed">
+                            {msg.nudgeMemeText || "Friendly reminder to settle up!"}
+                          </p>
+                          <p className="text-[10px] text-right mt-1.5 text-amber-800/60 font-medium">
+                            {fmt(msg.createdAt)}
+                          </p>
+                        </div>
+                      ) : msg.type === "expense_card" && msg.expenseCardData ? (
+                        /* Interactive Instant Split Card */
+                        <div
+                          className="relative max-w-sm rounded-2xl p-4 shadow-md bg-white border-2 border-amber-300 text-slate-900"
+                          style={{
+                            borderRadius: isMe ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
+                          }}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-[10px] font-bold text-amber-900">
+                              <Zap className="h-3 w-3 fill-amber-500 text-amber-500" /> INSTANT SPLIT
+                            </span>
+                            <span className="text-[10px] text-gray-400 font-medium">
+                              {fmt(msg.createdAt)}
+                            </span>
+                          </div>
+                          <h4 className="mt-2 text-sm font-bold text-gray-900">
+                            {msg.expenseCardData.title}
+                          </h4>
+                          <div className="text-xl font-extrabold text-gray-900 mt-0.5">
+                            {msg.expenseCardData.currency === "INR" ? "₹" : msg.expenseCardData.currency}
+                            {msg.expenseCardData.amount.toLocaleString("en-IN")}
+                          </div>
+                          <p className="text-[11px] text-gray-500 mt-0.5">
+                            Paid by {msg.expenseCardData.payerName} • Split between {msg.expenseCardData.splitCount} people
+                          </p>
+                          <div className="mt-3 flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 border border-slate-100">
+                            <span className="text-xs font-medium text-gray-600">Per Person:</span>
+                            <span className="text-xs font-bold text-amber-700">
+                              {msg.expenseCardData.currency === "INR" ? "₹" : msg.expenseCardData.currency}
+                              {msg.expenseCardData.myShare?.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
+                            </span>
+                          </div>
+                        </div>
                       ) : msg.text ? (
                         /* Text message */
                         <div className="relative group/msg max-w-full">
@@ -490,6 +617,16 @@ export default function GroupChatPage({
       <div className="shrink-0 px-3 py-3" style={{ background: "var(--card)", borderTop: "1px solid var(--border)" }}>
         {/* Constrain to same max-width as messages */}
         <div className="max-w-2xl mx-auto flex items-end gap-2">
+          {/* Quick Bill Split button */}
+          <button
+            type="button"
+            onClick={() => setIsQuickBillOpen(true)}
+            title="Instant Bill Split"
+            className="h-10 w-10 rounded-full flex items-center justify-center shrink-0 transition-transform active:scale-90 bg-amber-100 text-amber-700 hover:bg-amber-200"
+          >
+            <Zap className="h-5 w-5 fill-amber-500 text-amber-500" />
+          </button>
+
           {/* Image button */}
           <button type="button" onClick={() => fileInputRef.current?.click()}
                   className="h-10 w-10 rounded-full flex items-center justify-center shrink-0 transition-transform active:scale-90"
@@ -547,6 +684,88 @@ export default function GroupChatPage({
           </button>
         </div>
       </div>
+
+      {/* Quick Bill Split Modal */}
+      {isQuickBillOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl text-slate-900 border border-slate-100">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-amber-100 text-amber-600 font-bold">
+                  <Zap className="h-5 w-5 fill-amber-500 text-amber-500" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-lg text-slate-900">Quick Bill Split</h4>
+                  <p className="text-xs text-slate-500">Drop an interactive split card in chat</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsQuickBillOpen(false)}
+                className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleQuickBillSubmit} className="mt-5 space-y-4">
+              <div>
+                <label className="text-xs font-bold text-slate-700">What was it for?</label>
+                <input
+                  type="text"
+                  required
+                  autoFocus
+                  value={quickBillTitle}
+                  onChange={(e) => setQuickBillTitle(e.target.value)}
+                  placeholder="e.g. Uber, Dinner, Coffee"
+                  className="mt-1 w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm text-slate-900 focus:border-amber-500 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700">
+                  Total Amount ({group?.currency === "INR" ? "₹" : (group?.currency || "₹")})
+                </label>
+                <div className="relative mt-1">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-lg font-bold text-amber-500">
+                    {group?.currency === "INR" ? "₹" : (group?.currency || "₹")}
+                  </span>
+                  <input
+                    type="number"
+                    step="any"
+                    required
+                    value={quickBillAmount}
+                    onChange={(e) => setQuickBillAmount(e.target.value)}
+                    placeholder="0.00"
+                    className="w-full rounded-2xl border border-slate-200 py-3 pl-10 pr-4 text-xl font-bold text-slate-900 focus:border-amber-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="rounded-xl bg-slate-50 p-3 text-xs text-slate-500 border border-slate-100">
+                Split equally between all {group?.members?.length || 1} group members.
+              </div>
+
+              <div className="pt-2 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsQuickBillOpen(false)}
+                  className="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingQuickBill}
+                  className="flex-1 rounded-xl bg-amber-400 py-2.5 text-sm font-bold text-slate-950 shadow-md hover:bg-amber-300 disabled:opacity-50 flex items-center justify-center gap-1.5"
+                >
+                  <Zap className="h-4 w-4 fill-slate-950" />
+                  {isSubmittingQuickBill ? "Posting..." : "Drop in Chat"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

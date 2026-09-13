@@ -5,11 +5,10 @@ import Link from "next/link";
 import Image from "next/image";
 import { motion, useInView, AnimatePresence } from "framer-motion";
 import { 
-  ArrowRight, Check, CheckCircle2, ChevronRight, 
-  Download, Moon, Play, Shield, ShieldCheck, 
+  ArrowRight, Check, ChevronRight, 
+  Download, ShieldCheck, 
   Sparkles, Star, Wallet, Zap, BookOpen,
-  Bell, Users, MessageCircle, ChevronDown, Smartphone,
-  Map, CreditCard
+  Bell, Users, MessageCircle, ChevronDown, Smartphone
 } from "lucide-react";
 
 import { blogs } from "@/data/blogs";
@@ -30,7 +29,7 @@ function Section({ children, className = "", delay = 0 }: {
   return (
     <div
       ref={ref}
-      className={className}
+      className={`w-full max-w-full ${className}`}
       style={{
         opacity: isInView ? 1 : 0,
         transform: isInView ? "translateY(0)" : "translateY(48px)",
@@ -261,15 +260,13 @@ const PHONE_SCREENS = [
 
 function PhoneMockup() {
   const [screen, setScreen] = useState(0);
-  const [prevScreen, setPrevScreen] = useState<number | null>(null);
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setPrevScreen(screen);
       setScreen(s => (s + 1) % PHONE_SCREENS.length);
     }, 3500);
     return () => clearInterval(interval);
-  }, [screen]);
+  }, []);
 
   const current = PHONE_SCREENS[screen];
 
@@ -527,11 +524,11 @@ function FaqItem({ q, a }: { q: string; a: string }) {
 /* ─── MAIN PAGE ──────────────────────────────────────────── */
 export default function Home() {
   return (
-    <div className="flex min-h-screen flex-col bg-white" style={{fontFamily:"'Outfit', sans-serif"}}>
+    <div className="flex min-h-screen flex-col bg-white overflow-x-clip w-full max-w-full relative" style={{fontFamily:"'Outfit', sans-serif"}}>
       <Navbar />
 
       {/* ══ HERO ══════════════════════════════════════════ */}
-      <section className="relative min-h-screen flex items-center pt-24 pb-20 overflow-hidden">
+      <section className="relative min-h-screen flex items-center pt-24 pb-20 overflow-hidden w-full max-w-full">
         {/* Gradient background */}
         <div className="absolute inset-0 -z-20"
              style={{background:"radial-gradient(ellipse 90% 70% at 50% 0%, #FFF9E6 0%, #FFFDF6 45%, #FFFFFF 100%)"}} />
@@ -620,7 +617,7 @@ export default function Home() {
       </section>
 
       {/* ══ STATS BAR ══════════════════════════════════════ */}
-      <Section className="bg-gray-900 py-12">
+      <Section className="bg-gray-900 py-12 w-full max-w-full overflow-hidden">
         <div className="max-w-5xl mx-auto px-5 grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
           {[
             {label:"Active Users",    value:"1,000+"},
@@ -637,7 +634,7 @@ export default function Home() {
       </Section>
 
       {/* ══ HOW IT WORKS ═══════════════════════════════════ */}
-      <section id="how-it-works" className="py-28 px-5 bg-white">
+      <section id="how-it-works" className="py-28 px-5 bg-white w-full max-w-full overflow-hidden">
         <div className="max-w-5xl mx-auto">
           <Section className="text-center mb-16">
             <span className="text-sm font-bold uppercase tracking-widest" style={{color:AMBER}}>How It Works</span>
@@ -670,7 +667,7 @@ export default function Home() {
       </section>
 
       {/* ══ FEATURES ═══════════════════════════════════════ */}
-      <section id="features" className="py-28 px-5"
+      <section id="features" className="py-28 px-5 w-full max-w-full overflow-hidden"
                style={{background:"linear-gradient(180deg,#FAFAFA 0%,#FFF9ED 100%)"}}>
         <div className="max-w-6xl mx-auto">
           <Section className="text-center mb-16">
@@ -702,7 +699,7 @@ export default function Home() {
       </section>
 
       {/* ══ APP DOWNLOAD BANNER ════════════════════════════ */}
-      <section id="download" className="py-24 px-5 overflow-hidden relative"
+      <section id="download" className="py-24 px-5 overflow-hidden relative w-full max-w-full"
                style={{background:"linear-gradient(135deg,#1a1a1a 0%,#2a2a2a 60%,#1a1a1a 100%)"}}>
         {/* Amber blob */}
         <div className="absolute -right-32 -top-32 w-96 h-96 rounded-full blur-3xl opacity-20"
@@ -746,7 +743,7 @@ export default function Home() {
       </section>
 
       {/* ══ TESTIMONIALS ═══════════════════════════════════ */}
-      <section className="py-28 px-5 bg-white">
+      <section className="py-28 px-5 bg-white w-full max-w-full overflow-hidden">
         <div className="max-w-6xl mx-auto">
           <Section className="text-center mb-16">
             <span className="text-sm font-bold uppercase tracking-widest" style={{color:AMBER}}>Reviews</span>
@@ -785,7 +782,7 @@ export default function Home() {
       </section>
 
       {/* ══ FAQ ════════════════════════════════════════════ */}
-      <section id="faq" className="py-28 px-5" style={{background:"#FAFAFA"}}>
+      <section id="faq" className="py-28 px-5 w-full max-w-full overflow-hidden" style={{background:"#FAFAFA"}}>
         <div className="max-w-3xl mx-auto">
           <Section className="text-center mb-14">
             <span className="text-sm font-bold uppercase tracking-widest" style={{color:AMBER}}>FAQ</span>
@@ -803,7 +800,7 @@ export default function Home() {
       </section>
 
       {/* ══ BLOG / RESOURCES ═══════════════════════════════ */}
-      <Section className="py-24 px-5 bg-white">
+      <Section className="py-24 px-5 bg-white w-full max-w-full overflow-hidden">
         <div className="max-w-6xl mx-auto">
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-16">
             <div>
@@ -822,7 +819,7 @@ export default function Home() {
           </div>
           
           <div className="grid md:grid-cols-3 gap-8">
-            {blogs.slice(0, 3).map((blog, i) => (
+            {blogs.slice(0, 3).map((blog) => (
               <motion.div key={blog.slug} whileHover={{ y: -8 }} transition={{ duration: 0.2 }}>
                 <Link href={`/blog/${blog.slug}`} className="block group">
                   <article className="bg-gray-50 rounded-3xl p-6 h-full flex flex-col border border-gray-100 hover:border-amber-200 hover:shadow-xl hover:shadow-amber-500/5 transition-all">
@@ -845,15 +842,17 @@ export default function Home() {
       </Section>
 
       {/* ══ PRE-FOOTER SPONSOR BANNER ═══════════════════ */}
-      <div className="max-w-4xl mx-auto px-5 py-10 flex flex-col items-center">
+      <div className="w-full max-w-4xl mx-auto px-5 py-10 flex flex-col items-center overflow-hidden">
         <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-2">
           Sponsored
         </span>
-        <AdsterraBanner width={728} height={90} />
+        <div className="w-full max-w-full flex justify-center overflow-hidden">
+          <AdsterraBanner width={728} height={90} />
+        </div>
       </div>
 
       {/* ══ FOOTER ═════════════════════════════════════════ */}
-      <footer className="bg-gray-900 text-gray-400 pt-16 pb-8 px-5">
+      <footer className="bg-gray-900 text-gray-400 pt-16 pb-8 px-5 w-full max-w-full overflow-hidden">
         <div className="max-w-6xl mx-auto">
           <div className="grid md:grid-cols-4 gap-10 mb-12">
             {/* Brand */}

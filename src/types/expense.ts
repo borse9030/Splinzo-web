@@ -10,8 +10,8 @@ export interface Expense {
   createdAt: Timestamp;
   createdBy: string;
   splitBetweenIds: string[];
-  customSplitAmounts: { [userId: string]: number } | null;
-  billImageUrl: string | null;
+  customSplitAmounts?: { [userId: string]: number } | null;
+  billImageUrl?: string | null;
   imageUrl?: string | null;
   receiptUrl?: string | null;
   category: string;
@@ -25,4 +25,5 @@ export interface Expense {
   isRecurring?: boolean;
   recurringInterval?: string | null; // 'daily' | 'weekly' | 'monthly'
   itemizedItems?: Array<{ name: string; price: number; assignedTo: string[] }> | null;
+  isPaidFromKitty?: boolean;
 }

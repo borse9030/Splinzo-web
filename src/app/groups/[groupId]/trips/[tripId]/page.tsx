@@ -18,8 +18,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { 
   ArrowLeft, MapPin, Calendar, Clock, Plus, X, CalendarDays, CheckCircle2, 
   Plane, Utensils, Bed, Ticket, Car, Coffee, Trash2, Camera, CheckSquare, 
-  Image as ImageIcon, Check, DollarSign 
+  Image as ImageIcon, Check, DollarSign, Sparkles 
 } from "lucide-react";
+import TripWrappedModal from "@/components/groups/TripWrappedModal";
 
 const AMBER = "#F9B912";
 
@@ -57,6 +58,7 @@ export default function TripDetailsPage({
 
   // Itinerary Plan Modal
   const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
+  const [isWrappedOpen, setIsWrappedOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [date, setDate] = useState("");
   const [time, setTime] = useState("");
@@ -287,7 +289,17 @@ export default function TripDetailsPage({
            style={{ background: "linear-gradient(135deg, #1E293B, #0F172A)" }}>
         <div className="flex items-center justify-between mb-3">
           <span className="text-xs font-bold uppercase tracking-widest text-amber-400">Trip Budget Meter</span>
-          <span className="text-xs font-bold text-slate-300">{(budgetRatio * 100).toFixed(0)}% Used</span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsWrappedOpen(true)}
+              className="h-7 px-3 rounded-full text-xs font-bold bg-amber-400/20 hover:bg-amber-400/30 text-amber-300 border border-amber-400/30 flex items-center gap-1.5 transition-all hover:scale-105 active:scale-95 cursor-pointer shadow-sm"
+            >
+              <Sparkles className="h-3.5 w-3.5 text-amber-300 animate-pulse" />
+              Trip Wrapped
+            </button>
+            <span className="text-xs font-bold text-slate-300">{(budgetRatio * 100).toFixed(0)}% Used</span>
+          </div>
         </div>
         <div className="flex items-baseline justify-between mb-2">
           <div className="text-2xl font-black">
@@ -580,6 +592,17 @@ export default function TripDetailsPage({
             </form>
           </div>
         </div>
+      )}
+
+      {/* Trip Wrapped Modal */}
+      {trip && group && (
+        <TripWrappedModal
+          trip={trip}
+          group={group}
+          expenses={expenses}
+          isOpen={isWrappedOpen}
+          onClose={() => setIsWrappedOpen(false)}
+        />
       )}
 
     </div>

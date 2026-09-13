@@ -62,5 +62,15 @@ export const expenseService = {
       return { id: docSnap.id, ...docSnap.data() } as Expense;
     }
     return null;
+  },
+
+  async updateExpense(
+    groupId: string,
+    expenseId: string,
+    updates: Partial<Expense>
+  ): Promise<void> {
+    const { updateDoc } = await import("firebase/firestore");
+    const docRef = doc(db, `groups/${groupId}/expenses`, expenseId);
+    await updateDoc(docRef, updates as any);
   }
 };
