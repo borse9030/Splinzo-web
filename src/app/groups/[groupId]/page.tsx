@@ -11,6 +11,7 @@ import { AlertCircle, Receipt, Image as ImageIcon, Repeat } from "lucide-react";
 import Link from "next/link";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DashboardBannerAd } from "@/components/ads/DashboardBannerAd";
+import { NativeExpenseAdCard } from "@/components/ads/NativeExpenseAdCard";
 import QuickAddExpenseBar from "@/components/groups/QuickAddExpenseBar";
 
 const AMBER = "#F9B912";
@@ -114,140 +115,157 @@ export default function GroupExpensesPage({
       </div>
 
       <div className="space-y-3">
-        {expenses.map((expense) => {
-        const hasMultiplePayers = expense.payers && Object.keys(expense.payers).length > 1;
-        const isPayer = expense.payerId === appUser?.id;
-        const isInvolved = expense.splitBetweenIds.includes(appUser?.id || "");
-        
-        const payerMember = getMember(expense.payerId);
-        const payerName = payerMember?.name || payerMember?.displayName || "Unknown";
-        const payerPhoto = payerMember?.photoURL || payerMember?.photoUrl;
-        
-        // Payer label: "Multiple people", "You", or first name
-        const payerLabel = hasMultiplePayers 
-          ? "Multiple people" 
-          : (isPayer ? "You" : payerName.split(" ")[0]);
+        {expenses.map((expense, index) => {
+          const hasMultiplePayers = expense.payers && Object.keys(expense.payers).length > 1;
+          const isPayer = expense.payerId === appUser?.id;
+          const isInvolved = expense.splitBetweenIds.includes(appUser?.id || "");
+          
+          const payerMember = getMember(expense.payerId);
+          const payerName = payerMember?.name || payerMember?.displayName || "Unknown";
+          const payerPhoto = payerMember?.photoURL || payerMember?.photoUrl;
+          
+          // Payer label: "Multiple people", "You", or first name
+          const payerLabel = hasMultiplePayers 
+            ? "Multiple people" 
+            : (isPayer ? "You" : payerName.split(" ")[0]);
 
-        const currencySymbol = expense.currency === "INR" ? "₹" : expense.currency;
+          const currencySymbol = expense.currency === "INR" ? "₹" : expense.currency;
 
-        // Calculate user's paid amount and share
-        const myPaid = expense.payers && appUser?.id && expense.payers[appUser.id] !== undefined
-          ? expense.payers[appUser.id]
-          : (isPayer ? expense.amount : 0);
+          // Calculate user's paid amount and share
+          const myPaid = expense.payers && appUser?.id && expense.payers[appUser.id] !== undefined
+            ? expense.payers[appUser.id]
+            : (isPayer ? expense.amount : 0);
 
-        let myShare = 0;
-        if (isInvolved) {
-          if (expense.customSplitAmounts && expense.customSplitAmounts[appUser?.id || ""] !== undefined) {
-            myShare = expense.customSplitAmounts[appUser?.id || ""];
-          } else if (expense.splitBetweenIds.length > 0) {
-            myShare = expense.amount / expense.splitBetweenIds.length;
+          let myShare = 0;
+          if (isInvolved) {
+            if (expense.customSplitAmounts && expense.customSplitAmounts[appUser?.id || ""] !== undefined) {
+              myShare = expense.customSplitAmounts[appUser?.id || ""];
+            } else if (expense.splitBetweenIds.length > 0) {
+              myShare = expense.amount / expense.splitBetweenIds.length;
+            }
           }
-        }
 
-        const net = myPaid - myShare;
+          const net = myPaid - myShare;
 
-        let statusText = "";
-        let statusColor = "text-gray-400";
-        let statusBg = "bg-gray-100";
+          let statusText = "";
+          let statusColor = "text-gray-400";
+          let statusBg = "bg-gray-100";
 
-        if (hasMultiplePayers) {
-          if (net > 0.005) {
-            statusText = `you lent ${currencySymbol}${net.toFixed(2)}`;
-            statusColor = "text-emerald-600";
-            statusBg = "bg-emerald-50";
-          } else if (net < -0.005) {
-            statusText = `you owe ${currencySymbol}${Math.abs(net).toFixed(2)}`;
-            statusColor = "text-red-600";
-            statusBg = "bg-red-50";
-          } else if (myPaid > 0 || isInvolved) {
-            statusText = "settled";
-            statusColor = "text-gray-500";
-            statusBg = "bg-gray-100";
+          if (hasMultiplePayers) {
+            if (net > 0.005) {
+              statusText = `you lent ${currencySymbol}${net.toFixed(2)}`;
+              statusColor = "text-emerald-600";
+              statusBg = "bg-emerald-50";
+            } else if (net < -0.005) {
+              statusText = `you owe ${currencySymbol}${Math.abs(net).toFixed(2)}`;
+              statusColor = "text-red-600";
+              statusBg = "bg-red-50";
+            } else if (myPaid > 0 || isInvolved) {
+              statusText = "settled";
+              statusColor = "text-gray-500";
+              statusBg = "bg-gray-100";
+            } else {
+              statusText = "not involved";
+              statusColor = "text-gray-400";
+              statusBg = "bg-gray-100";
+            }
           } else {
-            statusText = "not involved";
-            statusColor = "text-gray-400";
-            statusBg = "bg-gray-100";
+            if (isPayer && expense.splitBetweenIds.length > 1) {
+              statusText = "you paid";
+              statusColor = "text-emerald-600";
+              statusBg = "bg-emerald-50";
+            } else if (isInvolved && !isPayer) {
+              statusText = `you owe ${currencySymbol}${myShare.toFixed(2)}`;
+              statusColor = "text-red-600";
+              statusBg = "bg-red-50";
+            } else if (isPayer && expense.splitBetweenIds.length === 1 && isInvolved) {
+              statusText = "you paid for yourself";
+              statusColor = "text-gray-500";
+              statusBg = "bg-gray-100";
+            } else {
+              statusText = "not involved";
+              statusColor = "text-gray-400";
+              statusBg = "bg-gray-100";
+            }
           }
-        } else {
-          if (isPayer && expense.splitBetweenIds.length > 1) {
-            statusText = "you paid";
-            statusColor = "text-emerald-600";
-            statusBg = "bg-emerald-50";
-          } else if (isInvolved && !isPayer) {
-            statusText = `you owe ${currencySymbol}${myShare.toFixed(2)}`;
-            statusColor = "text-red-600";
-            statusBg = "bg-red-50";
-          } else if (isPayer && expense.splitBetweenIds.length === 1 && isInvolved) {
-            statusText = "you paid for yourself";
-            statusColor = "text-gray-500";
-            statusBg = "bg-gray-100";
-          } else {
-            statusText = "not involved";
-            statusColor = "text-gray-400";
-            statusBg = "bg-gray-100";
-          }
-        }
 
-        const dateStr = expense.createdAt
-          ? expense.createdAt.toDate().toLocaleDateString("en-US", { month: "short", day: "numeric" })
-          : "";
+          const dateStr = expense.createdAt
+            ? expense.createdAt.toDate().toLocaleDateString("en-US", { month: "short", day: "numeric" })
+            : "";
 
-        return (
-          <Link key={expense.id} href={`/groups/${resolvedParams.groupId}/expenses/${expense.id}`} className="block">
-            <Card className="border-none shadow-sm hover:shadow-md transition-all cursor-pointer rounded-2xl overflow-hidden group relative"
-                  style={{ background: "var(--card)" }}>
-              {/* Amber hover accent bar */}
-              <div
-                className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-                style={{ background: `linear-gradient(180deg, ${AMBER}, ${AMBER_DARK})` }}
-              />
-              
-              <CardContent className="p-4 flex items-center gap-4">
-                {/* Category Icon (fallback to Receipt) */}
+          // Native ad injection logic (interleaves after every 5 items, or after item 3 for short lists)
+          const isFifthItem = (index + 1) % 5 === 0;
+          const isShortListAd = expenses.length >= 3 && expenses.length < 5 && index === 2;
+          const shouldShowAd = isFifthItem || isShortListAd;
+          const adIndex = Math.floor(index / 5);
+
+          const expenseCardNode = (
+            <Link key={expense.id} href={`/groups/${resolvedParams.groupId}/expenses/${expense.id}`} className="block">
+              <Card className="border-none shadow-sm hover:shadow-md transition-all cursor-pointer rounded-2xl overflow-hidden group relative"
+                    style={{ background: "var(--card)" }}>
+                {/* Amber hover accent bar */}
                 <div
-                  className="h-12 w-12 rounded-xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-105 overflow-hidden"
-                  style={{ background: AMBER_LIGHT }}
-                >
-                  {(expense.billImageUrl || expense.imageUrl || expense.receiptUrl) ? (
-                    <img 
-                      src={(expense.billImageUrl || expense.imageUrl || expense.receiptUrl) as string} 
-                      alt="Bill thumbnail" 
-                      className="w-full h-full object-cover" 
-                    />
-                  ) : (
-                    <Receipt className="h-6 w-6" style={{ color: AMBER_DARK }} />
-                  )}
-                </div>
-
-                {/* Info block */}
-                <div className="flex-1 min-w-0 flex flex-col justify-center">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h4 className="font-bold truncate text-sm sm:text-base" style={{ color: "var(--foreground)" }}>
-                      {expense.description.replace(/\s*\([A-Za-z]+\s+\d{4}\)/, "").trim() || expense.description}
-                    </h4>
+                  className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                  style={{ background: `linear-gradient(180deg, ${AMBER}, ${AMBER_DARK})` }}
+                />
+                
+                <CardContent className="p-4 flex items-center gap-4">
+                  {/* Category Icon (fallback to Receipt) */}
+                  <div
+                    className="h-12 w-12 rounded-xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-105 overflow-hidden"
+                    style={{ background: AMBER_LIGHT }}
+                  >
+                    {(expense.billImageUrl || expense.imageUrl || expense.receiptUrl) ? (
+                      <img 
+                        src={(expense.billImageUrl || expense.imageUrl || expense.receiptUrl) as string} 
+                        alt="Bill thumbnail" 
+                        className="w-full h-full object-cover" 
+                      />
+                    ) : (
+                      <Receipt className="h-6 w-6" style={{ color: AMBER_DARK }} />
+                    )}
                   </div>
-                  <div className="flex items-center gap-1.5 mt-0.5">
-                    <MemberAvatar photoURL={payerPhoto} name={payerName} id={expense.payerId} size={16} />
-                    <p className="text-[11px] sm:text-xs font-semibold truncate" style={{ color: "var(--muted-foreground)" }}>
-                      <span style={{ color: "var(--foreground)" }}>{payerLabel}</span> paid · {dateStr}
+
+                  {/* Info block */}
+                  <div className="flex-1 min-w-0 flex flex-col justify-center">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h4 className="font-bold truncate text-sm sm:text-base" style={{ color: "var(--foreground)" }}>
+                        {expense.description.replace(/\s*\([A-Za-z]+\s+\d{4}\)/, "").trim() || expense.description}
+                      </h4>
+                    </div>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <MemberAvatar photoURL={payerPhoto} name={payerName} id={expense.payerId} size={16} />
+                      <p className="text-[11px] sm:text-xs font-semibold truncate" style={{ color: "var(--muted-foreground)" }}>
+                        <span style={{ color: "var(--foreground)" }}>{payerLabel}</span> paid · {dateStr}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Amount block */}
+                  <div className="text-right shrink-0 flex flex-col items-end justify-center">
+                    <p className="font-black text-sm sm:text-base tracking-tight mb-1" style={{ color: "var(--foreground)" }}>
+                      {expense.currency === "INR" ? "₹" : expense.currency}{" "}
+                      {expense.amount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </p>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${statusColor} ${statusBg}`}>
+                      {statusText}
+                    </span>
                   </div>
-                </div>
-
-                {/* Amount block */}
-                <div className="text-right shrink-0 flex flex-col items-end justify-center">
-                  <p className="font-black text-sm sm:text-base tracking-tight mb-1" style={{ color: "var(--foreground)" }}>
-                    {expense.currency === "INR" ? "₹" : expense.currency}{" "}
-                    {expense.amount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                  </p>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${statusColor} ${statusBg}`}>
-                    {statusText}
-                  </span>
-                </div>
-              </CardContent>
+                </CardContent>
               </Card>
             </Link>
           );
+
+          if (shouldShowAd) {
+            return (
+              <div key={`exp-wrap-${expense.id}`} className="space-y-3">
+                {expenseCardNode}
+                <NativeExpenseAdCard adIndex={adIndex} />
+              </div>
+            );
+          }
+
+          return expenseCardNode;
         })}
       </div>
 
