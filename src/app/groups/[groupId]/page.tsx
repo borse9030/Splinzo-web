@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button";
 import { AlertCircle, Receipt, Image as ImageIcon, Repeat } from "lucide-react";
 import Link from "next/link";
 import { Skeleton } from "@/components/ui/skeleton";
-import { DashboardBannerAd } from "@/components/ads/DashboardBannerAd";
 import { NativeExpenseAdCard } from "@/components/ads/NativeExpenseAdCard";
 import QuickAddExpenseBar from "@/components/groups/QuickAddExpenseBar";
 
@@ -267,11 +266,6 @@ export default function GroupExpensesPage({
 
           return expenseCardNode;
         })}
-      </div>
-
-      {/* Group Bottom Sponsor Banner */}
-      <div className="pt-6">
-        <DashboardBannerAd />
       </div>
     </div>
   );
