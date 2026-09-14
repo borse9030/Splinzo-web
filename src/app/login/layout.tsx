@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Log in | Splinzo",
-  description: "Log in to your Splinzo account to track expenses, manage groups, and settle up with friends.",
+  title: "Log In",
+  description: "Sign in to your Splinzo account to manage groups, track shared expenses, and settle balances.",
   alternates: {
     canonical: "/login",
   },

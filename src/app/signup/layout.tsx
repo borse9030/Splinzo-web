@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Sign up | Splinzo",
-  description: "Create a free Splinzo account today. The smartest way to split expenses with friends, roommates, and groups.",
+  title: "Create Account — Join Splinzo Free",
+  description: "Create your free Splinzo account today. Start splitting expenses with friends, roommates, and group trips effortlessly.",
   alternates: {
     canonical: "/signup",
   },

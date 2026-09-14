@@ -3,8 +3,17 @@ import Image from "next/image";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Terms of Service — Splinzo",
+  title: "Terms of Service",
   description: "Read Splinzo's Terms of Service to understand the rules and guidelines for using our expense splitting platform.",
+  alternates: {
+    canonical: "/terms",
+  },
+  openGraph: {
+    title: "Terms of Service | Splinzo",
+    description: "Read Splinzo's Terms of Service for using our expense splitting and automated settlement platform.",
+    url: "/terms",
+    images: [{ url: "/opengraph-image.png", width: 1200, height: 630, alt: "Splinzo Terms of Service" }],
+  },
 };
 
 export default function Terms() {

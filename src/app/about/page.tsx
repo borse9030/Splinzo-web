@@ -3,8 +3,17 @@ import Image from "next/image";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "About Us — Splinzo",
-  description: "Learn more about Splinzo, our mission, and the team building the best expense-sharing app.",
+  title: "About Us",
+  description: "Learn more about Splinzo, our mission, and our journey building the simplest, fairest expense-sharing and group settlement platform.",
+  alternates: {
+    canonical: "/about",
+  },
+  openGraph: {
+    title: "About Us | Splinzo",
+    description: "Learn more about Splinzo, our mission, and our journey building the simplest, fairest expense-sharing platform.",
+    url: "/about",
+    images: [{ url: "/opengraph-image.png", width: 1200, height: 630, alt: "About Splinzo" }],
+  },
 };
 
 export default function About() {

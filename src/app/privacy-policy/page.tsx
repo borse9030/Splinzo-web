@@ -3,8 +3,17 @@ import Image from "next/image";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Privacy Policy — Splinzo",
+  title: "Privacy Policy",
   description: "Read Splinzo's Privacy Policy to understand how we collect, use, and protect your personal data.",
+  alternates: {
+    canonical: "/privacy-policy",
+  },
+  openGraph: {
+    title: "Privacy Policy | Splinzo",
+    description: "Read Splinzo's Privacy Policy to understand how we protect user data and financial privacy.",
+    url: "/privacy-policy",
+    images: [{ url: "/opengraph-image.png", width: 1200, height: 630, alt: "Splinzo Privacy Policy" }],
+  },
 };
 
 export default function PrivacyPolicy() {

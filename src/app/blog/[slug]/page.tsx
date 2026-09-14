@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowLeft, Clock, User } from "lucide-react";
 import { blogs } from "@/data/blogs";
 import { ArticleAd } from "@/components/ads/ArticleAd";
+import { BlogArticleSchema, BreadcrumbSchema } from "@/components/seo/JsonLd";
 
 const AMBER = "#F9B912";
 
@@ -34,14 +35,24 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     openGraph: {
       title: blog.title,
       description: blog.summary,
+      url: `/blog/${blog.slug}`,
       type: "article",
       publishedTime: new Date(blog.date).toISOString(),
       authors: [blog.author],
+      images: [
+        {
+          url: "/opengraph-image.png",
+          width: 1200,
+          height: 630,
+          alt: blog.title,
+        },
+      ],
     },
     twitter: {
       card: "summary_large_image",
       title: blog.title,
       description: blog.summary,
+      images: ["/opengraph-image.png"],
     },
   };
 }
@@ -56,6 +67,20 @@ export default async function BlogPostPage({ params }: Props) {
 
   return (
     <div className="py-14 px-5 bg-white min-h-full">
+      <BlogArticleSchema
+        title={blog.title}
+        summary={blog.summary}
+        date={blog.date}
+        author={blog.author}
+        slug={blog.slug}
+      />
+      <BreadcrumbSchema
+        items={[
+          { name: "Home", url: "/" },
+          { name: "Blog", url: "/blog" },
+          { name: blog.title, url: `/blog/${blog.slug}` },
+        ]}
+      />
       <article className="max-w-3xl mx-auto">
         <Link href="/blog" className="inline-flex items-center gap-2 text-sm font-bold text-gray-400 hover:text-gray-900 transition-colors mb-10">
           <ArrowLeft size={16} />
