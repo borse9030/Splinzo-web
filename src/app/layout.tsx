@@ -4,11 +4,25 @@ import { Outfit } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { AuthGuard } from "@/components/auth/AuthGuard";
-import { ThemeProvider } from "next-themes";
+import { ThemeProvider } from "@/components/theme-provider";
 import { CookieConsent } from "@/components/common/CookieConsent";
 import { ErrorHandler } from "@/components/common/ErrorHandler";
 import { CallProvider } from "@/contexts/CallContext";
 import { GlobalCallOverlay } from "@/components/call/GlobalCallOverlay";
+
+// Suppress known false-positive React 19 warning for next-themes inline script in development
+if (process.env.NODE_ENV === "development") {
+  const origError = console.error;
+  console.error = (...args: unknown[]) => {
+    if (
+      typeof args[0] === "string" &&
+      args[0].includes("Encountered a script tag while rendering React component")
+    ) {
+      return;
+    }
+    origError.apply(console, args);
+  };
+}
 
 const outfit = Outfit({
   variable: "--font-outfit",
@@ -45,9 +59,6 @@ export const metadata: Metadata = {
   verification: {
     google: "9xrsDkHKvEwqrLGex_g9ZOU-D1N9nH6h9Am8DxljcZw",
   },
-  other: {
-    "google-adsense-account": "ca-pub-9758730673684519",
-  },
   icons: {
     icon: [
       { url: '/favicon.ico' },
@@ -66,13 +77,6 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning data-scroll-behavior="smooth" className="overflow-x-clip max-w-full">
-      <head>
-        <script
-          async
-          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9758730673684519"
-          crossOrigin="anonymous"
-        />
-      </head>
       <body
         className={`${outfit.variable} ${geistMono.variable} antialiased min-h-full flex flex-col w-full max-w-full overflow-x-clip`}
         style={{ fontFamily: "var(--font-outfit), 'Outfit', sans-serif" }}

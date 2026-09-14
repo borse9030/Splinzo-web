@@ -68,7 +68,7 @@ export function CookieConsent() {
             </div>
             
             <p className="text-sm leading-relaxed" style={{ color: "var(--muted-foreground)" }}>
-              We use cookies to personalize content, show targeted ads (like Google AdSense), and analyze our traffic. 
+              We use cookies to personalize content, support our advertising partners, and analyze our traffic. 
               By clicking &quot;Accept&quot;, you consent to our use of cookies.
             </p>
 

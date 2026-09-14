@@ -50,7 +50,7 @@ export default function PrivacyPolicy() {
         "**Payment Infrastructure Partners:** We integrate with Setu (Pine Labs entity), an authorized payment infrastructure provider, to generate UPI deeplinks and receive automated payment confirmations. Only transaction-essential metadata (payee UPI ID, amount, and reference identifier) is exchanged with Setu in strict accordance with RBI and NPCI standards.",
         "**Cloud & Database Providers:** We use Google Firebase for authentication, database storage, and cloud infrastructure.",
         "**Legal Compliance:** We may disclose information if required by applicable Indian laws, judicial proceedings, or lawful requests from regulatory authorities.",
-        "**Advertising:** We may use Google AdSense on informational web pages. Third-party advertising vendors use cookies to serve ads based on prior web visits. Financial and settlement data is never shared with advertisers.",
+        "**Advertising:** We may display advertisements through third-party advertising partners (such as Adsterra) on public informational web pages. Third-party advertising vendors may use cookies and device identifiers to serve and measure ads. Financial, group expense, and settlement data is strictly confidential and never shared with advertisers.",
       ],
     },
     {
@@ -66,7 +66,7 @@ export default function PrivacyPolicy() {
       title: "6. Cookies & Tracking Technologies",
       content: [
         "The Splinzo web platform utilizes cookies and local storage to maintain your authentication session, preferences, and security state.",
-        "Third-party partners, including Google, may use cookies to serve relevant contextual ads on public web pages.",
+        "Third-party advertising partners may use cookies to serve relevant contextual ads on public web pages and measure advertising effectiveness.",
         "You can manage cookie preferences through your browser settings, though disabling essential cookies may impact web app authentication.",
       ],
     },

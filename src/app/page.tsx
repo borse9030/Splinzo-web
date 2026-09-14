@@ -731,7 +731,7 @@ export default function Home() {
 
             {/* Feature pills */}
             <div className="flex flex-wrap justify-center gap-3 mt-10">
-              {["Free Forever","No Ads","Offline Support","Instant Sync"].map(p=>(
+              {["Free Forever", "Offline Support", "Instant Sync"].map(p=>(
                 <span key={p} className="px-4 py-1.5 rounded-full text-sm font-semibold"
                       style={{background:"rgba(249,185,18,0.15)", color:"#F9B912", border:"1px solid rgba(249,185,18,0.25)"}}>
                   ✓ {p}
