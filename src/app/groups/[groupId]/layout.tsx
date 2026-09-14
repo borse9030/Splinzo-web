@@ -71,8 +71,23 @@ export default function GroupLayout({
     );
   }
 
+  const isActionSubpage = pathname.includes("/expenses/") || pathname.includes("/settle");
+
+  if (isActionSubpage) {
+    return (
+      <div className="flex min-h-screen bg-background text-foreground transition-colors duration-200">
+        <Navigation />
+        <main className="flex-1 w-full md:ml-64 pb-28 md:pb-20 overflow-y-auto">
+          <div className="max-w-4xl mx-auto p-4 sm:p-6 lg:p-8">
+            {children}
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex h-[100dvh] overflow-hidden" style={{ background: "#F7F7F7" }}>
+    <div className="flex h-[100dvh] overflow-hidden bg-background text-foreground transition-colors duration-200">
       {/* Shared sidebar + mobile nav */}
       <Navigation />
 
@@ -199,10 +214,10 @@ export default function GroupLayout({
 
         {/* Action Buttons */}
         {!loading && (
-          <div className="flex gap-3 px-4 pt-4 pb-0 bg-white">
+          <div className="flex gap-3 px-4 pt-4 pb-3 bg-card border-b border-border/60 transition-colors">
             <Button
               asChild
-              className="flex-1 rounded-full h-12 font-bold text-base shadow-md"
+              className="flex-1 rounded-full h-12 font-bold text-base shadow-sm hover:shadow-md transition-all cursor-pointer"
               style={{ background: AMBER, color: "#1a1a1a" }}
             >
               <Link href={`/groups/${resolvedParams.groupId}/expenses/new`}>
@@ -212,8 +227,7 @@ export default function GroupLayout({
             </Button>
             <Button
               asChild
-              className="flex-1 rounded-full h-12 font-bold text-base border-2"
-              style={{ background: "transparent", color: "#1a1a1a", borderColor: "#1a1a1a" }}
+              className="flex-1 rounded-full h-12 font-bold text-base border-2 border-border bg-card text-foreground hover:bg-accent transition-colors cursor-pointer"
             >
               <Link href={`/groups/${resolvedParams.groupId}/settle`}>
                 <Scale className="h-4 w-4 mr-2" />
@@ -226,8 +240,7 @@ export default function GroupLayout({
         {/* Tab Bar */}
         {!loading && (
           <div
-            className="bg-white border-b flex overflow-x-auto hide-scrollbar px-4"
-            style={{ borderColor: "#F0F0F0" }}
+            className="bg-card border-b border-border flex overflow-x-auto hide-scrollbar px-4 transition-colors"
           >
             {tabs.map((tab) => {
               const isActive = pathname === tab.href;
@@ -237,7 +250,7 @@ export default function GroupLayout({
                   href={tab.href}
                   className={cn(
                     "whitespace-nowrap py-3 px-4 font-semibold text-sm transition-all border-b-2 shrink-0",
-                    !isActive && "text-gray-400 border-transparent hover:text-gray-700"
+                    !isActive ? "text-muted-foreground border-transparent hover:text-foreground" : ""
                   )}
                   style={isActive ? { color: AMBER, borderColor: AMBER } : {}}
                 >
@@ -249,7 +262,7 @@ export default function GroupLayout({
         )}
 
         {/* Main content area */}
-        <div className="flex flex-col flex-1 min-h-0" style={{ background: "#F7F7F7" }}>
+        <div className="flex flex-col flex-1 min-h-0 bg-background text-foreground transition-colors">
           <div className="flex flex-col flex-1 min-h-0 w-full max-w-4xl mx-auto">
             {loading ? (
               <div className="space-y-4 pt-4 px-4 sm:px-6 lg:px-8">

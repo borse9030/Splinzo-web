@@ -113,10 +113,10 @@ export default function GroupTripsPage({
   return (
     <div className="space-y-6 mt-4 pb-10">
       <div className="flex items-center justify-between px-1">
-        <h2 className="text-xl font-bold tracking-tight">Upcoming Trips</h2>
+        <h2 className="text-xl font-bold tracking-tight text-foreground">Upcoming Trips</h2>
         <Button 
           onClick={() => setIsModalOpen(true)}
-          className="rounded-full shadow-md font-bold transition-all hover:scale-105 active:scale-95"
+          className="rounded-full shadow-md font-bold transition-all hover:scale-105 active:scale-95 cursor-pointer"
           style={{ background: AMBER, color: "#1a1a1a" }}
         >
           <Plus className="h-4 w-4 mr-1.5" />
@@ -126,11 +126,11 @@ export default function GroupTripsPage({
 
       {trips.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
-          <div className="h-20 w-20 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-            <MapPin className="h-8 w-8 text-gray-400" />
+          <div className="h-20 w-20 bg-muted rounded-full flex items-center justify-center mb-4">
+            <MapPin className="h-8 w-8 text-muted-foreground" />
           </div>
-          <h3 className="font-extrabold text-lg text-gray-700">No Trips Yet</h3>
-          <p className="text-gray-500 text-sm mt-1 max-w-xs">
+          <h3 className="font-extrabold text-lg text-foreground">No Trips Yet</h3>
+          <p className="text-muted-foreground text-sm mt-1 max-w-xs">
             Plan a weekend getaway or a long vacation and track expenses specifically for this trip.
           </p>
         </div>
@@ -138,8 +138,8 @@ export default function GroupTripsPage({
         <div className="grid sm:grid-cols-2 gap-5">
           {trips.map((trip) => (
             <Link key={trip.id} href={`/groups/${groupId}/trips/${trip.id}`} className="block">
-              <Card className="border-none shadow-sm hover:shadow-md transition-all duration-300 cursor-pointer overflow-hidden group rounded-2xl h-full">
-                <div className="h-36 w-full relative overflow-hidden bg-gray-100">
+              <Card className="border border-border/80 bg-card shadow-xs hover:shadow-md transition-all duration-300 cursor-pointer overflow-hidden group rounded-2xl h-full">
+                <div className="h-36 w-full relative overflow-hidden bg-muted">
                   <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/10 to-transparent z-10" />
                   {trip.coverImageUrl ? (
                     <img 
@@ -156,17 +156,17 @@ export default function GroupTripsPage({
                     <h3 className="font-extrabold text-xl text-white drop-shadow-sm truncate pr-2">{trip.title}</h3>
                   </div>
                 </div>
-                <CardContent className="p-4 bg-white">
+                <CardContent className="p-4 bg-card border-t border-border/40">
                   <div className="space-y-2.5">
-                    <div className="flex items-center text-sm font-medium text-gray-600">
-                      <div className="w-6 h-6 rounded-full bg-gray-50 flex items-center justify-center mr-2.5 shrink-0">
-                        <MapPin className="h-3.5 w-3.5 text-gray-500" style={{ color: AMBER }} />
+                    <div className="flex items-center text-sm font-medium text-foreground">
+                      <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center mr-2.5 shrink-0">
+                        <MapPin className="h-3.5 w-3.5" style={{ color: AMBER }} />
                       </div>
                       <span className="truncate">{trip.destination}</span>
                     </div>
-                    <div className="flex items-center text-sm font-medium text-gray-600">
-                      <div className="w-6 h-6 rounded-full bg-gray-50 flex items-center justify-center mr-2.5 shrink-0">
-                        <Calendar className="h-3.5 w-3.5 text-gray-500" style={{ color: AMBER }} />
+                    <div className="flex items-center text-sm font-medium text-muted-foreground">
+                      <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center mr-2.5 shrink-0">
+                        <Calendar className="h-3.5 w-3.5" style={{ color: AMBER }} />
                       </div>
                       <span className="truncate">{fmtDate(trip.startDate)} - {fmtDate(trip.endDate)}</span>
                     </div>
@@ -181,16 +181,16 @@ export default function GroupTripsPage({
       {/* --- Plan Trip Modal --- */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50 backdrop-blur-sm transition-all duration-300">
-          <div className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
+          <div className="bg-card text-foreground border border-border w-full sm:max-w-md rounded-t-3xl sm:rounded-3xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
             
             {/* Header */}
-            <div className="flex items-center justify-between p-5 border-b shrink-0">
-              <h2 className="text-xl font-extrabold text-gray-900">Plan a Trip</h2>
+            <div className="flex items-center justify-between p-5 border-b border-border shrink-0">
+              <h2 className="text-xl font-extrabold text-foreground">Plan a Trip</h2>
               <button 
                 onClick={() => setIsModalOpen(false)}
-                className="h-8 w-8 bg-gray-100 hover:bg-gray-200 rounded-full flex items-center justify-center transition-colors"
+                className="h-8 w-8 rounded-full flex items-center justify-center text-muted-foreground hover:bg-muted transition-colors cursor-pointer"
               >
-                <X className="h-4 w-4 text-gray-500" />
+                <X className="h-5 w-5" />
               </button>
             </div>
 
@@ -200,10 +200,10 @@ export default function GroupTripsPage({
                 
                 {/* Image Upload Area */}
                 <div className="space-y-2">
-                  <Label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Cover Image</Label>
+                  <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Cover Image</Label>
                   <div 
                     onClick={() => fileInputRef.current?.click()}
-                    className="w-full h-32 rounded-2xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 transition-colors relative overflow-hidden group"
+                    className="w-full h-32 rounded-2xl border-2 border-dashed border-border flex flex-col items-center justify-center cursor-pointer hover:bg-muted/50 transition-colors relative overflow-hidden group"
                   >
                     {imagePreviewUrl ? (
                       <>
@@ -214,11 +214,11 @@ export default function GroupTripsPage({
                       </>
                     ) : (
                       <>
-                        <div className="h-10 w-10 bg-amber-50 rounded-full flex items-center justify-center mb-2">
-                          <ImageIcon className="h-5 w-5" style={{ color: AMBER }} />
+                        <div className="h-10 w-10 bg-amber-500/15 rounded-full flex items-center justify-center mb-2">
+                          <ImageIcon className="h-5 w-5 text-amber-500" />
                         </div>
-                        <span className="text-sm font-bold text-gray-600">Tap to upload cover</span>
-                        <span className="text-xs text-gray-400 mt-1">PNG, JPG up to 5MB</span>
+                        <span className="text-sm font-bold text-foreground">Tap to upload cover</span>
+                        <span className="text-xs text-muted-foreground mt-1">PNG, JPG up to 5MB</span>
                       </>
                     )}
                   </div>
@@ -226,45 +226,45 @@ export default function GroupTripsPage({
                 </div>
 
                 <div className="space-y-2">
-                  <Label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Trip Name</Label>
+                  <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Trip Name</Label>
                   <Input 
                     value={title} 
                     onChange={e => setTitle(e.target.value)} 
                     placeholder="e.g. Goa Weekend Getaway" 
-                    className="h-12 rounded-xl bg-gray-50 border-gray-200" 
+                    className="h-12 rounded-xl bg-muted border-border text-foreground placeholder:text-muted-foreground" 
                     required 
                   />
                 </div>
                 
                 <div className="space-y-2">
-                  <Label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Destination</Label>
+                  <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Destination</Label>
                   <Input 
                     value={destination} 
                     onChange={e => setDestination(e.target.value)} 
                     placeholder="e.g. North Goa, India" 
-                    className="h-12 rounded-xl bg-gray-50 border-gray-200" 
+                    className="h-12 rounded-xl bg-muted border-border text-foreground placeholder:text-muted-foreground" 
                     required 
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Start Date</Label>
+                    <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Start Date</Label>
                     <Input 
                       type="date" 
                       value={startDate} 
                       onChange={e => setStartDate(e.target.value)} 
-                      className="h-12 rounded-xl bg-gray-50 border-gray-200" 
+                      className="h-12 rounded-xl bg-muted border-border text-foreground" 
                       required 
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-xs font-bold text-gray-500 uppercase tracking-wider">End Date</Label>
+                    <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">End Date</Label>
                     <Input 
                       type="date" 
                       value={endDate} 
                       onChange={e => setEndDate(e.target.value)} 
-                      className="h-12 rounded-xl bg-gray-50 border-gray-200" 
+                      className="h-12 rounded-xl bg-muted border-border text-foreground" 
                       required 
                       min={startDate}
                     />
@@ -274,7 +274,7 @@ export default function GroupTripsPage({
             </div>
 
             {/* Footer */}
-            <div className="p-5 border-t shrink-0">
+            <div className="p-5 border-t border-border shrink-0">
               <Button 
                 type="submit" 
                 form="trip-form" 

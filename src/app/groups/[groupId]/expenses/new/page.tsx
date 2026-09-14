@@ -413,10 +413,10 @@ export default function AddExpensePage({
                       <select
                         value={selectedCurrency}
                         onChange={(e) => setSelectedCurrency(e.target.value)}
-                        className="text-sm font-black rounded-xl px-2.5 py-1.5 border border-slate-200 bg-white/90 text-slate-800 shadow-2xs outline-none cursor-pointer hover:border-amber-400 transition-colors"
+                        className="text-sm font-black rounded-xl px-2.5 py-1.5 border border-border bg-card text-foreground shadow-2xs outline-none cursor-pointer hover:border-amber-400 transition-colors"
                       >
                         {SUPPORTED_CURRENCIES.map((c) => (
-                          <option key={c.code} value={c.code}>
+                          <option key={c.code} value={c.code} className="bg-card text-foreground">
                             {c.flag} {c.code} ({c.symbol})
                           </option>
                         ))}
@@ -427,13 +427,36 @@ export default function AddExpensePage({
                       {currencyService.getSymbol(selectedCurrency)}
                     </span>
                     <input
-                      type="number" step="0.01" placeholder="0.00"
-                      value={amount} onChange={(e) => setAmount(e.target.value)}
+                      type="number" step="0.01" min="0.01" placeholder="0.00"
+                      value={amount}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === "" || parseFloat(val) >= 0) {
+                          setAmount(val);
+                        }
+                      }}
                       onFocus={() => setAmountFocused(true)} onBlur={() => setAmountFocused(false)}
                       autoFocus
-                      className="text-5xl font-black bg-transparent border-none outline-none w-44 text-center"
-                      style={{ appearance: "textfield", color: "var(--foreground)" }}
+                      className="text-5xl font-black bg-transparent border-none outline-none w-44 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                      style={{ color: "var(--foreground)" }}
                     />
+                  </div>
+
+                  {/* Quick increment chips */}
+                  <div className="flex items-center gap-1.5 mt-2">
+                    {[100, 500, 1000, 2000].map((inc) => (
+                      <button
+                        key={inc}
+                        type="button"
+                        onClick={() => {
+                          const current = parseFloat(amount) || 0;
+                          setAmount((current + inc).toFixed(0));
+                        }}
+                        className="px-2.5 py-1 rounded-full text-xs font-bold bg-muted hover:bg-amber-100 hover:text-amber-900 dark:hover:bg-amber-950/50 dark:hover:text-amber-300 text-muted-foreground transition-colors cursor-pointer border border-border"
+                      >
+                        +{currSymbol}{inc}
+                      </button>
+                    ))}
                   </div>
 
                   {/* Live FX Conversion Preview Chip */}

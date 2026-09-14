@@ -36,22 +36,20 @@ export function StickyBottomAd() {
     >
       <div className="pointer-events-auto relative w-full max-w-3xl mx-auto px-3">
         <div
-          className="relative rounded-2xl p-1.5 backdrop-blur-md border shadow-2xl transition-all"
+          className="relative rounded-2xl p-1.5 backdrop-blur-md border border-border bg-card/95 text-foreground shadow-2xl transition-all"
           style={{
-            background: "rgba(255, 255, 255, 0.96)",
-            borderColor: "rgba(226, 232, 240, 0.9)",
-            boxShadow: "0 -4px 24px rgba(0, 0, 0, 0.08)",
+            boxShadow: "0 -4px 24px rgba(0, 0, 0, 0.15)",
           }}
         >
           {/* Header pill: label and dismiss button */}
-          <div className="flex items-center justify-between px-2 pb-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+          <div className="flex items-center justify-between px-2 pb-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
             <span className="flex items-center gap-1">
               <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
               Sponsored Partner
             </span>
             <button
               onClick={handleDismiss}
-              className="flex items-center gap-1 text-[10px] font-bold text-slate-500 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 px-2 py-0.5 rounded-full transition-colors cursor-pointer"
+              className="flex items-center gap-1 text-[10px] font-bold text-muted-foreground hover:text-foreground bg-muted hover:bg-muted/80 px-2 py-0.5 rounded-full transition-colors cursor-pointer"
               title="Close advertisement"
             >
               <span>Close</span>

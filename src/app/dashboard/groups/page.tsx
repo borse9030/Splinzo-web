@@ -23,8 +23,8 @@ export default function DashboardGroupsPage() {
     <div className="space-y-6">
       <header className="flex items-center justify-between pt-2">
         <div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-gray-900">My Groups</h1>
-          <p className="text-sm font-medium text-gray-500">
+          <h1 className="text-3xl font-extrabold tracking-tight text-foreground">My Groups</h1>
+          <p className="text-sm font-medium text-muted-foreground">
             All the groups you are a part of
           </p>
         </div>
@@ -38,7 +38,7 @@ export default function DashboardGroupsPage() {
           <Button
             type="button"
             onClick={() => setJoinDialogOpen(true)}
-            className="flex items-center justify-center gap-2 h-11 rounded-2xl font-bold text-sm border border-gray-200 bg-white text-gray-800 hover:border-amber-400 hover:text-amber-700 shadow-xs transition-colors cursor-pointer whitespace-nowrap"
+            className="flex items-center justify-center gap-2 h-11 rounded-2xl font-bold text-sm border border-border bg-card text-foreground hover:bg-accent shadow-xs transition-colors cursor-pointer whitespace-nowrap"
           >
             <LogIn className="h-4 w-4 mr-1 text-blue-600 shrink-0" />
             <span>Join Group</span>
@@ -110,7 +110,7 @@ export default function DashboardGroupsPage() {
           <div className="space-y-3">
             {groups.map((group) => (
               <Link key={group.id} href={`/groups/${group.id}`} className="block">
-                <Card className="border-none shadow-sm hover:shadow-md transition-all cursor-pointer rounded-2xl overflow-hidden group">
+                <Card className="border border-border/80 bg-card shadow-xs hover:shadow-md hover:border-amber-400/50 transition-all cursor-pointer rounded-2xl overflow-hidden group">
                   <CardContent className="p-0">
                     <div className="flex items-center gap-4 p-4">
                       {group.imageUrl ? (
@@ -128,10 +128,10 @@ export default function DashboardGroupsPage() {
                         </div>
                       )}
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-bold text-gray-900 truncate group-hover:text-amber-600 transition-colors">
+                        <h3 className="font-bold text-foreground truncate group-hover:text-amber-500 transition-colors">
                           {group.name}
                         </h3>
-                        <p className="text-sm text-gray-400 truncate font-medium">
+                        <p className="text-sm text-muted-foreground truncate font-medium">
                           {group.members?.length || 0} members · {group.type || "Friends"}
                         </p>
                         <div className="flex gap-1 mt-1.5">
@@ -146,7 +146,7 @@ export default function DashboardGroupsPage() {
                           ))}
                         </div>
                       </div>
-                      <ChevronRight className="h-5 w-5 text-gray-300 shrink-0" />
+                      <ChevronRight className="h-5 w-5 text-muted-foreground/60 group-hover:text-foreground group-hover:translate-x-0.5 transition-all shrink-0" />
                     </div>
                   </CardContent>
                 </Card>
