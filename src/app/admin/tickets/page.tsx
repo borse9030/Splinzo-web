@@ -198,8 +198,8 @@ export default function AdminTicketsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 font-medium">
-                {filteredTickets.map((t) => (
-                  <tr key={t.id} className="hover:bg-amber-50/20 transition-colors">
+                {filteredTickets.map((t, idx) => (
+                  <tr key={t.id || t.ticketNumber || `admin-ticket-${idx}`} className="hover:bg-amber-50/20 transition-colors">
                     {/* Ticket Reference */}
                     <td className="py-3 px-4 font-mono font-bold text-amber-700">
                       #{t.ticketNumber}

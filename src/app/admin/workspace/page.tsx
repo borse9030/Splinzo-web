@@ -237,13 +237,13 @@ export default function StaffWorkspacePage() {
               )}
             </div>
           ) : (
-            displayedTickets.map((ticket) => {
+            displayedTickets.map((ticket, idx) => {
               const statusCfg = STATUS_BADGES[ticket.status] || STATUS_BADGES.open;
               const isUnassigned = !ticket.assignedTo;
 
               return (
                 <div
-                  key={ticket.id}
+                  key={ticket.id || ticket.ticketNumber || `workspace-ticket-${idx}`}
                   className="p-5 rounded-2xl bg-white border border-gray-200/80 hover:border-amber-400 hover:shadow-md transition-all flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xs"
                 >
                   <div className="space-y-2 flex-1">

@@ -203,11 +203,11 @@ export default function UserSupportPage() {
               </button>
             </div>
           ) : (
-            tickets.map((t) => {
+            tickets.map((t, idx) => {
               const isSelected = selectedTicket?.id === t.id;
               return (
                 <div
-                  key={t.id}
+                  key={t.id || t.ticketNumber || `ticket-${idx}`}
                   onClick={() => { setSelectedTicket(t); setIsCreating(false); }}
                   className={`p-4 rounded-2xl border transition-all cursor-pointer ${
                     isSelected
@@ -371,11 +371,11 @@ export default function UserSupportPage() {
 
               {/* Messages Container */}
               <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
-                {messages.map((m) => {
+                {messages.map((m, idx) => {
                   const isUser = m.senderRole === "user";
                   return (
                     <div
-                      key={m.id}
+                      key={m.id || `msg-${idx}`}
                       className={`flex flex-col ${isUser ? "items-end" : "items-start"}`}
                     >
                       <div className="flex items-center gap-2 mb-1 px-1">

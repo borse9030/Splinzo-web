@@ -94,6 +94,8 @@ export default function CallPage({
 
   const isLocalMuted = isMuted;
 
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+
   // If user navigates here directly without an active call, redirect back
   useEffect(() => {
     if (!activeCall && !isJoined) {
@@ -124,10 +126,6 @@ export default function CallPage({
     };
   }, [remoteStreams]);
 
-  if (!activeCall) return null;
-
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
-
   useEffect(() => {
     if (!activeCall || activeCall.participants.length <= 1) {
       setElapsedSeconds(0);
@@ -138,6 +136,8 @@ export default function CallPage({
     }, 1000);
     return () => clearInterval(interval);
   }, [activeCall?.participants.length]);
+
+  if (!activeCall) return null;
 
   return (
     <div

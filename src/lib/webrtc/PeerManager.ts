@@ -38,6 +38,8 @@ export class PeerManager {
   private candidateBuffers: Map<string, any[]> = new Map();
   private candidateTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
   private candidateQueues: Map<string, RTCIceCandidateInit[]> = new Map();
+  private candidateSubs: Map<string, () => void> = new Map();
+  private connectionStartTimes: Map<string, number> = new Map();
 
   public onRemoteStream?: (uid: string, stream: MediaStream) => void;
   public onPeerStateChange?: (uid: string, state: string) => void;
@@ -60,8 +62,7 @@ export class PeerManager {
 
   /**
    * Whether this peer is "polite" (answers) vs "impolite" (offers).
-   * Determined by lexicographic UID comparison — matches Android convention.
-   * Lower UID = polite = answers. Higher UID = impolite = makes offers.
+   * Determined by lexicographic UID comparison — matches Android convention (myUid.compareTo(remoteUid) > 0).
    */
   private isPolite(remoteUid: string): boolean {
     return this.myUid > remoteUid;
@@ -75,9 +76,13 @@ export class PeerManager {
     this.makingOfferFlags.set(remoteUid, false);
     this.ignoreOfferFlags.set(remoteUid, false);
     this.candidateQueues.set(remoteUid, []);
+    this.connectionStartTimes.set(remoteUid, Date.now());
 
     pc.onicecandidate = ({ candidate }) => {
-      if (candidate) this.bufferIceCandidate(remoteUid, candidate.toJSON());
+      // Ignore null and empty candidates (such as end-of-gathering notifications)
+      if (candidate && candidate.candidate && candidate.candidate.trim() !== "") {
+        this.bufferIceCandidate(remoteUid, candidate.toJSON());
+      }
     };
 
     pc.onconnectionstatechange = () => {
@@ -107,14 +112,21 @@ export class PeerManager {
     };
 
     if (this.localStream) {
-      this.localStream.getTracks().forEach((t) => pc.addTrack(t, this.localStream!));
+      this.localStream.getTracks().forEach((t) => {
+        const alreadyAdded = pc.getSenders().some((s) => s.track === t);
+        if (!alreadyAdded) pc.addTrack(t, this.localStream!);
+      });
     }
 
+    // Cancel previous subscription if one existed
+    this.candidateSubs.get(remoteUid)?.();
+
     // Subscribe to ICE candidates from this remote peer
-    CallService.watchCandidatesFrom(
+    const unsub = CallService.watchCandidatesFrom(
       this.groupId, this.callId, remoteUid, this.myUid,
       (data) => this.applyRemoteCandidate(remoteUid, data)
     );
+    this.candidateSubs.set(remoteUid, unsub);
 
     return pc;
   }
@@ -140,36 +152,72 @@ export class PeerManager {
 
   private async applyRemoteCandidate(remoteUid: string, data: IceCandidateData) {
     const pc = this.pcs.get(remoteUid);
-    if (!pc) return;
-    const candidate: RTCIceCandidateInit = {
+    if (!pc || pc.signalingState === "closed") return;
+
+    // 1. Ignore empty, null, or gathering-complete candidates
+    if (!data || !data.candidate || typeof data.candidate !== "string" || data.candidate.trim() === "") {
+      return;
+    }
+
+    // 2. Ignore stale candidates from prior connections / sessions (matches Flutter's ice_manager.dart)
+    const startTime = this.connectionStartTimes.get(remoteUid) ?? 0;
+    const createdAt = typeof data.createdAt === "number" ? data.createdAt : 0;
+    // Allow small clock skew (5s) between devices
+    if (createdAt > 0 && startTime > 0 && createdAt < startTime - 5000) {
+      return;
+    }
+
+    // 3. Normalize sdpMid and sdpMLineIndex safely
+    const sdpMLineIndex = typeof data.sdpMLineIndex === "number"
+      ? data.sdpMLineIndex
+      : typeof data.sdpMLineIndex === "string"
+        ? parseInt(data.sdpMLineIndex, 10)
+        : null;
+
+    const sdpMid = data.sdpMid !== undefined && data.sdpMid !== null
+      ? String(data.sdpMid)
+      : null;
+
+    // Both cannot be null per WebRTC specification
+    if (sdpMid === null && (sdpMLineIndex === null || isNaN(sdpMLineIndex))) {
+      return;
+    }
+
+    const candidateInit: RTCIceCandidateInit = {
       candidate: data.candidate,
-      sdpMid: data.sdpMid,
-      sdpMLineIndex: data.sdpMLineIndex,
+      sdpMid: sdpMid ?? undefined,
+      ...(sdpMLineIndex !== null && !isNaN(sdpMLineIndex) ? { sdpMLineIndex } : {}),
     };
+
     try {
-      if (pc.remoteDescription) {
-        await pc.addIceCandidate(new RTCIceCandidate(candidate));
+      if (pc.remoteDescription && pc.remoteDescription.type) {
+        await pc.addIceCandidate(candidateInit);
       } else {
         // Queue until remote description is set
-        this.candidateQueues.get(remoteUid)?.push(candidate);
+        const queue = this.candidateQueues.get(remoteUid);
+        if (queue) {
+          queue.push(candidateInit);
+        } else {
+          this.candidateQueues.set(remoteUid, [candidateInit]);
+        }
       }
     } catch (e) {
-      if (!(this.ignoreOfferFlags.get(remoteUid))) {
-        console.error("[PeerManager] addIceCandidate failed", e);
+      if (!this.ignoreOfferFlags.get(remoteUid)) {
+        console.warn("[PeerManager] addIceCandidate ignored error", e);
       }
     }
   }
 
   private async drainCandidateQueue(remoteUid: string) {
     const pc = this.pcs.get(remoteUid);
-    if (!pc) return;
+    if (!pc || pc.signalingState === "closed" || !pc.remoteDescription) return;
     const queue = this.candidateQueues.get(remoteUid) || [];
     this.candidateQueues.set(remoteUid, []);
     for (const c of queue) {
       try {
-        await pc.addIceCandidate(new RTCIceCandidate(c));
+        await pc.addIceCandidate(c);
       } catch (e) {
-        console.error("[PeerManager] drainCandidateQueue addIceCandidate failed", e);
+        console.warn("[PeerManager] drainCandidateQueue addIceCandidate ignored error", e);
       }
     }
   }
@@ -182,6 +230,7 @@ export class PeerManager {
     if (data.from === this.myUid) return;
 
     const pc = await this.getOrCreatePc(data.from);
+    if (pc.signalingState === "closed") return;
     const polite = this.isPolite(data.from);
 
     try {
@@ -237,10 +286,35 @@ export class PeerManager {
 
   dispose() {
     this.candidateTimers.forEach(clearTimeout);
-    this.pcs.forEach((pc) => pc.close());
+    this.candidateTimers.clear();
+
+    this.candidateSubs.forEach((unsub) => {
+      try {
+        unsub();
+      } catch (e) {
+        console.warn("[PeerManager] candidate sub unsub error", e);
+      }
+    });
+    this.candidateSubs.clear();
+
+    this.pcs.forEach((pc) => {
+      try {
+        pc.close();
+      } catch (e) {
+        console.warn("[PeerManager] pc close error", e);
+      }
+    });
     this.pcs.clear();
+    this.candidateQueues.clear();
+    this.candidateBuffers.clear();
+    this.makingOfferFlags.clear();
+    this.ignoreOfferFlags.clear();
+    this.lastHandledRevision.clear();
+    this.connectionStartTimes.clear();
+
     if (this.localStream) {
       this.localStream.getTracks().forEach((t) => t.stop());
+      this.localStream = null;
     }
   }
 }

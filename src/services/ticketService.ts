@@ -104,7 +104,7 @@ export const ticketService = {
   async getTicketById(ticketId: string): Promise<SupportTicket | null> {
     const ticketSnap = await getDoc(doc(db, "support_tickets", ticketId));
     if (!ticketSnap.exists()) return null;
-    return ticketSnap.data() as SupportTicket;
+    return { id: ticketSnap.id, ...ticketSnap.data() } as SupportTicket;
   },
 
   /**
@@ -113,7 +113,7 @@ export const ticketService = {
   subscribeToTicket(ticketId: string, callback: (ticket: SupportTicket | null) => void) {
     return onSnapshot(doc(db, "support_tickets", ticketId), (snap) => {
       if (snap.exists()) {
-        callback(snap.data() as SupportTicket);
+        callback({ id: snap.id, ...snap.data() } as SupportTicket);
       } else {
         callback(null);
       }
@@ -128,7 +128,7 @@ export const ticketService = {
     return onSnapshot(q, (snap) => {
       const tickets: SupportTicket[] = [];
       snap.forEach((doc) => {
-        tickets.push(doc.data() as SupportTicket);
+        tickets.push({ id: doc.id, ...doc.data() } as SupportTicket);
       });
       callback(tickets);
     });
@@ -145,7 +145,7 @@ export const ticketService = {
     return onSnapshot(q, (snap) => {
       const tickets: SupportTicket[] = [];
       snap.forEach((doc) => {
-        tickets.push(doc.data() as SupportTicket);
+        tickets.push({ id: doc.id, ...doc.data() } as SupportTicket);
       });
       // Sort client-side by updatedAt to avoid complex composite indexing
       tickets.sort((a, b) => (b.updatedAt?.toMillis?.() || 0) - (a.updatedAt?.toMillis?.() || 0));
