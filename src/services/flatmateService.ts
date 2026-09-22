@@ -32,7 +32,16 @@ import {
 function cleanData<T extends Record<string, any>>(data: T): Record<string, any> {
   const sanitized: Record<string, any> = {};
   for (const [key, value] of Object.entries(data)) {
-    if (value !== undefined) {
+    if (value === undefined) continue;
+    if (
+      value !== null &&
+      typeof value === "object" &&
+      !Array.isArray(value) &&
+      !(value instanceof Timestamp) &&
+      !(value?.constructor?.name === "FieldValue")
+    ) {
+      sanitized[key] = cleanData(value);
+    } else {
       sanitized[key] = value;
     }
   }
@@ -70,42 +79,93 @@ export const flatmateService = {
   // =========================================================================
 
   async getWaterDuty(groupId: string, memberIds: string[]): Promise<WaterDutySchedule> {
-    const docRef = doc(db, `groups/${groupId}/household`, "water_duty");
-    const docSnap = await getDoc(docRef);
+    const validMembers = Array.isArray(memberIds) && memberIds.length > 0 ? memberIds : [];
+    try {
+      const docRef = doc(db, `groups/${groupId}/household`, "water_duty");
+      const docSnap = await getDoc(docRef);
 
-    if (docSnap.exists()) {
-      return { id: docSnap.id, groupId, ...docSnap.data() } as WaterDutySchedule;
+      if (docSnap.exists()) {
+        const data = docSnap.data() || {};
+        const rotationOrder =
+          Array.isArray(data.rotationOrder) && data.rotationOrder.length > 0
+            ? data.rotationOrder
+            : validMembers;
+        const weeklySchedule = { ...(data.weeklySchedule || {}) };
+        for (let i = 0; i < 7; i++) {
+          if (!weeklySchedule[i.toString()] && rotationOrder.length > 0) {
+            weeklySchedule[i.toString()] = rotationOrder[i % rotationOrder.length] || "";
+          }
+        }
+        return {
+          id: docSnap.id,
+          groupId,
+          defaultCost: typeof data.defaultCost === "number" ? data.defaultCost : 40,
+          canLevel: data.canLevel || "full",
+          currentAssigneeId: data.currentAssigneeId || rotationOrder[0] || "",
+          rotationOrder,
+          weeklySchedule,
+          dayAssignments: data.dayAssignments || {},
+          lastCompletedAt: data.lastCompletedAt || null,
+          lastCompletedBy: data.lastCompletedBy || null,
+          notes: data.notes || "20L Water can from the local RO plant.",
+          ...data,
+        } as WaterDutySchedule;
+      }
+
+      // Default initialization if not yet created
+      const initialWeeklySchedule: Record<string, string> = {};
+      for (let i = 0; i < 7; i++) {
+        initialWeeklySchedule[i.toString()] =
+          validMembers.length > 0 ? validMembers[i % validMembers.length] : "";
+      }
+
+      const defaultSchedule: WaterDutySchedule = {
+        groupId,
+        defaultCost: 40,
+        canLevel: "full",
+        currentAssigneeId: validMembers[0] || "",
+        rotationOrder: validMembers,
+        weeklySchedule: initialWeeklySchedule,
+        dayAssignments: {},
+        lastCompletedAt: null,
+        lastCompletedBy: null,
+        notes: "20L Water can from the local RO plant.",
+      };
+
+      try {
+        await setDoc(
+          docRef,
+          cleanData({
+            ...defaultSchedule,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          })
+        );
+      } catch (writeErr) {
+        console.warn("Could not save initial water duty to Firestore:", writeErr);
+      }
+
+      return defaultSchedule;
+    } catch (err) {
+      console.error("Error in getWaterDuty:", err);
+      const initialWeeklySchedule: Record<string, string> = {};
+      for (let i = 0; i < 7; i++) {
+        initialWeeklySchedule[i.toString()] =
+          validMembers.length > 0 ? validMembers[i % validMembers.length] : "";
+      }
+      return {
+        groupId,
+        defaultCost: 40,
+        canLevel: "full",
+        currentAssigneeId: validMembers[0] || "",
+        rotationOrder: validMembers,
+        weeklySchedule: initialWeeklySchedule,
+        dayAssignments: {},
+        lastCompletedAt: null,
+        lastCompletedBy: null,
+        notes: "20L Water can from the local RO plant.",
+      };
     }
-
-    // Default initialization if not yet created
-    const initialWeeklySchedule: Record<string, string> = {};
-    for (let i = 0; i < 7; i++) {
-      initialWeeklySchedule[i.toString()] = memberIds[i % memberIds.length] || "";
-    }
-
-    const defaultSchedule: WaterDutySchedule = {
-      groupId,
-      defaultCost: 40,
-      canLevel: "full",
-      currentAssigneeId: memberIds[0] || "",
-      rotationOrder: memberIds,
-      weeklySchedule: initialWeeklySchedule,
-      dayAssignments: {},
-      lastCompletedAt: null,
-      lastCompletedBy: null,
-      notes: "20L Water can from the local RO plant.",
-    };
-
-    await setDoc(
-      docRef,
-      cleanData({
-        ...defaultSchedule,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-      })
-    );
-
-    return defaultSchedule;
   },
 
   async updateWaterDuty(groupId: string, updates: Partial<WaterDutySchedule>): Promise<void> {
@@ -251,9 +311,14 @@ export const flatmateService = {
   // =========================================================================
 
   async getChores(groupId: string): Promise<FlatChore[]> {
-    const colRef = collection(db, `groups/${groupId}/chores`);
-    const snap = await getDocs(colRef);
-    return snap.docs.map((d) => ({ id: d.id, groupId, ...d.data() } as FlatChore));
+    try {
+      const colRef = collection(db, `groups/${groupId}/chores`);
+      const snap = await getDocs(colRef);
+      return snap.docs.map((d) => ({ id: d.id, groupId, ...d.data() } as FlatChore));
+    } catch (err) {
+      console.error("Error in getChores:", err);
+      return [];
+    }
   },
 
   async seedDefaultChores(groupId: string, memberIds: string[]): Promise<FlatChore[]> {
@@ -404,11 +469,15 @@ export const flatmateService = {
   // =========================================================================
 
   async getMealAttendance(groupId: string, dateStr: string): Promise<DailyMealAttendance> {
-    const docRef = doc(db, `groups/${groupId}/meals`, dateStr);
-    const snap = await getDoc(docRef);
+    try {
+      const docRef = doc(db, `groups/${groupId}/meals`, dateStr);
+      const snap = await getDoc(docRef);
 
-    if (snap.exists()) {
-      return { id: snap.id, groupId, date: dateStr, ...snap.data() } as DailyMealAttendance;
+      if (snap.exists()) {
+        return { id: snap.id, groupId, date: dateStr, ...snap.data() } as DailyMealAttendance;
+      }
+    } catch (err) {
+      console.error("Error in getMealAttendance:", err);
     }
 
     return {
@@ -458,9 +527,14 @@ export const flatmateService = {
   // =========================================================================
 
   async getPantryItems(groupId: string): Promise<SharedPantryItem[]> {
-    const colRef = collection(db, `groups/${groupId}/pantry`);
-    const snap = await getDocs(colRef);
-    return snap.docs.map((d) => ({ id: d.id, groupId, ...d.data() } as SharedPantryItem));
+    try {
+      const colRef = collection(db, `groups/${groupId}/pantry`);
+      const snap = await getDocs(colRef);
+      return snap.docs.map((d) => ({ id: d.id, groupId, ...d.data() } as SharedPantryItem));
+    } catch (err) {
+      console.error("Error in getPantryItems:", err);
+      return [];
+    }
   },
 
   async seedDefaultPantry(groupId: string, memberIds: string[]): Promise<SharedPantryItem[]> {
@@ -565,9 +639,14 @@ export const flatmateService = {
   // =========================================================================
 
   async getFixedBills(groupId: string): Promise<FixedBill[]> {
-    const colRef = collection(db, `groups/${groupId}/fixed_bills`);
-    const snap = await getDocs(colRef);
-    return snap.docs.map((d) => ({ id: d.id, groupId, ...d.data() } as FixedBill));
+    try {
+      const colRef = collection(db, `groups/${groupId}/fixed_bills`);
+      const snap = await getDocs(colRef);
+      return snap.docs.map((d) => ({ id: d.id, groupId, ...d.data() } as FixedBill));
+    } catch (err) {
+      console.error("Error in getFixedBills:", err);
+      return [];
+    }
   },
 
   async seedDefaultBills(groupId: string, memberIds: string[]): Promise<FixedBill[]> {
@@ -709,9 +788,14 @@ export const flatmateService = {
   // =========================================================================
 
   async getContacts(groupId: string): Promise<FlatContact[]> {
-    const colRef = collection(db, `groups/${groupId}/contacts`);
-    const snap = await getDocs(colRef);
-    return snap.docs.map((d) => ({ id: d.id, groupId, ...d.data() } as FlatContact));
+    try {
+      const colRef = collection(db, `groups/${groupId}/contacts`);
+      const snap = await getDocs(colRef);
+      return snap.docs.map((d) => ({ id: d.id, groupId, ...d.data() } as FlatContact));
+    } catch (err) {
+      console.error("Error in getContacts:", err);
+      return [];
+    }
   },
 
   async addContact(groupId: string, contact: Omit<FlatContact, "id" | "groupId">): Promise<FlatContact> {

@@ -21,13 +21,23 @@ export function useGroup(groupId: string) {
       (snapshot) => {
         if (snapshot.exists()) {
           const rawGroup = { id: snapshot.id, ...snapshot.data() } as Group;
-          setGroup(rawGroup); // Initial fast render
+          const rawMembers = Array.isArray(rawGroup.members) ? rawGroup.members : [];
+          const rawMemberIds = Array.isArray(rawGroup.memberIds) && rawGroup.memberIds.length > 0
+            ? rawGroup.memberIds
+            : rawMembers.map((m: any) => m.id).filter(Boolean);
+
+          const safeGroup: Group = {
+            ...rawGroup,
+            members: rawMembers,
+            memberIds: rawMemberIds,
+          };
+          setGroup(safeGroup); // Initial fast render
           
           // Enrich members with their actual photoUrl from the users collection
-          if (rawGroup.memberIds && rawGroup.memberIds.length) {
+          if (rawMemberIds.length > 0) {
             import("@/services/userService").then(({ getUsers }) => {
-              getUsers(rawGroup.memberIds).then((realUsers) => {
-                const enrichedMembers = rawGroup.members.map((m) => {
+              getUsers(rawMemberIds).then((realUsers) => {
+                const enrichedMembers = rawMembers.map((m) => {
                   const realU = realUsers.find((ru) => ru.id === m.id);
                   return realU
                     ? {
@@ -38,7 +48,7 @@ export function useGroup(groupId: string) {
                       }
                     : m;
                 });
-                setGroup({ ...rawGroup, members: enrichedMembers });
+                setGroup({ ...safeGroup, members: enrichedMembers });
               }).catch(err => console.error("Failed to enrich members:", err));
             });
           }

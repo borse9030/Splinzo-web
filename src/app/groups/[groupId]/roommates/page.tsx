@@ -161,7 +161,15 @@ export default function FlatHQPage({
   // Seeding state
   const [isSeeding, setIsSeeding] = useState(false);
 
-  const memberIds = useMemo(() => group?.memberIds || [], [group?.memberIds]);
+  const memberIds = useMemo(() => {
+    if (Array.isArray(group?.memberIds) && group.memberIds.length > 0) return group.memberIds;
+    if (Array.isArray(group?.members) && group.members.length > 0) {
+      return group.members.map((m: any) => m.id).filter(Boolean);
+    }
+    if (appUser?.id) return [appUser.id];
+    return [];
+  }, [group?.memberIds, group?.members, appUser?.id]);
+
   const currencySymbol = (group?.currency || "INR") === "INR" ? "₹" : (group?.currency || "INR");
 
   const isAdmin = useMemo(() => {
@@ -171,16 +179,31 @@ export default function FlatHQPage({
     return myMemberObj?.role === "admin";
   }, [group, appUser]);
 
+  // Safe helper to get assigned user ID for a day of week
+  const getScheduledUserIdForDay = (dayIndex: number): string => {
+    if (waterDuty?.weeklySchedule && waterDuty.weeklySchedule[dayIndex.toString()]) {
+      return waterDuty.weeklySchedule[dayIndex.toString()];
+    }
+    if (Array.isArray(waterDuty?.rotationOrder) && waterDuty.rotationOrder.length > 0) {
+      return waterDuty.rotationOrder[dayIndex % waterDuty.rotationOrder.length];
+    }
+    if (memberIds.length > 0) {
+      return memberIds[dayIndex % memberIds.length];
+    }
+    return "";
+  };
+
   // Load all flatmate data
   useEffect(() => {
-    if (!groupId || memberIds.length === 0) return;
+    if (!groupId) return;
+    if (groupLoading) return;
 
     let isMounted = true;
     async function loadData() {
       setLoading(true);
       try {
         const [duty, loadedChores, loadedPantry, loadedBills, loadedPenalties, loadedContacts, meals] =
-          await Promise.all([
+          await Promise.allSettled([
             flatmateService.getWaterDuty(groupId, memberIds),
             flatmateService.getChores(groupId),
             flatmateService.getPantryItems(groupId),
@@ -192,35 +215,69 @@ export default function FlatHQPage({
 
         if (!isMounted) return;
 
-        setWaterDuty(duty);
+        if (duty.status === "fulfilled" && duty.value) {
+          setWaterDuty(duty.value);
+        }
 
         // Auto-seed chores if empty
-        if (loadedChores.length === 0) {
-          const seeded = await flatmateService.seedDefaultChores(groupId, memberIds);
-          setChores(seeded);
-        } else {
-          setChores(loadedChores);
+        if (loadedChores.status === "fulfilled") {
+          const choresData = loadedChores.value || [];
+          if (choresData.length === 0 && memberIds.length > 0) {
+            try {
+              const seeded = await flatmateService.seedDefaultChores(groupId, memberIds);
+              if (isMounted) setChores(seeded);
+            } catch (seedErr) {
+              console.warn("Could not seed chores:", seedErr);
+              if (isMounted) setChores([]);
+            }
+          } else {
+            setChores(choresData);
+          }
         }
 
         // Auto-seed pantry if empty
-        if (loadedPantry.length === 0) {
-          const seededPantry = await flatmateService.seedDefaultPantry(groupId, memberIds);
-          setPantryItems(seededPantry);
-        } else {
-          setPantryItems(loadedPantry);
+        if (loadedPantry.status === "fulfilled") {
+          const pantryData = loadedPantry.value || [];
+          if (pantryData.length === 0 && memberIds.length > 0) {
+            try {
+              const seededPantry = await flatmateService.seedDefaultPantry(groupId, memberIds);
+              if (isMounted) setPantryItems(seededPantry);
+            } catch (seedErr) {
+              console.warn("Could not seed pantry:", seedErr);
+              if (isMounted) setPantryItems([]);
+            }
+          } else {
+            setPantryItems(pantryData);
+          }
         }
 
         // Auto-seed bills if empty
-        if (loadedBills.length === 0) {
-          const seededBills = await flatmateService.seedDefaultBills(groupId, memberIds);
-          setFixedBills(seededBills);
-        } else {
-          setFixedBills(loadedBills);
+        if (loadedBills.status === "fulfilled") {
+          const billsData = loadedBills.value || [];
+          if (billsData.length === 0 && memberIds.length > 0) {
+            try {
+              const seededBills = await flatmateService.seedDefaultBills(groupId, memberIds);
+              if (isMounted) setFixedBills(seededBills);
+            } catch (seedErr) {
+              console.warn("Could not seed bills:", seedErr);
+              if (isMounted) setFixedBills([]);
+            }
+          } else {
+            setFixedBills(billsData);
+          }
         }
 
-        setPenalties(loadedPenalties);
-        setContacts(loadedContacts);
-        setMealAttendance(meals);
+        if (loadedPenalties.status === "fulfilled") {
+          setPenalties(loadedPenalties.value || []);
+        }
+
+        if (loadedContacts.status === "fulfilled") {
+          setContacts(loadedContacts.value || []);
+        }
+
+        if (meals.status === "fulfilled") {
+          setMealAttendance(meals.value || null);
+        }
       } catch (err) {
         console.error("Error loading Flat HQ data:", err);
       } finally {
@@ -232,7 +289,7 @@ export default function FlatHQPage({
     return () => {
       isMounted = false;
     };
-  }, [groupId, memberIds, todayStr]);
+  }, [groupId, memberIds, todayStr, groupLoading]);
 
   // Helper to get member name
   const getMemberName = (uid: string) => {
@@ -491,9 +548,8 @@ export default function FlatHQPage({
     if (!groupId || !appUser || !waterDuty) return;
     setIsSubmitting(true);
     try {
-      const schedule = waterDuty.weeklySchedule || {};
-      const user1Id = schedule[swapDay1] || memberIds[Number(swapDay1) % (memberIds.length || 1)] || "";
-      const user2Id = schedule[swapDay2] || memberIds[Number(swapDay2) % (memberIds.length || 1)] || "";
+      const user1Id = getScheduledUserIdForDay(Number(swapDay1));
+      const user2Id = getScheduledUserIdForDay(Number(swapDay2));
 
       // Anti-Cheat: Only Admin or the user assigned to swapDay1 can initiate the swap
       if (!isAdmin && user1Id !== appUser.id) {
@@ -516,7 +572,8 @@ export default function FlatHQPage({
         swapReason
       );
 
-      const updatedSchedule = { ...schedule, [swapDay1]: user2Id, [swapDay2]: user1Id };
+      const currentSchedule = waterDuty.weeklySchedule || {};
+      const updatedSchedule = { ...currentSchedule, [swapDay1]: user2Id, [swapDay2]: user1Id };
       const note = `${user1Name} swapped with ${user2Name}${swapReason ? ` (${swapReason})` : ""}`;
       setWaterDuty((prev) =>
         prev ? { ...prev, weeklySchedule: updatedSchedule, lastSwapNote: note } : null
@@ -664,19 +721,25 @@ export default function FlatHQPage({
   // Automated Desktop & In-App Notification if today is the user's turn
   useEffect(() => {
     if (!waterDuty || !appUser || !isMyWaterTurn) return;
-    if (typeof window !== "undefined" && "Notification" in window) {
-      if (Notification.permission === "granted") {
-        const notifKey = `splinzo_water_turn_${todayStr}_${waterDuty.currentAssigneeId}`;
-        if (!sessionStorage.getItem(notifKey)) {
-          new Notification("🚰 Jal Devta Bulawa: AAPKA NUMBER HAI AAJ!", {
-            body: `Bhaiya paani khatam mat hone dena! Today is your turn for 20L water can duty. Bring it & split with flatmates!`,
-            icon: "/favicon.ico",
-          });
-          sessionStorage.setItem(notifKey, "true");
+    try {
+      if (typeof window !== "undefined" && "Notification" in window) {
+        if (Notification.permission === "granted") {
+          const notifKey = `splinzo_water_turn_${todayStr}_${waterDuty.currentAssigneeId}`;
+          if (!sessionStorage.getItem(notifKey)) {
+            try {
+              new Notification("🚰 Jal Devta Bulawa: AAPKA NUMBER HAI AAJ!", {
+                body: `Bhaiya paani khatam mat hone dena! Today is your turn for 20L water can duty. Bring it & split with flatmates!`,
+                icon: "/favicon.ico",
+              });
+            } catch (notifErr) {
+              console.warn("Could not display native notification:", notifErr);
+            }
+            sessionStorage.setItem(notifKey, "true");
+          }
         }
-      } else if (Notification.permission === "default") {
-        Notification.requestPermission();
       }
+    } catch (e) {
+      console.warn("Notification error:", e);
     }
   }, [waterDuty?.currentAssigneeId, isMyWaterTurn, appUser, todayStr]);
 
@@ -990,11 +1053,7 @@ export default function FlatHQPage({
                       onClick={() => {
                         const sched: Record<string, string> = {};
                         for (let i = 0; i < 7; i++) {
-                          sched[i.toString()] =
-                            waterDuty?.weeklySchedule?.[i.toString()] ||
-                            waterDuty?.rotationOrder?.[i % (waterDuty.rotationOrder.length || 1)] ||
-                            memberIds[i % memberIds.length] ||
-                            "";
+                          sched[i.toString()] = getScheduledUserIdForDay(i);
                         }
                         setWeeklyScheduleEdit(sched);
                         setTimetableModalOpen(true);
@@ -1011,11 +1070,7 @@ export default function FlatHQPage({
 
               <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2 pt-2">
                 {DAYS_OF_WEEK.map((dayName, idx) => {
-                  const assignedUid =
-                    waterDuty?.weeklySchedule?.[idx.toString()] ||
-                    waterDuty?.rotationOrder?.[idx % (waterDuty.rotationOrder.length || 1)] ||
-                    memberIds[idx % memberIds.length] ||
-                    "";
+                  const assignedUid = getScheduledUserIdForDay(idx);
                   const assignedName = getMemberName(assignedUid);
                   const isToday = new Date().getDay() === idx;
 
@@ -1131,7 +1186,7 @@ export default function FlatHQPage({
                                 {chore.title}
                               </h4>
                               <span className="text-[10px] uppercase font-extrabold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950 text-amber-600 dark:text-amber-400">
-                                {chore.frequency.replace("_", " ")}
+                                {(chore.frequency || "daily").replace("_", " ")}
                               </span>
                             </div>
                             {chore.description && (
@@ -1578,7 +1633,7 @@ export default function FlatHQPage({
                         </div>
 
                         <div className="text-2xl font-black text-gray-900 dark:text-white">
-                          {currencySymbol}{bill.amount.toLocaleString()}
+                          {currencySymbol}{(Number(bill.amount) || 0).toLocaleString()}
                         </div>
                       </div>
 
@@ -1654,7 +1709,7 @@ export default function FlatHQPage({
                           {penalty.culpritName}
                         </span>
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 dark:bg-rose-950 text-rose-600 dark:text-rose-400">
-                          {penalty.potType.toUpperCase()}
+                          {(penalty.potType || "pizza").toUpperCase()}
                         </span>
                       </div>
                       <p className="text-xs text-gray-500">{penalty.reason}</p>
@@ -1729,7 +1784,7 @@ export default function FlatHQPage({
                         <Phone className="w-3.5 h-3.5" /> Call
                       </a>
                       <a
-                        href={`https://wa.me/${contact.phone.replace(/[^0-9]/g, "")}`}
+                        href={`https://wa.me/${contact.phone ? contact.phone.replace(/[^0-9]/g, "") : ""}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="flex-1 py-2 rounded-xl bg-emerald-500/10 hover:bg-emerald-500/20 text-xs font-bold flex items-center justify-center gap-1.5 text-emerald-600 dark:text-emerald-400 transition-all"
@@ -2154,10 +2209,7 @@ export default function FlatHQPage({
                 className="w-full p-2.5 rounded-xl border border-gray-200 dark:border-gray-800 text-xs bg-transparent"
               >
                 {DAYS_OF_WEEK.map((d, i) => {
-                  const uid =
-                    waterDuty?.weeklySchedule?.[i.toString()] ||
-                    waterDuty?.rotationOrder?.[i % (waterDuty.rotationOrder.length || 1)] ||
-                    "";
+                  const uid = getScheduledUserIdForDay(i);
                   return (
                     <option key={i} value={i.toString()}>
                       {d} ({getMemberName(uid)})
@@ -2175,10 +2227,7 @@ export default function FlatHQPage({
                 className="w-full p-2.5 rounded-xl border border-gray-200 dark:border-gray-800 text-xs bg-transparent"
               >
                 {DAYS_OF_WEEK.map((d, i) => {
-                  const uid =
-                    waterDuty?.weeklySchedule?.[i.toString()] ||
-                    waterDuty?.rotationOrder?.[i % (waterDuty.rotationOrder.length || 1)] ||
-                    "";
+                  const uid = getScheduledUserIdForDay(i);
                   return (
                     <option key={i} value={i.toString()}>
                       {d} ({getMemberName(uid)})
