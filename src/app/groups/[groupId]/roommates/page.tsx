@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useEffect, useState, useMemo } from "react";
+import { use, useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { useGroup } from "@/hooks/useGroup";
 import { useAuth } from "@/contexts/AuthContext";
 import { flatmateService } from "@/services/flatmateService";
@@ -53,7 +53,11 @@ import {
   Settings,
   ShieldCheck,
   Bell,
+  ChevronLeft,
+  ChevronRight,
+  LayoutGrid,
 } from "lucide-react";
+
 import { format } from "date-fns";
 import { FlatHqGuidebookModal } from "@/components/flat-hq/FlatHqGuidebookModal";
 
@@ -762,6 +766,158 @@ export default function FlatHQPage({
   const currentAssigneeName = waterDuty ? getMemberName(waterDuty.currentAssigneeId) : "Roommate";
   const isMyWaterTurn = waterDuty?.currentAssigneeId === appUser?.id;
 
+  // ── SUB-TAB FEATURE NAVIGATION STATE & DESKTOP SCROLL CONTROLS ──
+  const [isWrapped, setIsWrapped] = useState(false);
+  const tabsContainerRef = useRef<HTMLDivElement>(null);
+  const tabRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStartX, setDragStartX] = useState(0);
+  const [dragScrollLeft, setDragScrollLeft] = useState(0);
+  const hasDraggedRef = useRef(false);
+
+  const subTabs = useMemo(
+    () => [
+      {
+        id: "water_chores" as const,
+        label: "Chores & Timetable",
+        icon: Droplets,
+      },
+      {
+        id: "meals" as const,
+        label: "Meal Tracker (Cook)",
+        icon: Utensils,
+      },
+      {
+        id: "pantry" as const,
+        label: "Shared Pantry",
+        icon: ShoppingCart,
+      },
+      {
+        id: "bills" as const,
+        label: "Monthly Bills",
+        icon: Calendar,
+      },
+      {
+        id: "guilt_jar" as const,
+        label: `Guilt Jar (${currencySymbol}${totalPot})`,
+        icon: Coins,
+      },
+      {
+        id: "contacts" as const,
+        label: "Flat Contacts",
+        icon: Phone,
+      },
+    ],
+    [currencySymbol, totalPot]
+  );
+
+  const updateScrollState = useCallback(() => {
+    const el = tabsContainerRef.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 6);
+    setCanScrollRight(el.scrollLeft < el.scrollWidth - el.clientWidth - 6);
+  }, []);
+
+  useEffect(() => {
+    const el = tabsContainerRef.current;
+    if (!el) return;
+    updateScrollState();
+
+    const handleResize = () => updateScrollState();
+    window.addEventListener("resize", handleResize);
+    el.addEventListener("scroll", updateScrollState);
+
+    const timer = setTimeout(updateScrollState, 200);
+
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("resize", handleResize);
+      el.removeEventListener("scroll", updateScrollState);
+    };
+  }, [updateScrollState, isWrapped]);
+
+  // Non-passive wheel listener for smooth desktop horizontal scrolling
+  useEffect(() => {
+    const el = tabsContainerRef.current;
+    if (!el || isWrapped) return;
+
+    const onWheel = (e: WheelEvent) => {
+      if (e.deltaY !== 0) {
+        const canScroll = el.scrollWidth > el.clientWidth;
+        if (canScroll) {
+          const isAtStart = el.scrollLeft <= 0 && e.deltaY < 0;
+          const isAtEnd = el.scrollLeft >= el.scrollWidth - el.clientWidth - 1 && e.deltaY > 0;
+          if (!isAtStart && !isAtEnd) {
+            e.preventDefault();
+            el.scrollLeft += e.deltaY;
+            updateScrollState();
+          }
+        }
+      }
+    };
+
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => {
+      el.removeEventListener("wheel", onWheel);
+    };
+  }, [isWrapped, updateScrollState]);
+
+  // Scroll active tab into view whenever it changes
+  useEffect(() => {
+    if (!isWrapped && tabRefs.current[activeTab]) {
+      tabRefs.current[activeTab]?.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+        inline: "nearest",
+      });
+    }
+  }, [activeTab, isWrapped]);
+
+  const scrollByAmount = (direction: "left" | "right") => {
+    if (!tabsContainerRef.current) return;
+    const amount = direction === "left" ? -260 : 260;
+    tabsContainerRef.current.scrollBy({ left: amount, behavior: "smooth" });
+  };
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (isWrapped || !tabsContainerRef.current) return;
+    setIsDragging(true);
+    hasDraggedRef.current = false;
+    setDragStartX(e.pageX - tabsContainerRef.current.offsetLeft);
+    setDragScrollLeft(tabsContainerRef.current.scrollLeft);
+  };
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging || isWrapped || !tabsContainerRef.current) return;
+    e.preventDefault();
+    const x = e.pageX - tabsContainerRef.current.offsetLeft;
+    const walk = (x - dragStartX) * 1.5;
+    if (Math.abs(walk) > 4) {
+      hasDraggedRef.current = true;
+    }
+    tabsContainerRef.current.scrollLeft = dragScrollLeft - walk;
+    updateScrollState();
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  const handleMouseLeave = () => {
+    setIsDragging(false);
+  };
+
+  const handleTabClick = (tabId: typeof activeTab) => {
+    if (hasDraggedRef.current) {
+      hasDraggedRef.current = false;
+      return;
+    }
+    setActiveTab(tabId);
+  };
+
+
   // Automated Desktop & In-App Notification if today is the user's turn
   useEffect(() => {
     if (!waterDuty || !appUser || !isMyWaterTurn) return;
@@ -983,80 +1139,109 @@ export default function FlatHQPage({
         )}
       </div>
 
-      {/* ── SUB-TAB NAVIGATION PILLS ── */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
-        <button
-          onClick={() => setActiveTab("water_chores")}
-          className={`px-4 py-2 rounded-2xl text-xs sm:text-sm font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
-            activeTab === "water_chores"
-              ? "bg-amber-400 text-black shadow-md scale-105"
-              : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200"
-          }`}
-        >
-          <Droplets className="w-4 h-4" />
-          Chores & Timetable
-        </button>
+      {/* ── SUB-TAB FEATURE NAVIGATION & DESKTOP SCROLL CONTROLS ── */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between gap-2 px-1">
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-black uppercase tracking-wider text-gray-500 dark:text-gray-400">
+              Flat HQ Features & Tools
+            </span>
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-700 dark:text-amber-300 border border-amber-400/30">
+              6 Modules
+            </span>
+          </div>
 
-        <button
-          onClick={() => setActiveTab("meals")}
-          className={`px-4 py-2 rounded-2xl text-xs sm:text-sm font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
-            activeTab === "meals"
-              ? "bg-amber-400 text-black shadow-md scale-105"
-              : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200"
-          }`}
-        >
-          <Utensils className="w-4 h-4" />
-          Meal Tracker (Cook)
-        </button>
+          {/* Toggle between Scroll View and Show All Features */}
+          <button
+            type="button"
+            onClick={() => setIsWrapped((prev) => !prev)}
+            className="px-2.5 py-1 rounded-xl text-xs font-bold flex items-center gap-1.5 text-gray-600 dark:text-gray-300 hover:text-black dark:hover:text-white bg-gray-100 dark:bg-gray-800/80 hover:bg-amber-400/20 hover:border-amber-400/40 border border-transparent transition-all cursor-pointer select-none active:scale-95"
+            title={isWrapped ? "Switch to single scrollable row" : "Show all features (wrap onto multiple lines)"}
+          >
+            {isWrapped ? (
+              <>
+                <ArrowRightLeft className="w-3.5 h-3.5 text-amber-500" />
+                <span>Scroll Row</span>
+              </>
+            ) : (
+              <>
+                <LayoutGrid className="w-3.5 h-3.5 text-amber-500" />
+                <span>Show All (Wrap)</span>
+              </>
+            )}
+          </button>
+        </div>
 
-        <button
-          onClick={() => setActiveTab("pantry")}
-          className={`px-4 py-2 rounded-2xl text-xs sm:text-sm font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
-            activeTab === "pantry"
-              ? "bg-amber-400 text-black shadow-md scale-105"
-              : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200"
-          }`}
-        >
-          <ShoppingCart className="w-4 h-4" />
-          Shared Pantry
-        </button>
+        {/* Scroll Container Wrapper with Left/Right arrow navigation buttons */}
+        <div className="relative group">
+          {/* Left Arrow Button */}
+          {!isWrapped && canScrollLeft && (
+            <>
+              <button
+                type="button"
+                onClick={() => scrollByAmount("left")}
+                className="absolute left-0 top-1/2 -translate-y-1/2 z-20 h-8 w-8 rounded-full bg-white/95 dark:bg-gray-800/95 shadow-lg border border-gray-200 dark:border-gray-700 flex items-center justify-center text-gray-700 dark:text-gray-200 hover:bg-amber-400 hover:text-black transition-all hover:scale-110 active:scale-95 cursor-pointer backdrop-blur"
+                aria-label="Scroll left to previous features"
+                title="Scroll left"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <div className="absolute left-0 top-0 bottom-3 w-8 bg-gradient-to-r from-background via-background/80 to-transparent pointer-events-none z-10" />
+            </>
+          )}
 
-        <button
-          onClick={() => setActiveTab("bills")}
-          className={`px-4 py-2 rounded-2xl text-xs sm:text-sm font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
-            activeTab === "bills"
-              ? "bg-amber-400 text-black shadow-md scale-105"
-              : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200"
-          }`}
-        >
-          <Calendar className="w-4 h-4" />
-          Monthly Bills
-        </button>
+          {/* Right Arrow Button */}
+          {!isWrapped && canScrollRight && (
+            <>
+              <button
+                type="button"
+                onClick={() => scrollByAmount("right")}
+                className="absolute right-0 top-1/2 -translate-y-1/2 z-20 h-8 w-8 rounded-full bg-white/95 dark:bg-gray-800/95 shadow-lg border border-gray-200 dark:border-gray-700 flex items-center justify-center text-gray-700 dark:text-gray-200 hover:bg-amber-400 hover:text-black transition-all hover:scale-110 active:scale-95 cursor-pointer backdrop-blur"
+                aria-label="Scroll right to more features"
+                title="Scroll right"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+              <div className="absolute right-0 top-0 bottom-3 w-8 bg-gradient-to-l from-background via-background/80 to-transparent pointer-events-none z-10" />
+            </>
+          )}
 
-        <button
-          onClick={() => setActiveTab("guilt_jar")}
-          className={`px-4 py-2 rounded-2xl text-xs sm:text-sm font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
-            activeTab === "guilt_jar"
-              ? "bg-amber-400 text-black shadow-md scale-105"
-              : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200"
-          }`}
-        >
-          <Coins className="w-4 h-4" />
-          Guilt Jar ({currencySymbol}
-          {totalPot})
-        </button>
-
-        <button
-          onClick={() => setActiveTab("contacts")}
-          className={`px-4 py-2 rounded-2xl text-xs sm:text-sm font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
-            activeTab === "contacts"
-              ? "bg-amber-400 text-black shadow-md scale-105"
-              : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200"
-          }`}
-        >
-          <Phone className="w-4 h-4" />
-          Flat Contacts
-        </button>
+          {/* Sub-tabs list */}
+          <div
+            ref={tabsContainerRef}
+            onMouseDown={handleMouseDown}
+            onMouseMove={handleMouseMove}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseLeave}
+            className={
+              isWrapped
+                ? "flex flex-wrap items-center gap-2 p-1"
+                : "flex items-center gap-2 overflow-x-auto p-1 pb-2.5 features-scrollbar select-none cursor-grab active:cursor-grabbing"
+            }
+          >
+            {subTabs.map((tab) => {
+              const Icon = tab.icon;
+              const isSelected = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  ref={(el) => {
+                    tabRefs.current[tab.id] = el;
+                  }}
+                  onClick={() => handleTabClick(tab.id)}
+                  className={`px-3.5 sm:px-4 py-2 rounded-2xl text-xs sm:text-sm font-bold flex items-center gap-2 whitespace-nowrap transition-all cursor-pointer ${
+                    isSelected
+                      ? "bg-amber-400 text-black shadow-md scale-105"
+                      : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
+                  }`}
+                >
+                  <Icon className="w-4 h-4 shrink-0" />
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
       {/* ── TAB 1: WATER & CHORES MATRIX ── */}

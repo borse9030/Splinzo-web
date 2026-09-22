@@ -180,6 +180,34 @@
     display: none;
   }
 
+  /* Sleek custom horizontal scrollbar for desktop feature navigation */
+  .features-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(249, 185, 18, 0.5) transparent;
+  }
+  .features-scrollbar::-webkit-scrollbar {
+    height: 6px;
+  }
+  .features-scrollbar::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.05);
+    border-radius: 9999px;
+  }
+  .dark .features-scrollbar::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.06);
+  }
+  .features-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(160, 160, 160, 0.45);
+    border-radius: 9999px;
+    transition: background-color 0.2s ease;
+  }
+  .features-scrollbar:hover::-webkit-scrollbar-thumb {
+    background: #F9B912;
+  }
+  .features-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #FFB300;
+  }
+
+
   /* Amber glass card effect matching app */
   .amber-card {
     background: linear-gradient(135deg, #FFC107 0%, #F9B912 60%, #FFD54F 100%);
