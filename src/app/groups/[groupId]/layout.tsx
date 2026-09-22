@@ -41,9 +41,15 @@ export default function GroupLayout({
     group?.members?.find((m) => m.id === appUser?.id)?.role === "admin" ||
     group?.createdBy === appUser?.id;
 
+  const isRoommateGroup =
+    group?.type?.toLowerCase() === "roommates" ||
+    group?.type?.toLowerCase() === "home" ||
+    (group as any)?.isFlatHqEnabled === true;
+
   const tabs = [
     { name: "Expenses", href: `/groups/${resolvedParams.groupId}` },
     { name: "Chat", href: `/groups/${resolvedParams.groupId}/chat` },
+    ...(isRoommateGroup ? [{ name: "Flat HQ 🏠", href: `/groups/${resolvedParams.groupId}/roommates` }] : []),
     { name: "Analytics", href: `/groups/${resolvedParams.groupId}/analytics` },
     { name: "Members", href: `/groups/${resolvedParams.groupId}/members` },
     { name: "Trips", href: `/groups/${resolvedParams.groupId}/trips` },

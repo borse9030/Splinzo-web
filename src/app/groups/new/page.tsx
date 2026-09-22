@@ -157,12 +157,17 @@ export default function NewGroupPage() {
             </div>
 
             {/* Group Type */}
-            <div className="space-y-2">
+            <div className="space-y-3">
               <label className="text-xs font-bold uppercase tracking-widest ml-1" style={{ color: "var(--muted-foreground)" }}>
-                Group Type
+                What is this group for?
               </label>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {GROUP_TYPES.map((t) => {
+                {[
+                  { id: "roommates", label: "Roommates / Flat HQ", icon: Home, badge: "Flat HQ" },
+                  { id: "trip", label: "Trip", icon: Plane },
+                  { id: "couple", label: "Couple", icon: Heart },
+                  { id: "other", label: "Other / General", icon: Users },
+                ].map((t) => {
                   const Icon = t.icon;
                   const isSelected = type === t.id;
                   return (
@@ -170,19 +175,34 @@ export default function NewGroupPage() {
                       key={t.id}
                       type="button"
                       onClick={() => setType(t.id)}
-                      className="flex flex-col items-center justify-center gap-2 py-4 rounded-2xl transition-all"
+                      className="relative flex flex-col items-center justify-center gap-1.5 py-4 px-2 rounded-2xl transition-all cursor-pointer"
                       style={{
                         background: isSelected ? AMBER : "var(--muted)",
                         color: isSelected ? "#1a1a1a" : "var(--muted-foreground)",
-                        boxShadow: isSelected ? `0 4px 12px rgba(249,185,18,0.2)` : "none"
+                        boxShadow: isSelected ? `0 4px 14px rgba(249,185,18,0.25)` : "none",
+                        border: isSelected ? `2px solid ${AMBER}` : "2px solid transparent",
                       }}
                     >
+                      {t.badge && (
+                        <span className="absolute -top-2 right-2 text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-black text-amber-400">
+                          {t.badge}
+                        </span>
+                      )}
                       <Icon className="h-5 w-5" />
-                      <span className="text-xs font-bold">{t.label}</span>
+                      <span className="text-xs font-bold text-center leading-tight">{t.label}</span>
                     </button>
                   );
                 })}
               </div>
+
+              {type === "roommates" && (
+                <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-2.5 text-xs text-amber-900 dark:text-amber-200">
+                  <span className="text-base leading-none mt-0.5">🏠</span>
+                  <div>
+                    <span className="font-bold">Roommate Flat HQ Activated:</span> Unlocks 20L Water Can rotation schedule, Cook Attendance headcount, Chores Roster, Shared Pantry, and Monthly Bills.
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Currency */}
