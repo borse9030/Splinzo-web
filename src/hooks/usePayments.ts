@@ -7,12 +7,15 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Payment } from "@/types/payment";
 import { paymentService } from "@/services/paymentService";
 
+// Module-level in-memory cache for instant 0ms group payments switching
+const groupPaymentsCache = new Map<string, Payment[]>();
+
 export function usePayments(groupId?: string) {
   const { appUser } = useAuth();
-  const [payments, setPayments] = useState<Payment[]>([]);
+  const [payments, setPayments] = useState<Payment[]>(() => (groupId ? groupPaymentsCache.get(groupId) || [] : []));
   const [incomingPayments, setIncomingPayments] = useState<Payment[]>([]);
   const [outgoingPayments, setOutgoingPayments] = useState<Payment[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => (groupId ? !groupPaymentsCache.has(groupId) : true));
   const [approvingId, setApprovingId] = useState<string | null>(null);
   const [error, setError] = useState<Error | null>(null);
 
@@ -20,7 +23,9 @@ export function usePayments(groupId?: string) {
   useEffect(() => {
     if (!groupId) return;
 
-    setLoading(true);
+    if (!groupPaymentsCache.has(groupId)) {
+      setLoading(true);
+    }
     const q = query(
       collection(db, "payments"),
       where("groupId", "==", groupId)
@@ -40,6 +45,7 @@ export function usePayments(groupId?: string) {
           return timeB - timeA;
         });
 
+        groupPaymentsCache.set(groupId, fetched);
         setPayments(fetched);
         setLoading(false);
       },

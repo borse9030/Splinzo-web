@@ -61,6 +61,18 @@ const AMBER = "#F9B912";
 
 const DAYS_OF_WEEK = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
+// Module-level in-memory cache for instant zero-bleach tab switching
+interface FlatHqCacheData {
+  waterDuty: WaterDutySchedule | null;
+  chores: FlatChore[];
+  pantryItems: SharedPantryItem[];
+  fixedBills: FixedBill[];
+  penalties: GuiltJarPenalty[];
+  contacts: FlatContact[];
+  mealAttendance: DailyMealAttendance | null;
+}
+const flatHqCache = new Map<string, FlatHqCacheData>();
+
 export default function FlatHQPage({
   params,
 }: {
@@ -71,23 +83,25 @@ export default function FlatHQPage({
   const { group, loading: groupLoading } = useGroup(groupId);
   const { appUser } = useAuth();
 
+  const cachedData = flatHqCache.get(groupId);
+
   // Active sub-tab
   const [activeTab, setActiveTab] = useState<
     "water_chores" | "meals" | "pantry" | "bills" | "guilt_jar" | "contacts"
   >("water_chores");
 
-  // Data states
-  const [loading, setLoading] = useState(true);
-  const [waterDuty, setWaterDuty] = useState<WaterDutySchedule | null>(null);
-  const [chores, setChores] = useState<FlatChore[]>([]);
-  const [pantryItems, setPantryItems] = useState<SharedPantryItem[]>([]);
-  const [fixedBills, setFixedBills] = useState<FixedBill[]>([]);
-  const [penalties, setPenalties] = useState<GuiltJarPenalty[]>([]);
-  const [contacts, setContacts] = useState<FlatContact[]>([]);
+  // Data states initialized immediately from cache for 0ms transition
+  const [loading, setLoading] = useState(!cachedData);
+  const [waterDuty, setWaterDuty] = useState<WaterDutySchedule | null>(cachedData?.waterDuty ?? null);
+  const [chores, setChores] = useState<FlatChore[]>(cachedData?.chores ?? []);
+  const [pantryItems, setPantryItems] = useState<SharedPantryItem[]>(cachedData?.pantryItems ?? []);
+  const [fixedBills, setFixedBills] = useState<FixedBill[]>(cachedData?.fixedBills ?? []);
+  const [penalties, setPenalties] = useState<GuiltJarPenalty[]>(cachedData?.penalties ?? []);
+  const [contacts, setContacts] = useState<FlatContact[]>(cachedData?.contacts ?? []);
 
   // Meal states (Today)
   const todayStr = useMemo(() => format(new Date(), "yyyy-MM-dd"), []);
-  const [mealAttendance, setMealAttendance] = useState<DailyMealAttendance | null>(null);
+  const [mealAttendance, setMealAttendance] = useState<DailyMealAttendance | null>(cachedData?.mealAttendance ?? null);
 
   // Dialog states
   const [waterModalOpen, setWaterModalOpen] = useState(false);
@@ -200,7 +214,9 @@ export default function FlatHQPage({
 
     let isMounted = true;
     async function loadData() {
-      setLoading(true);
+      if (!flatHqCache.has(groupId)) {
+        setLoading(true);
+      }
       try {
         const [duty, loadedChores, loadedPantry, loadedBills, loadedPenalties, loadedContacts, meals] =
           await Promise.allSettled([
@@ -215,7 +231,16 @@ export default function FlatHQPage({
 
         if (!isMounted) return;
 
+        let updatedWaterDuty = flatHqCache.get(groupId)?.waterDuty ?? null;
+        let updatedChores = flatHqCache.get(groupId)?.chores ?? [];
+        let updatedPantry = flatHqCache.get(groupId)?.pantryItems ?? [];
+        let updatedBills = flatHqCache.get(groupId)?.fixedBills ?? [];
+        let updatedPenalties = flatHqCache.get(groupId)?.penalties ?? [];
+        let updatedContacts = flatHqCache.get(groupId)?.contacts ?? [];
+        let updatedMeals = flatHqCache.get(groupId)?.mealAttendance ?? null;
+
         if (duty.status === "fulfilled" && duty.value) {
+          updatedWaterDuty = duty.value;
           setWaterDuty(duty.value);
         }
 
@@ -225,12 +250,14 @@ export default function FlatHQPage({
           if (choresData.length === 0 && memberIds.length > 0) {
             try {
               const seeded = await flatmateService.seedDefaultChores(groupId, memberIds);
+              updatedChores = seeded;
               if (isMounted) setChores(seeded);
             } catch (seedErr) {
               console.warn("Could not seed chores:", seedErr);
               if (isMounted) setChores([]);
             }
           } else {
+            updatedChores = choresData;
             setChores(choresData);
           }
         }
@@ -241,12 +268,14 @@ export default function FlatHQPage({
           if (pantryData.length === 0 && memberIds.length > 0) {
             try {
               const seededPantry = await flatmateService.seedDefaultPantry(groupId, memberIds);
+              updatedPantry = seededPantry;
               if (isMounted) setPantryItems(seededPantry);
             } catch (seedErr) {
               console.warn("Could not seed pantry:", seedErr);
               if (isMounted) setPantryItems([]);
             }
           } else {
+            updatedPantry = pantryData;
             setPantryItems(pantryData);
           }
         }
@@ -257,27 +286,42 @@ export default function FlatHQPage({
           if (billsData.length === 0 && memberIds.length > 0) {
             try {
               const seededBills = await flatmateService.seedDefaultBills(groupId, memberIds);
+              updatedBills = seededBills;
               if (isMounted) setFixedBills(seededBills);
             } catch (seedErr) {
               console.warn("Could not seed bills:", seedErr);
               if (isMounted) setFixedBills([]);
             }
           } else {
+            updatedBills = billsData;
             setFixedBills(billsData);
           }
         }
 
         if (loadedPenalties.status === "fulfilled") {
-          setPenalties(loadedPenalties.value || []);
+          updatedPenalties = loadedPenalties.value || [];
+          setPenalties(updatedPenalties);
         }
 
         if (loadedContacts.status === "fulfilled") {
-          setContacts(loadedContacts.value || []);
+          updatedContacts = loadedContacts.value || [];
+          setContacts(updatedContacts);
         }
 
         if (meals.status === "fulfilled") {
-          setMealAttendance(meals.value || null);
+          updatedMeals = meals.value || null;
+          setMealAttendance(updatedMeals);
         }
+
+        flatHqCache.set(groupId, {
+          waterDuty: updatedWaterDuty,
+          chores: updatedChores,
+          pantryItems: updatedPantry,
+          fixedBills: updatedBills,
+          penalties: updatedPenalties,
+          contacts: updatedContacts,
+          mealAttendance: updatedMeals,
+        });
       } catch (err) {
         console.error("Error loading Flat HQ data:", err);
       } finally {
@@ -743,7 +787,7 @@ export default function FlatHQPage({
     }
   }, [waterDuty?.currentAssigneeId, isMyWaterTurn, appUser, todayStr]);
 
-  if (groupLoading || loading) {
+  if ((groupLoading && !group) || (loading && !cachedData)) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-4">
         <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-amber-500" />

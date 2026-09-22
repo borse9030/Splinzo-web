@@ -219,11 +219,11 @@ export default function GroupLayout({
         </div>
 
         {/* Action Buttons */}
-        {!loading && (
+        {(!loading || group) && (
           <div className="flex gap-3 px-4 pt-4 pb-3 bg-card border-b border-border/60 transition-colors">
             <Button
               asChild
-              className="flex-1 rounded-full h-12 font-bold text-base shadow-sm hover:shadow-md transition-all cursor-pointer"
+              className="flex-1 rounded-full h-12 font-bold text-base shadow-sm hover:shadow-md transition-all cursor-pointer touch-manipulation active:scale-[0.98]"
               style={{ background: AMBER, color: "#1a1a1a" }}
             >
               <Link href={`/groups/${resolvedParams.groupId}/expenses/new`}>
@@ -233,7 +233,7 @@ export default function GroupLayout({
             </Button>
             <Button
               asChild
-              className="flex-1 rounded-full h-12 font-bold text-base border-2 border-border bg-card text-foreground hover:bg-accent transition-colors cursor-pointer"
+              className="flex-1 rounded-full h-12 font-bold text-base border-2 border-border bg-card text-foreground hover:bg-accent transition-colors cursor-pointer touch-manipulation active:scale-[0.98]"
             >
               <Link href={`/groups/${resolvedParams.groupId}/settle`}>
                 <Scale className="h-4 w-4 mr-2" />
@@ -244,7 +244,7 @@ export default function GroupLayout({
         )}
 
         {/* Tab Bar */}
-        {!loading && (
+        {(!loading || group) && (
           <div
             className="bg-card border-b border-border flex overflow-x-auto hide-scrollbar px-4 transition-colors"
           >
@@ -254,9 +254,10 @@ export default function GroupLayout({
                 <Link
                   key={tab.name}
                   href={tab.href}
+                  prefetch={true}
                   className={cn(
-                    "whitespace-nowrap py-3 px-4 font-semibold text-sm transition-all border-b-2 shrink-0",
-                    !isActive ? "text-muted-foreground border-transparent hover:text-foreground" : ""
+                    "whitespace-nowrap py-3 px-4 font-semibold text-sm transition-all duration-150 border-b-2 shrink-0 touch-manipulation select-none active:scale-95",
+                    !isActive ? "text-muted-foreground border-transparent hover:text-foreground active:text-foreground" : ""
                   )}
                   style={isActive ? { color: AMBER, borderColor: AMBER } : {}}
                 >
@@ -270,7 +271,7 @@ export default function GroupLayout({
         {/* Main content area */}
         <div className="flex flex-col flex-1 min-h-0 bg-background text-foreground transition-colors">
           <div className="flex flex-col flex-1 min-h-0 w-full max-w-4xl mx-auto">
-            {loading ? (
+            {loading && !group ? (
               <div className="space-y-4 pt-4 px-4 sm:px-6 lg:px-8">
                 <Skeleton className="h-20 w-full rounded-2xl" />
                 <Skeleton className="h-20 w-full rounded-2xl" />

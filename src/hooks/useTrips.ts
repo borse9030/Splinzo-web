@@ -3,15 +3,20 @@ import { db } from "@/lib/firebase/config";
 import { collection, query, onSnapshot, orderBy } from "firebase/firestore";
 import { Trip } from "@/types/trip";
 
+// Module-level in-memory cache for instant 0ms switching & zero skeleton flash
+const tripsCache = new Map<string, Trip[]>();
+
 export function useTrips(groupId: string) {
-  const [trips, setTrips] = useState<Trip[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [trips, setTrips] = useState<Trip[]>(() => (groupId ? tripsCache.get(groupId) || [] : []));
+  const [loading, setLoading] = useState<boolean>(() => (groupId ? !tripsCache.has(groupId) : true));
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
     if (!groupId) return;
 
-    setLoading(true);
+    if (!tripsCache.has(groupId)) {
+      setLoading(true);
+    }
     const tripsQuery = query(
       collection(db, "groups", groupId, "trips"),
       orderBy("startDate", "desc") // show newest first
@@ -25,6 +30,7 @@ export function useTrips(groupId: string) {
           groupId,
           ...doc.data(),
         })) as Trip[];
+        tripsCache.set(groupId, fetchedTrips);
         setTrips(fetchedTrips);
         setLoading(false);
       },

@@ -5,15 +5,20 @@ import { collection, query, orderBy, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase/config";
 import { Expense } from "@/types/expense";
 
+// Module-level in-memory cache for instant 0ms switching & zero skeleton flash
+const expensesCache = new Map<string, Expense[]>();
+
 export function useExpenses(groupId: string) {
-  const [expenses, setExpenses] = useState<Expense[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [expenses, setExpenses] = useState<Expense[]>(() => (groupId ? expensesCache.get(groupId) || [] : []));
+  const [loading, setLoading] = useState<boolean>(() => (groupId ? !expensesCache.has(groupId) : true));
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
     if (!groupId) return;
 
-    setLoading(true);
+    if (!expensesCache.has(groupId)) {
+      setLoading(true);
+    }
     // Subcollection: groups/{groupId}/expenses
     const q = query(
       collection(db, `groups/${groupId}/expenses`),
@@ -27,6 +32,7 @@ export function useExpenses(groupId: string) {
         snapshot.forEach((doc) => {
           fetched.push({ id: doc.id, ...doc.data() } as Expense);
         });
+        expensesCache.set(groupId, fetched);
         setExpenses(fetched);
         setLoading(false);
       },

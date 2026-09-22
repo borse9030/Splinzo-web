@@ -368,3 +368,16 @@
   from { opacity: 0; transform: translate(-50%, -80%); }
   to   { opacity: 1; transform: translate(-50%, 0); }
 }
+
+/* ── Mobile Touch & Tap Responsiveness Optimizations ── */
+html,
+body,
+button,
+a,
+input,
+select,
+textarea,
+[role="button"] {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}

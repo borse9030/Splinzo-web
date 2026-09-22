@@ -190,15 +190,15 @@ export function FlatHqGuidebookModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl p-0 overflow-hidden rounded-3xl border border-border shadow-2xl bg-[#FBF9F4] dark:bg-[#181E29] text-gray-900 dark:text-gray-100">
+      <DialogContent className="w-[94vw] sm:w-full max-w-2xl max-h-[88dvh] flex flex-col p-0 overflow-hidden rounded-2xl sm:rounded-3xl border border-border shadow-2xl bg-[#FBF9F4] dark:bg-[#181E29] text-gray-900 dark:text-gray-100">
         <DialogHeader className="sr-only">
           <DialogTitle>Flat HQ Handbook & Rules Notebook</DialogTitle>
         </DialogHeader>
 
         {/* ── TOP STICKY BOOKMARK INDEX TABS ── */}
-        <div className="bg-[#EFECE6] dark:bg-[#0F141C] px-3 py-2 border-b border-border/80 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 overflow-x-auto scrollbar-none py-1">
-            <span className="text-[10px] font-black tracking-widest text-gray-500 shrink-0 ml-1">
+        <div className="bg-[#EFECE6] dark:bg-[#0F141C] px-2.5 sm:px-4 py-2 border-b border-border/80 flex items-center justify-between gap-2 shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto scrollbar-none py-1 touch-pan-x flex-1 min-w-0">
+            <span className="text-[10px] font-black tracking-widest text-gray-500 shrink-0 ml-1 hidden xs:inline">
               📓 NOTEBOOK
             </span>
             {rules.map((r, idx) => {
@@ -207,7 +207,7 @@ export function FlatHqGuidebookModal({
                 <button
                   key={r.id}
                   onClick={() => setCurrentPage(idx)}
-                  className="px-2.5 py-1 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0"
+                  className="px-2 sm:px-2.5 py-1 rounded-xl text-[11px] sm:text-xs font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 touch-manipulation"
                   style={{
                     background: isSel ? r.color : "transparent",
                     color: isSel ? "#ffffff" : "var(--muted-foreground)",
@@ -223,45 +223,46 @@ export function FlatHqGuidebookModal({
 
           <button
             onClick={handleClose}
-            className="h-8 w-8 rounded-full flex items-center justify-center hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer shrink-0"
+            className="h-7 w-7 sm:h-8 sm:w-8 rounded-full flex items-center justify-center hover:bg-black/5 dark:hover:bg-white/5 transition-colors cursor-pointer shrink-0"
+            aria-label="Close Notebook"
           >
             <X className="w-4 h-4 text-gray-500" />
           </button>
         </div>
 
         {/* ── NOTEBOOK BODY (Ring Binder Spine + Ruled Paper) ── */}
-        <div className="flex min-h-[460px] max-h-[75vh] overflow-hidden">
+        <div className="flex flex-1 min-h-0 overflow-hidden">
           {/* Spiral Ring Binder Spine (Left Edge) */}
-          <div className="w-7 shrink-0 bg-[#E8E4DC] dark:bg-[#131822] border-r border-[#D6D0C4] dark:border-white/10 flex flex-col justify-around items-center py-4">
+          <div className="w-4 sm:w-7 shrink-0 bg-[#E8E4DC] dark:bg-[#131822] border-r border-[#D6D0C4] dark:border-white/10 flex flex-col justify-around items-center py-3 sm:py-4">
             {Array.from({ length: 9 }).map((_, i) => (
               <div
                 key={i}
-                className="w-3.5 h-2.5 rounded-full bg-gradient-to-br from-gray-400 via-slate-200 to-gray-600 shadow-sm"
+                className="w-2.5 h-1.5 sm:w-3.5 sm:h-2.5 rounded-full bg-gradient-to-br from-gray-400 via-slate-200 to-gray-600 shadow-sm"
               />
             ))}
           </div>
 
           {/* Ruled Paper Content Area */}
           <div
-            className="flex-1 overflow-y-auto px-6 sm:px-8 py-6 relative"
+            className="flex-1 overflow-y-auto px-3.5 sm:px-8 py-4 sm:py-6 relative"
             style={{
               backgroundImage:
                 "repeating-linear-gradient(transparent, transparent 27px, rgba(59, 130, 246, 0.06) 28px)",
             }}
           >
             {/* Pink / Rose vertical margin line */}
-            <div className="absolute top-0 bottom-0 left-4 w-px bg-rose-400/40 pointer-events-none" />
+            <div className="absolute top-0 bottom-0 left-2 sm:left-4 w-px bg-rose-400/40 pointer-events-none" />
 
             {/* Header: Rule number & Verified Stamp */}
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between gap-2 mb-2 sm:mb-3">
               <span
-                className="text-xs font-black uppercase tracking-widest"
+                className="text-[10px] sm:text-xs font-black uppercase tracking-wider sm:tracking-widest"
                 style={{ color: cur.color }}
               >
                 RULE #{cur.ruleNumber} • PAGE {currentPage + 1} OF 7
               </span>
               <span
-                className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md border"
+                className="text-[9px] sm:text-[10px] font-black uppercase px-2 py-0.5 rounded-md border shrink-0"
                 style={{
                   color: cur.color,
                   borderColor: `${cur.color}60`,
@@ -273,17 +274,17 @@ export function FlatHqGuidebookModal({
             </div>
 
             {/* Title & Tagline */}
-            <h2 className="text-xl sm:text-2xl font-black tracking-tight text-gray-900 dark:text-white">
+            <h2 className="text-lg sm:text-2xl font-black tracking-tight text-gray-900 dark:text-white leading-tight">
               {cur.title}
             </h2>
-            <p className="text-xs sm:text-sm font-semibold mt-1" style={{ color: cur.color }}>
+            <p className="text-xs sm:text-sm font-semibold mt-0.5 sm:mt-1" style={{ color: cur.color }}>
               {cur.tagline}
             </p>
 
-            <div className="my-5 space-y-4">
+            <div className="my-4 sm:my-5 space-y-3.5 sm:space-y-4">
               {/* 1. The Reality (Problem) */}
-              <div className="p-3.5 rounded-2xl bg-[#F3F0E9] dark:bg-[#222B38] border border-black/5 dark:border-white/5">
-                <div className="flex items-center gap-2 mb-1.5">
+              <div className="p-3 sm:p-3.5 rounded-2xl bg-[#F3F0E9] dark:bg-[#222B38] border border-black/5 dark:border-white/5">
+                <div className="flex items-center gap-2 mb-1">
                   <span>📌</span>
                   <span className="text-[10px] font-black tracking-wider text-gray-500 uppercase">
                     THE SITUATION
@@ -296,13 +297,13 @@ export function FlatHqGuidebookModal({
 
               {/* 2. The Golden House Rule */}
               <div
-                className="p-3.5 rounded-2xl border"
+                className="p-3 sm:p-3.5 rounded-2xl border"
                 style={{
                   background: `${cur.color}12`,
                   borderColor: `${cur.color}40`,
                 }}
               >
-                <div className="flex items-center gap-2 mb-1.5">
+                <div className="flex items-center gap-2 mb-1">
                   <span>⚖️</span>
                   <span
                     className="text-[10px] font-black tracking-wider uppercase"
@@ -350,20 +351,25 @@ export function FlatHqGuidebookModal({
         </div>
 
         {/* ── NOTEBOOK FOOTER CONTROLS ── */}
-        <div className="bg-[#EFECE6] dark:bg-[#0F141C] px-5 py-3 border-t border-border/80 flex items-center justify-between">
+        <div className="bg-[#EFECE6] dark:bg-[#0F141C] px-3 sm:px-5 py-2.5 sm:py-3 border-t border-border/80 flex items-center justify-between gap-2 shrink-0">
           <Button
             variant="ghost"
             size="sm"
             onClick={() => setCurrentPage((p) => Math.max(0, p - 1))}
             disabled={currentPage === 0}
-            className="gap-1 text-xs font-bold cursor-pointer"
+            className="gap-1 text-[11px] sm:text-xs font-bold cursor-pointer px-2 sm:px-3 h-8 sm:h-9"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
-            Prev Rule
+            <span className="hidden xs:inline">Prev</span> Rule
           </Button>
 
-          {/* Dots */}
-          <div className="flex items-center gap-1.5">
+          {/* Compact counter on mobile */}
+          <div className="flex sm:hidden items-center text-[11px] font-extrabold text-muted-foreground">
+            <span>{currentPage + 1} / {rules.length}</span>
+          </div>
+
+          {/* Dots on larger screens */}
+          <div className="hidden sm:flex items-center gap-1.5">
             {rules.map((_, i) => (
               <div
                 key={i}
@@ -380,17 +386,17 @@ export function FlatHqGuidebookModal({
             <Button
               size="sm"
               onClick={() => setCurrentPage((p) => p + 1)}
-              className="gap-1 text-xs font-bold text-white shadow-sm cursor-pointer"
+              className="gap-1 text-[11px] sm:text-xs font-bold text-white shadow-sm cursor-pointer px-2.5 sm:px-3 h-8 sm:h-9"
               style={{ background: cur.color }}
             >
-              Next Rule
+              <span className="hidden xs:inline">Next</span> Rule
               <ArrowRight className="w-3.5 h-3.5" />
             </Button>
           ) : (
             <Button
               size="sm"
               onClick={handleClose}
-              className="gap-1 text-xs font-black bg-amber-400 hover:bg-amber-500 text-black shadow-md cursor-pointer"
+              className="gap-1 text-[11px] sm:text-xs font-black bg-amber-400 hover:bg-amber-500 text-black shadow-md cursor-pointer px-2.5 sm:px-3 h-8 sm:h-9"
             >
               <Check className="w-3.5 h-3.5" />
               Got It! 🤝

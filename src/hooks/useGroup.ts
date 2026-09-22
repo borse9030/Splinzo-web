@@ -5,15 +5,21 @@ import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase/config";
 import { Group } from "@/types/group";
 
+// Module-level in-memory cache for instant 0ms tab switching & zero skeleton flash
+const groupCache = new Map<string, Group>();
+
 export function useGroup(groupId: string) {
-  const [group, setGroup] = useState<Group | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [group, setGroup] = useState<Group | null>(() => (groupId ? groupCache.get(groupId) || null : null));
+  const [loading, setLoading] = useState<boolean>(() => (groupId ? !groupCache.has(groupId) : true));
   const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
     if (!groupId) return;
 
-    setLoading(true);
+    // Only set loading true if we don't have cached data
+    if (!groupCache.has(groupId)) {
+      setLoading(true);
+    }
     const docRef = doc(db, "groups", groupId);
     
     const unsubscribe = onSnapshot(
@@ -31,7 +37,8 @@ export function useGroup(groupId: string) {
             members: rawMembers,
             memberIds: rawMemberIds,
           };
-          setGroup(safeGroup); // Initial fast render
+          groupCache.set(groupId, safeGroup);
+          setGroup(safeGroup); // Fast render from fresh snapshot
           
           // Enrich members with their actual photoUrl from the users collection
           if (rawMemberIds.length > 0) {
@@ -48,7 +55,9 @@ export function useGroup(groupId: string) {
                       }
                     : m;
                 });
-                setGroup({ ...safeGroup, members: enrichedMembers });
+                const finalGroup = { ...safeGroup, members: enrichedMembers };
+                groupCache.set(groupId, finalGroup);
+                setGroup(finalGroup);
               }).catch(err => console.error("Failed to enrich members:", err));
             });
           }
