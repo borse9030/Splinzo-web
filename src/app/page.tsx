@@ -886,6 +886,7 @@ export default function Home() {
                 <li><Link href="/about" className="hover:text-white transition-colors">About Us</Link></li>
                 <li><Link href="/privacy-policy" className="hover:text-white transition-colors">Privacy Policy</Link></li>
                 <li><Link href="/terms" className="hover:text-white transition-colors">Terms of Service</Link></li>
+                <li><Link href="/data-deletion" className="hover:text-white transition-colors">Data Deletion</Link></li>
                 <li><Link href="/contact" className="hover:text-white transition-colors">Contact Us</Link></li>
               </ul>
             </div>
@@ -897,6 +898,7 @@ export default function Home() {
               <Link href="/about" className="hover:text-white transition-colors">About</Link>
               <Link href="/privacy-policy" className="hover:text-white transition-colors">Privacy</Link>
               <Link href="/terms" className="hover:text-white transition-colors">Terms</Link>
+              <Link href="/data-deletion" className="hover:text-white transition-colors">Data Deletion</Link>
               <Link href="/contact" className="hover:text-white transition-colors">Contact</Link>
             </div>
           </div>

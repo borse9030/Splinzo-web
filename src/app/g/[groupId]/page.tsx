@@ -295,29 +295,29 @@ export default function PublicGroupSettlementPage({
                 <Card key={idx} className="border-none shadow-xs rounded-3xl overflow-hidden bg-white hover:shadow-md transition-shadow">
                   <CardContent className="p-5 sm:p-6 space-y-4">
                     {/* Top debtor -> creditor display */}
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-3">
-                        <Avatar className="h-11 w-11 border">
+                    <div className="flex items-center justify-between gap-3 flex-wrap sm:flex-nowrap">
+                      <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-wrap">
+                        <Avatar className="h-10 w-10 sm:h-11 sm:w-11 border shrink-0">
                           <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${s.fromUserId}`} />
                           <AvatarFallback className="font-bold">{s.fromUserName.charAt(0)}</AvatarFallback>
                         </Avatar>
 
-                        <div className="flex items-center gap-1.5 px-1">
+                        <div className="flex items-center gap-1.5 px-1 shrink-0">
                           <span className="text-xs text-slate-400 font-semibold">pays</span>
                           <ArrowRight className="h-3.5 w-3.5 text-slate-400" />
                         </div>
 
-                        <Avatar className="h-11 w-11 border border-emerald-200">
+                        <Avatar className="h-10 w-10 sm:h-11 sm:w-11 border border-emerald-200 shrink-0">
                           <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${s.toUserId}`} />
                           <AvatarFallback className="font-bold text-emerald-700 bg-emerald-50">{s.toUserName.charAt(0)}</AvatarFallback>
                         </Avatar>
 
-                        <div className="ml-1">
-                          <p className="text-sm font-bold text-slate-900 leading-tight">
+                        <div className="ml-1 min-w-0">
+                          <p className="text-sm font-bold text-slate-900 leading-tight truncate">
                             {s.fromUserName} &rarr; {s.toUserName}
                           </p>
                           {creditorUpi ? (
-                            <p className="text-[11px] text-slate-400 font-mono mt-0.5">
+                            <p className="text-[11px] text-slate-400 font-mono mt-0.5 truncate">
                               UPI: {creditorUpi}
                             </p>
                           ) : (
@@ -328,7 +328,7 @@ export default function PublicGroupSettlementPage({
                         </div>
                       </div>
 
-                      <div className="text-right">
+                      <div className="text-right shrink-0">
                         <div className="text-xl font-black text-slate-900">
                           {currencySymbol}{formattedAmt}
                         </div>

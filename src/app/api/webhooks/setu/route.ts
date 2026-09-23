@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerDb } from "@/lib/firebase/serverDb";
-import { doc, getDoc, updateDoc, collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, updateDoc, setDoc, collection, addDoc, serverTimestamp } from "firebase/firestore";
 
 export async function POST(req: NextRequest) {
   try {
@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
       if (paymentSnap.exists()) {
         const paymentData = paymentSnap.data();
 
-        // Mark payment as approved
+        // Mark master payment as approved
         await updateDoc(paymentRef, {
           status: "approved",
           approvedAt: serverTimestamp(),
@@ -35,12 +35,41 @@ export async function POST(req: NextRequest) {
           verifiedVia: "setu_webhook",
         });
 
+        // If batch settlement, create child approved records for each individual creditor
+        if (paymentData.type === "batch" && Array.isArray(paymentData.batchItems)) {
+          for (const item of paymentData.batchItems) {
+            const childPaymentId = `pay_sub_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+            const childRef = doc(db, "payments", childPaymentId);
+            await setDoc(childRef, {
+              id: childPaymentId,
+              groupId: paymentData.groupId,
+              fromUserId: paymentData.fromUserId,
+              fromUserName: paymentData.fromUserName,
+              toUserId: item.toUserId,
+              toUserName: item.toUserName,
+              amount: Number(item.amount),
+              platformFee: 0,
+              totalAmount: Number(item.amount),
+              status: "approved",
+              approvedAt: serverTimestamp(),
+              utr,
+              batchMasterId: paymentId,
+              verifiedVia: "setu_webhook_child",
+              createdAt: serverTimestamp(),
+            });
+          }
+        }
+
         // Add activity record in group
         if (paymentData.groupId) {
           try {
+            const activityMessage = paymentData.type === "batch"
+              ? `${paymentData.fromUserName} cleared all ${paymentData.batchItems?.length || "group"} dues (total ₹${paymentData.amount}) in 1 single UPI transaction (UTR: ${utr})`
+              : `${paymentData.fromUserName} settled ₹${paymentData.amount} with ${paymentData.toUserName} via Instant UPI (UTR: ${utr})`;
+
             await addDoc(collection(db, "groups", paymentData.groupId, "activities"), {
               type: "settlement_paid",
-              message: `${paymentData.fromUserName} settled ₹${paymentData.amount} with ${paymentData.toUserName} via Instant UPI (UTR: ${utr})`,
+              message: activityMessage,
               createdAt: serverTimestamp(),
             });
           } catch (e) {
