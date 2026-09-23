@@ -21,13 +21,91 @@ const RTC_CONFIG: RTCConfiguration = {
       credential: "openrelayproject",
     },
   ],
+  iceCandidatePoolSize: 10,
 };
+
+/**
+ * Modifies SDP to optimize Opus codec parameters for crystal-clear voice:
+ * - minptime=10 (low audio packetization delay)
+ * - useinbandfec=1 (Forward Error Correction to withstand packet loss)
+ * - usedtx=1 (Discontinuous Transmission to reduce background network congestion)
+ * - stereo=0 (forces mono speech channel, avoiding stereo phase cancellation)
+ * - sprop-stereo=0
+ * - maxaveragebitrate=64000 (high fidelity 64 kbps speech)
+ */
+function optimizeOpusSdp(sdp: string): string {
+  if (!sdp) return sdp;
+  const lines = sdp.split("\r\n");
+  let opusPt: string | null = null;
+
+  // Find Opus payload type from rtpmap
+  for (const line of lines) {
+    const match = line.match(/^a=rtpmap:(\d+)\s+opus\/48000/i);
+    if (match) {
+      opusPt = match[1];
+      break;
+    }
+  }
+
+  if (!opusPt) return sdp;
+
+  let fmtpFound = false;
+  const newLines = lines.map((line) => {
+    if (line.startsWith(`a=fmtp:${opusPt} `) || line.startsWith(`a=fmtp:${opusPt}=`)) {
+      fmtpFound = true;
+      const params = line.substring(`a=fmtp:${opusPt} `.length);
+      const desiredParams: Record<string, string> = {
+        minptime: "10",
+        useinbandfec: "1",
+        usedtx: "1",
+        stereo: "0",
+        "sprop-stereo": "0",
+        maxaveragebitrate: "64000",
+      };
+
+      const existingParts = params.split(";").filter((p) => p.trim().length > 0);
+      const parsed: Record<string, string> = {};
+      existingParts.forEach((p) => {
+        const [k, v] = p.split("=");
+        if (k && v !== undefined) parsed[k.trim()] = v.trim();
+      });
+
+      Object.assign(parsed, desiredParams);
+
+      const newParamStr = Object.entries(parsed)
+        .map(([k, v]) => `${k}=${v}`)
+        .join(";");
+
+      return `a=fmtp:${opusPt} ${newParamStr}`;
+    }
+    return line;
+  });
+
+  if (!fmtpFound) {
+    // Inject a=fmtp line right after a=rtpmap:<opusPt>
+    const result: string[] = [];
+    for (const line of newLines) {
+      result.push(line);
+      if (line.startsWith(`a=rtpmap:${opusPt} `)) {
+        result.push(
+          `a=fmtp:${opusPt} minptime=10;useinbandfec=1;usedtx=1;stereo=0;sprop-stereo=0;maxaveragebitrate=64000`
+        );
+      }
+    }
+    return result.join("\r\n");
+  }
+
+  return newLines.join("\r\n");
+}
 
 export class PeerManager {
   private pcs: Map<string, RTCPeerConnection> = new Map();
   private makingOfferFlags: Map<string, boolean> = new Map();
   private ignoreOfferFlags: Map<string, boolean> = new Map();
+  private offerRevisions: Map<string, number> = new Map();
   private lastHandledRevision: Map<string, number> = new Map();
+  private isProcessingNegotiation: Map<string, boolean> = new Map();
+  private hasPendingNegotiation: Map<string, boolean> = new Map();
 
   private localStream: MediaStream | null = null;
 
@@ -39,7 +117,6 @@ export class PeerManager {
   private candidateTimers: Map<string, ReturnType<typeof setTimeout>> = new Map();
   private candidateQueues: Map<string, RTCIceCandidateInit[]> = new Map();
   private candidateSubs: Map<string, () => void> = new Map();
-  private connectionStartTimes: Map<string, number> = new Map();
 
   public onRemoteStream?: (uid: string, stream: MediaStream) => void;
   public onPeerStateChange?: (uid: string, state: string) => void;
@@ -61,6 +138,31 @@ export class PeerManager {
   }
 
   /**
+   * Hot-swaps the local audio track (e.g. when changing microphone) across all active peer connections
+   * without renegotiation or call interruption.
+   */
+  async replaceLocalTrack(newTrack: MediaStreamTrack) {
+    if (this.localStream) {
+      const oldAudioTracks = this.localStream.getAudioTracks();
+      oldAudioTracks.forEach((t) => {
+        this.localStream!.removeTrack(t);
+        t.stop();
+      });
+      this.localStream.addTrack(newTrack);
+    }
+
+    const promises: Promise<void>[] = [];
+    this.pcs.forEach((pc) => {
+      pc.getSenders().forEach((sender) => {
+        if (sender.track && sender.track.kind === "audio") {
+          promises.push(sender.replaceTrack(newTrack));
+        }
+      });
+    });
+    await Promise.all(promises);
+  }
+
+  /**
    * Whether this peer is "polite" (answers) vs "impolite" (offers).
    * Determined by lexicographic UID comparison — matches Android convention (myUid.compareTo(remoteUid) > 0).
    */
@@ -76,7 +178,6 @@ export class PeerManager {
     this.makingOfferFlags.set(remoteUid, false);
     this.ignoreOfferFlags.set(remoteUid, false);
     this.candidateQueues.set(remoteUid, []);
-    this.connectionStartTimes.set(remoteUid, Date.now());
 
     pc.onicecandidate = ({ candidate }) => {
       // Ignore null and empty candidates (such as end-of-gathering notifications)
@@ -89,21 +190,8 @@ export class PeerManager {
       this.onPeerStateChange?.(remoteUid, pc.connectionState);
     };
 
-    pc.onnegotiationneeded = async () => {
-      try {
-        this.makingOfferFlags.set(remoteUid, true);
-        const offer = await pc.createOffer();
-        if (pc.signalingState !== "stable") return; // rolled back already
-        await pc.setLocalDescription(offer);
-        await CallService.sendOffer(
-          this.groupId, this.callId, this.myUid, remoteUid,
-          pc.localDescription!.sdp, pc.localDescription!.type, Date.now()
-        );
-      } catch (e) {
-        console.error("[PeerManager] onnegotiationneeded error", e);
-      } finally {
-        this.makingOfferFlags.set(remoteUid, false);
-      }
+    pc.onnegotiationneeded = () => {
+      this.triggerNegotiation(remoteUid);
     };
 
     pc.ontrack = ({ streams, track }) => {
@@ -123,7 +211,10 @@ export class PeerManager {
 
     // Subscribe to ICE candidates from this remote peer
     const unsub = CallService.watchCandidatesFrom(
-      this.groupId, this.callId, remoteUid, this.myUid,
+      this.groupId,
+      this.callId,
+      remoteUid,
+      this.myUid,
       (data) => this.applyRemoteCandidate(remoteUid, data)
     );
     this.candidateSubs.set(remoteUid, unsub);
@@ -131,21 +222,69 @@ export class PeerManager {
     return pc;
   }
 
+  private async triggerNegotiation(remoteUid: string) {
+    const pc = this.pcs.get(remoteUid);
+    if (!pc || pc.signalingState === "closed") return;
+
+    this.hasPendingNegotiation.set(remoteUid, true);
+    if (this.isProcessingNegotiation.get(remoteUid)) return;
+
+    this.isProcessingNegotiation.set(remoteUid, true);
+    try {
+      while (this.hasPendingNegotiation.get(remoteUid)) {
+        this.hasPendingNegotiation.set(remoteUid, false);
+        this.makingOfferFlags.set(remoteUid, true);
+
+        try {
+          const offer = await pc.createOffer();
+          if (pc.signalingState !== "stable") break;
+
+          const optimizedSdp = optimizeOpusSdp(offer.sdp || "");
+          await pc.setLocalDescription({ type: offer.type, sdp: optimizedSdp });
+
+          const nextRev = (this.offerRevisions.get(remoteUid) || 0) + 1;
+          this.offerRevisions.set(remoteUid, nextRev);
+
+          await CallService.sendOffer(
+            this.groupId,
+            this.callId,
+            this.myUid,
+            remoteUid,
+            pc.localDescription!.sdp,
+            pc.localDescription!.type,
+            nextRev
+          );
+        } finally {
+          this.makingOfferFlags.set(remoteUid, false);
+        }
+      }
+    } catch (e) {
+      console.error(`[PeerManager] triggerNegotiation error for ${remoteUid}`, e);
+    } finally {
+      this.isProcessingNegotiation.set(remoteUid, false);
+    }
+  }
+
   private bufferIceCandidate(remoteUid: string, candidate: any) {
     if (!this.candidateBuffers.has(remoteUid)) this.candidateBuffers.set(remoteUid, []);
     this.candidateBuffers.get(remoteUid)!.push(candidate);
 
     if (!this.candidateTimers.has(remoteUid)) {
+      // 80ms debounced batching for swift ICE transmission
       const timer = setTimeout(async () => {
         const batch = this.candidateBuffers.get(remoteUid) || [];
         this.candidateBuffers.set(remoteUid, []);
         this.candidateTimers.delete(remoteUid);
         if (batch.length > 0) {
           await CallService.sendCandidateBatch(
-            this.groupId, this.callId, this.myUid, remoteUid, batch
+            this.groupId,
+            this.callId,
+            this.myUid,
+            remoteUid,
+            batch
           );
         }
-      }, 400);
+      }, 80);
       this.candidateTimers.set(remoteUid, timer);
     }
   }
@@ -159,24 +298,16 @@ export class PeerManager {
       return;
     }
 
-    // 2. Ignore stale candidates from prior connections / sessions (matches Flutter's ice_manager.dart)
-    const startTime = this.connectionStartTimes.get(remoteUid) ?? 0;
-    const createdAt = typeof data.createdAt === "number" ? data.createdAt : 0;
-    // Allow small clock skew (5s) between devices
-    if (createdAt > 0 && startTime > 0 && createdAt < startTime - 5000) {
-      return;
-    }
-
-    // 3. Normalize sdpMid and sdpMLineIndex safely
-    const sdpMLineIndex = typeof data.sdpMLineIndex === "number"
-      ? data.sdpMLineIndex
-      : typeof data.sdpMLineIndex === "string"
+    // 2. Normalize sdpMid and sdpMLineIndex safely
+    const sdpMLineIndex =
+      typeof data.sdpMLineIndex === "number"
+        ? data.sdpMLineIndex
+        : typeof data.sdpMLineIndex === "string"
         ? parseInt(data.sdpMLineIndex, 10)
         : null;
 
-    const sdpMid = data.sdpMid !== undefined && data.sdpMid !== null
-      ? String(data.sdpMid)
-      : null;
+    const sdpMid =
+      data.sdpMid !== undefined && data.sdpMid !== null ? String(data.sdpMid) : null;
 
     // Both cannot be null per WebRTC specification
     if (sdpMid === null && (sdpMLineIndex === null || isNaN(sdpMLineIndex))) {
@@ -242,8 +373,7 @@ export class PeerManager {
         }
 
         const offerCollision =
-          this.makingOfferFlags.get(data.from) ||
-          pc.signalingState !== "stable";
+          this.makingOfferFlags.get(data.from) || pc.signalingState !== "stable";
 
         this.ignoreOfferFlags.set(data.from, !polite && offerCollision);
         if (this.ignoreOfferFlags.get(data.from)) return;
@@ -260,13 +390,19 @@ export class PeerManager {
         await this.drainCandidateQueue(data.from);
 
         const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
+        const optimizedAnswerSdp = optimizeOpusSdp(answer.sdp || "");
+        await pc.setLocalDescription({ type: answer.type, sdp: optimizedAnswerSdp });
         await CallService.sendAnswer(
-          this.groupId, this.callId, this.myUid, data.from,
-          pc.localDescription!.sdp, pc.localDescription!.type, data.revision
+          this.groupId,
+          this.callId,
+          this.myUid,
+          data.from,
+          pc.localDescription!.sdp,
+          pc.localDescription!.type,
+          data.revision
         );
       } else if (data.role === "answer") {
-        // Only process if we're not already stable
+        // Only process if we have a local offer
         if (pc.signalingState !== "have-local-offer") return;
         await pc.setRemoteDescription(
           new RTCSessionDescription({ type: data.type as RTCSdpType, sdp: data.sdp })
@@ -281,7 +417,6 @@ export class PeerManager {
   /** Explicitly create a PC and trigger onnegotiationneeded (impolite peer only) */
   async connectTo(remoteUid: string) {
     await this.getOrCreatePc(remoteUid);
-    // onnegotiationneeded fires automatically if we are the impolite peer
   }
 
   dispose() {
@@ -309,8 +444,10 @@ export class PeerManager {
     this.candidateBuffers.clear();
     this.makingOfferFlags.clear();
     this.ignoreOfferFlags.clear();
+    this.offerRevisions.clear();
     this.lastHandledRevision.clear();
-    this.connectionStartTimes.clear();
+    this.isProcessingNegotiation.clear();
+    this.hasPendingNegotiation.clear();
 
     if (this.localStream) {
       this.localStream.getTracks().forEach((t) => t.stop());

@@ -9,6 +9,7 @@ import { CookieConsent } from "@/components/common/CookieConsent";
 import { ErrorHandler } from "@/components/common/ErrorHandler";
 import { CallProvider } from "@/contexts/CallContext";
 import { GlobalCallOverlay } from "@/components/call/GlobalCallOverlay";
+import { CallAudioRenderer } from "@/components/call/CallAudioRenderer";
 import { OrganizationSchema, WebApplicationSchema, FaqSchema } from "@/components/seo/JsonLd";
 import { FAQS } from "@/data/faqs";
 
@@ -133,6 +134,7 @@ export default function RootLayout({
           <AuthProvider>
             <AuthGuard>
               <CallProvider>
+                <CallAudioRenderer />
                 <GlobalCallOverlay />
                 {children}
                 <CookieConsent />

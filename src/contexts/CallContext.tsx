@@ -30,13 +30,33 @@ interface CallContextType {
   isOngoingHover: boolean;
   isJoined: boolean;
   isConnecting: boolean;
+  isMuted: boolean;
+
+  // Desktop audio & speaker controls
+  isSpeakerOn: boolean;
+  speakerVolume: number; // 0.0 to 1.5
+  isDeafened: boolean;
+  selectedAudioInput: string;
+  selectedAudioOutput: string;
+  audioInputs: MediaDeviceInfo[];
+  audioOutputs: MediaDeviceInfo[];
+  localAudioLevel: number; // 0-100
+  remoteAudioLevels: Record<string, number>; // 0-100
+  needsAudioUnlock: boolean;
+
+  // Actions
   acceptCall: () => Promise<void>;
   declineCall: () => Promise<void>;
   dismissOngoingCall: (callId: string) => void;
   endCall: () => Promise<void>;
   startCall: (groupId: string, groupName: string) => Promise<void>;
   toggleMute: () => void;
-  isMuted: boolean;
+  toggleSpeaker: () => void;
+  toggleDeafen: () => void;
+  setSpeakerVolume: (vol: number) => void;
+  setAudioInputDevice: (deviceId: string) => Promise<void>;
+  setAudioOutputDevice: (deviceId: string) => Promise<void>;
+  unlockAudio: () => Promise<void>;
 }
 
 const CallContext = createContext<CallContextType | undefined>(undefined);
@@ -54,6 +74,18 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   const [isMuted, setIsMuted] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
 
+  // Audio routing & desktop speaker states
+  const [isSpeakerOn, setIsSpeakerOn] = useState(true);
+  const [speakerVolume, setSpeakerVolumeState] = useState(1.0);
+  const [isDeafened, setIsDeafened] = useState(false);
+  const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([]);
+  const [audioOutputs, setAudioOutputs] = useState<MediaDeviceInfo[]>([]);
+  const [selectedAudioInput, setSelectedAudioInput] = useState<string>("");
+  const [selectedAudioOutput, setSelectedAudioOutput] = useState<string>("");
+  const [localAudioLevel, setLocalAudioLevel] = useState<number>(0);
+  const [remoteAudioLevels, setRemoteAudioLevels] = useState<Record<string, number>>({});
+  const [needsAudioUnlock, setNeedsAudioUnlock] = useState(false);
+
   const peerManagerRef = useRef<PeerManager | null>(null);
   const signalUnsubRef = useRef<(() => void) | null>(null);
   const groupCallUnsubsRef = useRef<(() => void)[]>([]);
@@ -64,6 +96,12 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   const groupIdsRef = useRef<string[]>([]); // stable ref used by watchActiveCall
   const ringAudioRef = useRef<HTMLAudioElement | null>(null);
   const ringbackAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Web Audio Context for volume analysis
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const localAnalyserRef = useRef<AnalyserNode | null>(null);
+  const remoteAnalysersRef = useRef<Map<string, AnalyserNode>>(new Map());
+  const meterIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [dismissedCallIds, setDismissedCallIds] = useState<Set<string>>(() => {
     if (typeof window === "undefined") return new Set();
@@ -117,6 +155,38 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     !activeCall.participants?.includes(appUser?.id ?? "") &&
     activeCall.participants.length > 0;
 
+  // ── Audio Device Enumeration ─────────────────────────────────────────
+  const refreshAudioDevices = useCallback(async () => {
+    if (typeof navigator === "undefined" || !navigator.mediaDevices?.enumerateDevices) return;
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const inputs = devices.filter((d) => d.kind === "audioinput");
+      const outputs = devices.filter((d) => d.kind === "audiooutput");
+
+      setAudioInputs(inputs);
+      setAudioOutputs(outputs);
+
+      if (inputs.length > 0 && !selectedAudioInput) {
+        setSelectedAudioInput(inputs[0].deviceId);
+      }
+      if (outputs.length > 0 && !selectedAudioOutput) {
+        const savedOutput = typeof localStorage !== "undefined" ? localStorage.getItem("splinzo_audio_output") : null;
+        const exists = outputs.some((o) => o.deviceId === savedOutput);
+        setSelectedAudioOutput(exists && savedOutput ? savedOutput : outputs[0].deviceId);
+      }
+    } catch (e) {
+      console.warn("[refreshAudioDevices]", e);
+    }
+  }, [selectedAudioInput, selectedAudioOutput]);
+
+  useEffect(() => {
+    refreshAudioDevices();
+    if (typeof navigator !== "undefined" && navigator.mediaDevices) {
+      navigator.mediaDevices.addEventListener("devicechange", refreshAudioDevices);
+      return () => navigator.mediaDevices.removeEventListener("devicechange", refreshAudioDevices);
+    }
+  }, [refreshAudioDevices]);
+
   // ── Ringtone for incoming call ─────────────────────────────────────────
   useEffect(() => {
     if (isRinging) {
@@ -125,7 +195,10 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         ringAudioRef.current.loop = true;
         ringAudioRef.current.volume = 0.8;
       }
-      ringAudioRef.current.play().catch((e) => console.log("[Ringtone] Auto-play prevented:", e));
+      ringAudioRef.current.play().catch((e) => {
+        console.log("[Ringtone] Auto-play prevented:", e);
+        setNeedsAudioUnlock(true);
+      });
     } else {
       if (ringAudioRef.current) {
         ringAudioRef.current.pause();
@@ -149,7 +222,10 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         ringbackAudioRef.current.loop = true;
         ringbackAudioRef.current.volume = 0.6;
       }
-      ringbackAudioRef.current.play().catch((e) => console.log("[Ringback] Auto-play prevented:", e));
+      ringbackAudioRef.current.play().catch((e) => {
+        console.log("[Ringback] Auto-play prevented:", e);
+        setNeedsAudioUnlock(true);
+      });
     } else {
       if (ringbackAudioRef.current) {
         ringbackAudioRef.current.pause();
@@ -176,8 +252,6 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   }, [user?.uid]);
 
   // ── Fetch user's group IDs directly from Firestore ────────────────────
-  // Uses the Firebase Auth `user` (which has .uid) directly, bypassing
-  // useGroups to avoid any hook loading race conditions.
   useEffect(() => {
     if (!user?.uid) { setGroupIds([]); return; }
 
@@ -203,7 +277,6 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       const uid = myUidRef.current;
       if (!call || !uid || !isJoinedRef.current) return;
 
-      // sendBeacon is the only API that reliably fires on tab/window close
       const payload = JSON.stringify({ groupId: call.groupId, callId: call.id, uid });
       navigator.sendBeacon("/api/call-leave", new Blob([payload], { type: "application/json" }));
     };
@@ -245,6 +318,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       groupCallUnsubsRef.current = [];
     };
   }, [appUser?.id, groupIds.join(",")]);
+
   // ── React to participant changes once joined ──────────────────────────
   useEffect(() => {
     if (!activeCall || !isJoined || !appUser || !peerManagerRef.current) return;
@@ -256,28 +330,128 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     });
   }, [activeCall?.participants.join(","), isJoined]);
 
-  const getMediaStream = useCallback(async (): Promise<MediaStream> => {
-    if (localStream) return localStream;
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: false,
-      audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
-      },
-    });
-    setLocalStream(stream);
-    return stream;
-  }, [localStream]);
+  // ── Real-time Audio Level Analyzer (Web Audio API) ────────────────────
+  useEffect(() => {
+    if (!isJoined) {
+      if (meterIntervalRef.current) {
+        clearInterval(meterIntervalRef.current);
+        meterIntervalRef.current = null;
+      }
+      setLocalAudioLevel(0);
+      setRemoteAudioLevels({});
+      return;
+    }
+
+    try {
+      if (!audioContextRef.current || audioContextRef.current.state === "closed") {
+        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      }
+      const ctx = audioContextRef.current;
+
+      // Connect local mic
+      if (localStream && !isMuted) {
+        try {
+          const source = ctx.createMediaStreamSource(localStream);
+          const analyser = ctx.createAnalyser();
+          analyser.fftSize = 128;
+          source.connect(analyser);
+          localAnalyserRef.current = analyser;
+        } catch (e) {
+          console.warn("[LocalAudioAnalyser]", e);
+        }
+      } else {
+        localAnalyserRef.current = null;
+      }
+
+      // Connect remote streams
+      Object.entries(remoteStreams).forEach(([uid, stream]) => {
+        if (!remoteAnalysersRef.current.has(uid) && stream.getAudioTracks().length > 0) {
+          try {
+            const source = ctx.createMediaStreamSource(stream);
+            const analyser = ctx.createAnalyser();
+            analyser.fftSize = 128;
+            source.connect(analyser);
+            remoteAnalysersRef.current.set(uid, analyser);
+          } catch (e) {
+            console.warn(`[RemoteAudioAnalyser:${uid}]`, e);
+          }
+        }
+      });
+
+      // Periodic meter poll
+      if (!meterIntervalRef.current) {
+        meterIntervalRef.current = setInterval(() => {
+          // Local level
+          if (localAnalyserRef.current) {
+            const buf = new Uint8Array(localAnalyserRef.current.frequencyBinCount);
+            localAnalyserRef.current.getByteFrequencyData(buf);
+            let sum = 0;
+            for (let i = 0; i < buf.length; i++) sum += buf[i];
+            const avg = sum / (buf.length || 1);
+            setLocalAudioLevel(Math.min(100, Math.round((avg / 128) * 100)));
+          } else {
+            setLocalAudioLevel(0);
+          }
+
+          // Remote levels
+          const remotes: Record<string, number> = {};
+          remoteAnalysersRef.current.forEach((analyser, uid) => {
+            const buf = new Uint8Array(analyser.frequencyBinCount);
+            analyser.getByteFrequencyData(buf);
+            let sum = 0;
+            for (let i = 0; i < buf.length; i++) sum += buf[i];
+            const avg = sum / (buf.length || 1);
+            remotes[uid] = Math.min(100, Math.round((avg / 128) * 100));
+          });
+          setRemoteAudioLevels(remotes);
+        }, 120);
+      }
+    } catch (e) {
+      console.warn("[AudioContext setup]", e);
+    }
+
+    return () => {
+      if (meterIntervalRef.current) {
+        clearInterval(meterIntervalRef.current);
+        meterIntervalRef.current = null;
+      }
+    };
+  }, [isJoined, localStream, isMuted, remoteStreams]);
+
+  // ── Acquire audio stream with pristine voice constraints ───────────────
+  const getMediaStream = useCallback(
+    async (deviceId?: string): Promise<MediaStream> => {
+      const constraints: MediaStreamConstraints = {
+        video: false,
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          channelCount: { ideal: 1 },
+          sampleRate: { ideal: 48000 },
+          ...(deviceId ? { deviceId: { exact: deviceId } } : {}),
+        },
+      };
+
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      setLocalStream(stream);
+
+      // Re-enumerate audio devices now that mic permission is granted
+      refreshAudioDevices();
+      return stream;
+    },
+    [refreshAudioDevices]
+  );
 
   // ── Initialise PeerManager after joining ─────────────────────────────
   const initPeerManager = useCallback(
     (call: CallSession, uid: string, stream: MediaStream) => {
-      if (peerManagerRef.current) return; // already initialised
+      if (peerManagerRef.current) return;
 
       const pm = new PeerManager(call.groupId, call.id, uid);
-      pm.onRemoteStream = (remoteUid, s) =>
+      pm.onRemoteStream = (remoteUid, s) => {
         setRemoteStreams((prev) => ({ ...prev, [remoteUid]: s }));
+      };
       pm.setLocalStream(stream);
       peerManagerRef.current = pm;
 
@@ -308,6 +482,15 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       ringbackAudioRef.current.currentTime = 0;
     }
 
+    if (meterIntervalRef.current) {
+      clearInterval(meterIntervalRef.current);
+      meterIntervalRef.current = null;
+    }
+    localAnalyserRef.current = null;
+    remoteAnalysersRef.current.clear();
+    setLocalAudioLevel(0);
+    setRemoteAudioLevels({});
+
     sessionUnsubRef.current?.();
     sessionUnsubRef.current = null;
     signalUnsubRef.current?.();
@@ -320,6 +503,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     setIsJoined(false);
     setIsConnecting(false);
     setIsMuted(false);
+    setNeedsAudioUnlock(false);
     setRemoteStreams({});
     setLocalStream((prev) => {
       prev?.getTracks().forEach((t) => t.stop());
@@ -328,17 +512,23 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // ── Subscribe to a specific call session (used by caller) ────────────
-  const subscribeToSession = useCallback((groupId: string, callId: string) => {
-    sessionUnsubRef.current?.();
-    sessionUnsubRef.current = CallService.watchCallSession(groupId, callId, (call) => {
-      if (!call) { handleCallEnded(); return; }
-      if (call.status === "ended" || call.status === "cancelled") {
-        handleCallEnded();
-        return;
-      }
-      setActiveCall(call);
-    });
-  }, [handleCallEnded]);
+  const subscribeToSession = useCallback(
+    (groupId: string, callId: string) => {
+      sessionUnsubRef.current?.();
+      sessionUnsubRef.current = CallService.watchCallSession(groupId, callId, (call) => {
+        if (!call) {
+          handleCallEnded();
+          return;
+        }
+        if (call.status === "ended" || call.status === "cancelled") {
+          handleCallEnded();
+          return;
+        }
+        setActiveCall(call);
+      });
+    },
+    [handleCallEnded]
+  );
 
   // ── Accept an incoming call ───────────────────────────────────────────
   const acceptCall = useCallback(async () => {
@@ -346,7 +536,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     if (!call || !appUser) return;
     setIsConnecting(true);
     try {
-      const stream = await getMediaStream();
+      const stream = await getMediaStream(selectedAudioInput || undefined);
       await CallService.joinCall(
         call.groupId,
         call.id,
@@ -363,23 +553,20 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsConnecting(false);
     }
-  }, [appUser, getMediaStream, initPeerManager, subscribeToSession, router]);
+  }, [appUser, getMediaStream, selectedAudioInput, initPeerManager, subscribeToSession, router]);
 
   // ── Decline an incoming call ──────────────────────────────────────────
   const declineCall = useCallback(async () => {
     const call = activeCallRef.current;
     const uid = myUidRef.current;
 
-    // Immediately stop ring audio
     if (ringAudioRef.current) {
       ringAudioRef.current.pause();
       ringAudioRef.current.currentTime = 0;
     }
 
     if (call && uid) {
-      // Mark as dismissed locally so it doesn't ring or hover again
       dismissOngoingCall(call.id);
-      // Record rejection in Firestore for this user only — NEVER cancel the group call for others
       CallService.rejectCall(call.groupId, call.id, uid);
     }
 
@@ -392,15 +579,12 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     const uid = myUidRef.current;
     if (!call || !uid) return;
 
-    // Optimistic UI: Tear down and navigate instantly
     handleCallEnded();
     router.push("/dashboard");
 
-    // Run backend teardown in the background
     Promise.resolve().then(async () => {
       try {
         if (call.status === "ringing" && call.callerId === uid) {
-          // Caller hung up before anyone answered
           await CallService.cancelCall(call.groupId, call.id);
         } else if (call.participants.length <= 1) {
           await CallService.endCall(call.groupId, call.id);
@@ -420,7 +604,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       if (!appUser) return;
       setIsConnecting(true);
       try {
-        const stream = await getMediaStream();
+        const stream = await getMediaStream(selectedAudioInput || undefined);
         const { callId } = await CallService.startCall(
           groupId,
           groupName,
@@ -429,7 +613,6 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
           appUser.photoUrl || ""
         );
 
-        // Immediately bootstrap the call state
         const callDoc = await new Promise<CallSession | null>((resolve) => {
           const unsub = CallService.watchCallSession(groupId, callId, (c) => {
             unsub();
@@ -449,7 +632,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         setIsConnecting(false);
       }
     },
-    [appUser, getMediaStream, initPeerManager, subscribeToSession, router]
+    [appUser, getMediaStream, selectedAudioInput, initPeerManager, subscribeToSession, router]
   );
 
   // ── Toggle mute ───────────────────────────────────────────────────────
@@ -460,6 +643,73 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     });
     setIsMuted((prev) => !prev);
   }, [localStream]);
+
+  // ── Desktop Speaker Mode & Audio Routing ─────────────────────────────
+  const toggleSpeaker = useCallback(() => {
+    setIsSpeakerOn((prev) => {
+      const next = !prev;
+      setSpeakerVolumeState(next ? 1.0 : 0.75);
+      return next;
+    });
+  }, []);
+
+  const toggleDeafen = useCallback(() => {
+    setIsDeafened((prev) => !prev);
+  }, []);
+
+  const setSpeakerVolume = useCallback((vol: number) => {
+    const clamped = Math.max(0, Math.min(1.5, vol));
+    setSpeakerVolumeState(clamped);
+  }, []);
+
+  const setAudioInputDevice = useCallback(
+    async (deviceId: string) => {
+      setSelectedAudioInput(deviceId);
+      try {
+        const newStream = await navigator.mediaDevices.getUserMedia({
+          video: false,
+          audio: {
+            deviceId: { exact: deviceId },
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+            channelCount: { ideal: 1 },
+            sampleRate: { ideal: 48000 },
+          },
+        });
+        const newTrack = newStream.getAudioTracks()[0];
+        if (newTrack) {
+          newTrack.enabled = !isMuted;
+          if (peerManagerRef.current) {
+            await peerManagerRef.current.replaceLocalTrack(newTrack);
+          }
+          setLocalStream(newStream);
+        }
+      } catch (e) {
+        console.error("[setAudioInputDevice] failed:", e);
+      }
+    },
+    [isMuted]
+  );
+
+  const setAudioOutputDevice = useCallback(async (deviceId: string) => {
+    setSelectedAudioOutput(deviceId);
+    try {
+      if (typeof localStorage !== "undefined") {
+        localStorage.setItem("splinzo_audio_output", deviceId);
+      }
+    } catch {}
+  }, []);
+
+  const unlockAudio = useCallback(async () => {
+    if (audioContextRef.current && audioContextRef.current.state === "suspended") {
+      await audioContextRef.current.resume();
+    }
+    if (ringAudioRef.current) {
+      ringAudioRef.current.play().catch(() => {});
+    }
+    setNeedsAudioUnlock(false);
+  }, []);
 
   return (
     <CallContext.Provider
@@ -472,12 +722,28 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         isJoined,
         isConnecting,
         isMuted,
+        isSpeakerOn,
+        speakerVolume,
+        isDeafened,
+        selectedAudioInput,
+        selectedAudioOutput,
+        audioInputs,
+        audioOutputs,
+        localAudioLevel,
+        remoteAudioLevels,
+        needsAudioUnlock,
         acceptCall,
         declineCall,
         dismissOngoingCall,
         endCall,
         startCall,
         toggleMute,
+        toggleSpeaker,
+        toggleDeafen,
+        setSpeakerVolume,
+        setAudioInputDevice,
+        setAudioOutputDevice,
+        unlockAudio,
       }}
     >
       {children}
