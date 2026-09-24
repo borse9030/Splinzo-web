@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { Home, Users, User as UserIcon, Settings, Inbox, LifeBuoy } from "lucide-react";
+import { Home, Users, User as UserIcon, Settings, Inbox, LifeBuoy, Smartphone } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useInvitations } from "@/hooks/useInvitations";
 import { motion } from "framer-motion";
@@ -20,6 +20,7 @@ export function Navigation() {
   const links = [
     { name: "Home",     href: "/dashboard",             icon: Home,     exact: true  },
     { name: "Groups",   href: "/dashboard/groups",       icon: Users,    exact: false, activeOn: "/dashboard/groups" },
+    { name: "Contacts", href: "/dashboard/contacts",     icon: Smartphone, exact: false },
     { name: "Activity", href: "/dashboard/activity",  icon: Inbox,    badge: invitations?.length || 0, exact: false },
     { name: "Support",  href: "/dashboard/support",   icon: LifeBuoy, exact: false },
     { name: "Profile",  href: "/dashboard/profile",      icon: UserIcon, exact: false },

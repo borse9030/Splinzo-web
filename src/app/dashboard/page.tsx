@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useGroups } from "@/hooks/useGroups";
 import { motion } from "framer-motion";
-import { Plus, ChevronRight, Users, TrendingDown, TrendingUp, Wallet, LogIn } from "lucide-react";
+import { Plus, ChevronRight, Users, TrendingDown, TrendingUp, Wallet, LogIn, Smartphone } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { DashboardBannerAd } from "@/components/ads/DashboardBannerAd";
@@ -234,6 +234,45 @@ export default function DashboardPage() {
       {/* ══ AD BANNER ═════════════════════════════════════ */}
       <motion.div variants={fadeUp}>
         <DashboardBannerAd />
+      </motion.div>
+
+      {/* ══ SPLIT VIA CONTACTS QUICK CARD ═════════════════ */}
+      <motion.div variants={fadeUp}>
+        <Link href="/dashboard/contacts">
+          <div
+            className="p-4 sm:p-5 rounded-3xl border flex items-center justify-between transition-all hover:shadow-md cursor-pointer group"
+            style={{
+              background: "var(--card)",
+              borderColor: "var(--border)",
+            }}
+          >
+            <div className="flex items-center gap-4">
+              <div
+                className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-sm"
+                style={{ background: "#FFF8E1", color: "#F9A000" }}
+              >
+                <Smartphone className="w-6 h-6 text-amber-500" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-extrabold text-sm sm:text-base group-hover:text-amber-500 transition-colors" style={{ color: "var(--foreground)" }}>
+                    Split with Contacts
+                  </h3>
+                  <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400">
+                    NEW
+                  </span>
+                </div>
+                <p className="text-xs font-medium text-gray-500 mt-0.5">
+                  Sync phone contacts, 1-on-1 split by phone number & settle via UPI QR
+                </p>
+              </div>
+            </div>
+
+            <div className="w-8 h-8 rounded-full flex items-center justify-center border text-gray-400 group-hover:text-amber-500 group-hover:border-amber-400 transition-all shrink-0">
+              <ChevronRight className="w-4 h-4" />
+            </div>
+          </div>
+        </Link>
       </motion.div>
 
       {/* ══ GROUPS SECTION ═══════════════════════════════ */}
