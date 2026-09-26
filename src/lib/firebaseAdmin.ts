@@ -7,14 +7,55 @@ let adminDb: Firestore | null = null;
 let adminMessaging: Messaging | null = null;
 
 export function getRuntimeEnv(key: string): string {
-  try {
-    if (process.env[key]) return process.env[key]!.trim();
-    const realProcessEnv = eval("process.env") as Record<string, string | undefined>;
-    if (realProcessEnv && realProcessEnv[key]) {
-      return realProcessEnv[key]!.trim();
-    }
-  } catch (_) {}
-  return "";
+  let val: string | undefined;
+
+  // 1. Explicit static property access for Next.js bundler static analysis
+  switch (key) {
+    case "FIREBASE_SERVICE_ACCOUNT_KEY":
+      val = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+      break;
+    case "NEXT_PUBLIC_FIREBASE_SERVICE_ACCOUNT_KEY":
+      val = process.env.NEXT_PUBLIC_FIREBASE_SERVICE_ACCOUNT_KEY;
+      break;
+    case "FIREBASE_SERVICE_ACCOUNT":
+      val = process.env.FIREBASE_SERVICE_ACCOUNT;
+      break;
+    case "FIREBASE_ADMIN_KEY":
+      val = process.env.FIREBASE_ADMIN_KEY;
+      break;
+    case "FIREBASE_PRIVATE_KEY":
+      val = process.env.FIREBASE_PRIVATE_KEY;
+      break;
+    case "NEXT_PUBLIC_FIREBASE_PRIVATE_KEY":
+      val = process.env.NEXT_PUBLIC_FIREBASE_PRIVATE_KEY;
+      break;
+    case "FIREBASE_CLIENT_EMAIL":
+      val = process.env.FIREBASE_CLIENT_EMAIL;
+      break;
+    case "NEXT_PUBLIC_FIREBASE_CLIENT_EMAIL":
+      val = process.env.NEXT_PUBLIC_FIREBASE_CLIENT_EMAIL;
+      break;
+    case "NEXT_PUBLIC_FIREBASE_PROJECT_ID":
+      val = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+      break;
+    case "GOOGLE_APPLICATION_CREDENTIALS":
+      val = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+      break;
+    default:
+      val = process.env[key];
+  }
+
+  // 2. Global process fallback (Node.js runtime on Vercel)
+  if (!val) {
+    try {
+      const g = (globalThis as any).process || (typeof process !== "undefined" ? process : null);
+      if (g?.env) {
+        val = g.env[key];
+      }
+    } catch (_) {}
+  }
+
+  return (val || "").trim();
 }
 
 export function getFirebaseAdmin(): { db: Firestore | null; messaging: Messaging | null; isConfigured: boolean } {
@@ -24,20 +65,43 @@ export function getFirebaseAdmin(): { db: Firestore | null; messaging: Messaging
 
   const serviceAccountKey =
     getRuntimeEnv("FIREBASE_SERVICE_ACCOUNT_KEY") ||
+    getRuntimeEnv("NEXT_PUBLIC_FIREBASE_SERVICE_ACCOUNT_KEY") ||
     getRuntimeEnv("FIREBASE_SERVICE_ACCOUNT") ||
     getRuntimeEnv("FIREBASE_ADMIN_KEY") ||
     getRuntimeEnv("GOOGLE_APPLICATION_CREDENTIALS");
-  const privateKey = getRuntimeEnv("FIREBASE_PRIVATE_KEY");
-  const clientEmail = getRuntimeEnv("FIREBASE_CLIENT_EMAIL");
+  const privateKey =
+    getRuntimeEnv("FIREBASE_PRIVATE_KEY") ||
+    getRuntimeEnv("NEXT_PUBLIC_FIREBASE_PRIVATE_KEY");
+  const clientEmail =
+    getRuntimeEnv("FIREBASE_CLIENT_EMAIL") ||
+    getRuntimeEnv("NEXT_PUBLIC_FIREBASE_CLIENT_EMAIL");
   const projectId = getRuntimeEnv("NEXT_PUBLIC_FIREBASE_PROJECT_ID") || "splinzo";
 
   if (serviceAccountKey) {
     try {
       let raw = serviceAccountKey.trim();
+      // Remove wrapping single or double quotes if pasted from shell or .env
+      if (
+        (raw.startsWith("'") && raw.endsWith("'")) ||
+        (raw.startsWith('"') && raw.endsWith('"'))
+      ) {
+        raw = raw.slice(1, -1).trim();
+      }
+      // If base64 encoded
       if (!raw.startsWith("{")) {
         try {
-          raw = Buffer.from(raw, "base64").toString("utf-8").trim();
+          const decoded = Buffer.from(raw, "base64").toString("utf-8").trim();
+          if (decoded.startsWith("{")) {
+            raw = decoded;
+          }
         } catch (_) {}
+      }
+      // Clean quotes again if base64 decoding revealed quoted JSON
+      if (
+        (raw.startsWith("'") && raw.endsWith("'")) ||
+        (raw.startsWith('"') && raw.endsWith('"'))
+      ) {
+        raw = raw.slice(1, -1).trim();
       }
       const parsed = JSON.parse(raw);
       if (parsed.private_key && typeof parsed.private_key === "string") {
@@ -57,11 +121,18 @@ export function getFirebaseAdmin(): { db: Firestore | null; messaging: Messaging
 
   if (privateKey && clientEmail) {
     try {
+      let cleanPrivKey = privateKey.trim();
+      if (
+        (cleanPrivKey.startsWith("'") && cleanPrivKey.endsWith("'")) ||
+        (cleanPrivKey.startsWith('"') && cleanPrivKey.endsWith('"'))
+      ) {
+        cleanPrivKey = cleanPrivKey.slice(1, -1).trim();
+      }
       adminApp = initializeApp({
         credential: cert({
           projectId,
           clientEmail,
-          privateKey: privateKey.replace(/\\n/g, "\n"),
+          privateKey: cleanPrivKey.replace(/\\n/g, "\n"),
         }),
       });
       adminDb = getFirestore(adminApp);
@@ -80,9 +151,11 @@ export function getFirebaseAdmin(): { db: Firestore | null; messaging: Messaging
 export function hasFirebaseAdminCredentials(): boolean {
   return !!(
     getRuntimeEnv("FIREBASE_SERVICE_ACCOUNT_KEY") ||
+    getRuntimeEnv("NEXT_PUBLIC_FIREBASE_SERVICE_ACCOUNT_KEY") ||
     getRuntimeEnv("FIREBASE_SERVICE_ACCOUNT") ||
     getRuntimeEnv("FIREBASE_ADMIN_KEY") ||
     (getRuntimeEnv("FIREBASE_PRIVATE_KEY") && getRuntimeEnv("FIREBASE_CLIENT_EMAIL")) ||
+    (getRuntimeEnv("NEXT_PUBLIC_FIREBASE_PRIVATE_KEY") && getRuntimeEnv("NEXT_PUBLIC_FIREBASE_CLIENT_EMAIL")) ||
     getRuntimeEnv("GOOGLE_APPLICATION_CREDENTIALS")
   );
 }
