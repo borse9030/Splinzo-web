@@ -11,7 +11,11 @@ export function getFirebaseAdmin(): { db: Firestore | null; messaging: Messaging
     return { db: adminDb, messaging: adminMessaging, isConfigured: true };
   }
 
-  const serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+  const serviceAccountKey =
+    process.env.FIREBASE_SERVICE_ACCOUNT_KEY ||
+    process.env.FIREBASE_SERVICE_ACCOUNT ||
+    process.env.FIREBASE_ADMIN_KEY ||
+    process.env.GOOGLE_APPLICATION_CREDENTIALS;
   const privateKey = process.env.FIREBASE_PRIVATE_KEY;
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
   const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "splinzo";
@@ -65,6 +69,8 @@ export function getFirebaseAdmin(): { db: Firestore | null; messaging: Messaging
 export function hasFirebaseAdminCredentials(): boolean {
   return !!(
     process.env.FIREBASE_SERVICE_ACCOUNT_KEY ||
+    process.env.FIREBASE_SERVICE_ACCOUNT ||
+    process.env.FIREBASE_ADMIN_KEY ||
     (process.env.FIREBASE_PRIVATE_KEY && process.env.FIREBASE_CLIENT_EMAIL) ||
     process.env.GOOGLE_APPLICATION_CREDENTIALS
   );

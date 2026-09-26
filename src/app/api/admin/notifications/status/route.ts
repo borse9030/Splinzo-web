@@ -14,8 +14,13 @@ export async function OPTIONS() {
 }
 
 export async function GET(req: NextRequest) {
-  const rawKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY || "";
-  const hasCreds = hasFirebaseAdminCredentials();
+  const rawKey =
+    process.env.FIREBASE_SERVICE_ACCOUNT_KEY ||
+    process.env.FIREBASE_SERVICE_ACCOUNT ||
+    process.env.FIREBASE_ADMIN_KEY ||
+    process.env.GOOGLE_APPLICATION_CREDENTIALS ||
+    "";
+
   let parsedSuccess = false;
   let clientEmail = "";
   let projectId = "";
@@ -39,12 +44,19 @@ export async function GET(req: NextRequest) {
   }
 
   const { isConfigured } = getFirebaseAdmin();
+  const existingEnvKeys = Object.keys(process.env).filter(
+    (k) =>
+      k.toLowerCase().includes("firebase") ||
+      k.toLowerCase().includes("service") ||
+      k.toLowerCase().includes("admin")
+  );
 
   return NextResponse.json(
     {
       isConfigured,
       hasEnvVar: rawKey.length > 0,
       envKeyLength: rawKey.length,
+      existingEnvKeys,
       parsedSuccess,
       clientEmail,
       projectId,
