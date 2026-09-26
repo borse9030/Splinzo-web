@@ -25,6 +25,8 @@ import {
   PartyPopper,
   Info,
   Copy,
+  AlertCircle,
+  ShieldCheck,
 } from "lucide-react";
 
 interface UserOption {
@@ -121,6 +123,12 @@ export default function PushStudioPage() {
   const [isSending, setIsSending] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [sendResult, setSendResult] = useState<any>(null);
+  const [alertModal, setAlertModal] = useState<{
+    title: string;
+    message: string;
+    type: "error" | "warning" | "success";
+    showGuide?: boolean;
+  } | null>(null);
 
   // History state
   const [campaigns, setCampaigns] = useState<CampaignRecord[]>([]);
@@ -229,13 +237,30 @@ export default function PushStudioPage() {
 
       const data = await res.json();
       if (!res.ok || data.error) {
-        alert(data.error || "Failed to dispatch notifications.");
+        setAlertModal({
+          title: "Broadcast Notice",
+          message: data.error || "Failed to dispatch notifications.",
+          type: "error",
+          showGuide: data.error?.includes("credentials") || data.error?.includes("default"),
+        });
       } else {
         setSendResult(data);
         loadHistory();
+        if (data.warning) {
+          setAlertModal({
+            title: "Saved to Inboxes & Audiences",
+            message: data.warning,
+            type: "warning",
+            showGuide: true,
+          });
+        }
       }
     } catch (err: any) {
-      alert("Network error: " + err.message);
+      setAlertModal({
+        title: "Network Error",
+        message: err.message || "Failed to communicate with notification broadcast server.",
+        type: "error",
+      });
     } finally {
       setIsSending(false);
     }
@@ -866,6 +891,77 @@ export default function PushStudioPage() {
                 className="px-5 py-2.5 rounded-xl bg-[#F9B912] hover:bg-[#eab00f] text-gray-950 font-black text-xs shadow-md"
               >
                 Yes, Send Now 🚀
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── ALERT / NOTICE MODAL ── */}
+      {alertModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 border border-gray-100">
+            <div className="flex items-center gap-3">
+              <div
+                className={`p-3 rounded-2xl ${
+                  alertModal.type === "error"
+                    ? "bg-rose-100 text-rose-700"
+                    : alertModal.type === "warning"
+                    ? "bg-amber-100 text-amber-800"
+                    : "bg-emerald-100 text-emerald-800"
+                }`}
+              >
+                {alertModal.type === "error" ? (
+                  <AlertCircle size={22} />
+                ) : alertModal.type === "warning" ? (
+                  <AlertTriangle size={22} />
+                ) : (
+                  <CheckCircle2 size={22} />
+                )}
+              </div>
+              <div>
+                <h3 className="text-base font-black text-gray-950">{alertModal.title}</h3>
+                <p className="text-xs text-gray-500">Splinzo Push Notification Engine</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-gray-700 leading-relaxed">{alertModal.message}</p>
+
+            {alertModal.showGuide && (
+              <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200 text-xs space-y-2 text-amber-950">
+                <p className="font-bold flex items-center gap-1.5 text-amber-900">
+                  <ShieldCheck size={16} className="text-amber-700" />
+                  How to Enable Direct Device Push in Vercel:
+                </p>
+                <ol className="list-decimal pl-4 space-y-1 text-amber-900/90 leading-normal">
+                  <li>Open <b>Firebase Console</b> &rarr; Project Settings &rarr; <b>Service Accounts</b> tab.</li>
+                  <li>Click <b>&ldquo;Generate new private key&rdquo;</b> (downloads a JSON file).</li>
+                  <li>Open your <b>Vercel Project Dashboard</b> &rarr; Settings &rarr; <b>Environment Variables</b>.</li>
+                  <li>Add Variable Name: <code className="bg-amber-100 px-1 py-0.5 rounded font-mono font-bold text-amber-900">FIREBASE_SERVICE_ACCOUNT_KEY</code></li>
+                  <li>Value: <i>Paste the full content of the downloaded JSON file</i> &rarr; Save &rarr; Redeploy.</li>
+                </ol>
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              {alertModal.showGuide && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText("FIREBASE_SERVICE_ACCOUNT_KEY");
+                    alert("Copied 'FIREBASE_SERVICE_ACCOUNT_KEY' to clipboard!");
+                  }}
+                  className="px-4 py-2.5 rounded-xl border border-gray-200 text-xs font-bold text-gray-700 hover:bg-gray-50 transition"
+                >
+                  Copy Env Name
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setAlertModal(null)}
+                className="px-5 py-2.5 rounded-xl bg-gray-950 hover:bg-gray-900 text-white font-bold text-xs shadow-md transition"
+              >
+                Understood
               </button>
             </div>
           </div>

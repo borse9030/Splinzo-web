@@ -1,70 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { initializeApp, getApps, cert } from "firebase-admin/app";
-import { getFirestore } from "firebase-admin/firestore";
-import { getMessaging } from "firebase-admin/messaging";
-
-// Initialize Firebase Admin safely singleton
-function getFirebaseAdmin() {
-  if (getApps().length > 0) {
-    return {
-      db: getFirestore(),
-      messaging: getMessaging(),
-    };
-  }
-
-  const serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
-  const privateKey = process.env.FIREBASE_PRIVATE_KEY;
-  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-  const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "splinzo";
-
-  if (serviceAccountKey) {
-    try {
-      const parsed = JSON.parse(serviceAccountKey);
-      initializeApp({
-        credential: cert(parsed),
-        projectId,
-      });
-      return {
-        db: getFirestore(),
-        messaging: getMessaging(),
-      };
-    } catch (e) {
-      console.error("[notify/route] Failed to parse FIREBASE_SERVICE_ACCOUNT_KEY:", e);
-    }
-  }
-
-  if (privateKey && clientEmail) {
-    try {
-      initializeApp({
-        credential: cert({
-          projectId,
-          clientEmail,
-          privateKey: privateKey.replace(/\\n/g, "\n"),
-        }),
-      });
-      return {
-        db: getFirestore(),
-        messaging: getMessaging(),
-      };
-    } catch (e) {
-      console.error("[notify/route] Failed to initialize with privateKey/clientEmail:", e);
-    }
-  }
-
-  // Fallback to default application credentials
-  try {
-    initializeApp({
-      projectId,
-    });
-  } catch (e) {
-    console.warn("[notify/route] initializeApp() fallback notice:", e);
-  }
-
-  return {
-    db: getFirestore(),
-    messaging: getMessaging(),
-  };
-}
+import { getFirebaseAdmin } from "@/lib/firebaseAdmin";
+import { getServerDb } from "@/lib/firebase/serverDb";
+import { doc, getDoc } from "firebase/firestore";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -96,18 +33,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { db, messaging } = getFirebaseAdmin();
+    const db = getServerDb();
+    const { messaging, isConfigured } = getFirebaseAdmin();
 
     // 1. Fetch group members
-    const groupDoc = await db.collection("groups").doc(groupId).get();
-    if (!groupDoc.exists) {
+    const groupSnap = await getDoc(doc(db, "groups", groupId));
+    if (!groupSnap.exists()) {
       return NextResponse.json(
         { error: "Group not found" },
         { status: 404, headers: corsHeaders }
       );
     }
 
-    const groupData = groupDoc.data() || {};
+    const groupData = groupSnap.data() || {};
     let targetMemberIds: string[] = [];
 
     if (Array.isArray(groupData.memberIds)) {
@@ -130,14 +68,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 2. Fetch FCM tokens for target members using high-speed batched getAll
-    const refs = targetMemberIds.map((uid) => db.collection("users").doc(uid));
-    const userDocs = await db.getAll(...refs);
+    // 2. Fetch FCM tokens for target members
+    const userDocs = await Promise.all(
+      targetMemberIds.map((uid) => getDoc(doc(db, "users", uid)))
+    );
 
     const tokenSet = new Set<string>();
-    userDocs.forEach((doc: any) => {
-      if (doc.exists) {
-        const token = doc.data()?.fcmToken;
+    userDocs.forEach((uDoc) => {
+      if (uDoc.exists()) {
+        const token = uDoc.data()?.fcmToken;
         if (token && typeof token === "string" && token.trim().length > 0) {
           tokenSet.add(token.trim());
         }
@@ -150,6 +89,19 @@ export async function POST(req: NextRequest) {
       console.log(`[FCM Notify] Group ${groupId} members have no registered FCM tokens.`);
       return NextResponse.json(
         { success: true, message: "No registered FCM tokens found for members" },
+        { headers: corsHeaders }
+      );
+    }
+
+    if (!isConfigured || !messaging) {
+      console.warn("[FCM Notify] FIREBASE_SERVICE_ACCOUNT_KEY not configured on server. In-app call listeners will handle ringing.");
+      return NextResponse.json(
+        {
+          success: true,
+          action,
+          message: "Presence alert ready (FCM credentials pending on server)",
+          total: tokens.length,
+        },
         { headers: corsHeaders }
       );
     }

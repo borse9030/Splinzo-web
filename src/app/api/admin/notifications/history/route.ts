@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getFirebaseAdmin } from "@/lib/firebaseAdmin";
+import { getServerDb } from "@/lib/firebase/serverDb";
+import { collection, getDocs, query, orderBy, limit } from "firebase/firestore";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -13,12 +14,13 @@ export async function OPTIONS() {
 
 export async function GET(req: NextRequest) {
   try {
-    const { db } = getFirebaseAdmin();
-    const snap = await db
-      .collection("notification_campaigns")
-      .orderBy("createdAt", "desc")
-      .limit(30)
-      .get();
+    const db = getServerDb();
+    const q = query(
+      collection(db, "notification_campaigns"),
+      orderBy("createdAt", "desc"),
+      limit(30)
+    );
+    const snap = await getDocs(q);
 
     const campaigns = snap.docs.map((doc) => {
       const data = doc.data();

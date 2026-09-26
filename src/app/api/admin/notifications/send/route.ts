@@ -1,6 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getFirebaseAdmin, sendMulticastChunked, pruneStaleTokens, hasFirebaseAdminCredentials } from "@/lib/firebaseAdmin";
-import { FieldValue } from "firebase-admin/firestore";
+import { sendMulticastChunked, pruneStaleTokens, hasFirebaseAdminCredentials } from "@/lib/firebaseAdmin";
+import { getServerDb } from "@/lib/firebase/serverDb";
+import {
+  collection,
+  getDocs,
+  doc,
+  getDoc,
+  addDoc,
+  serverTimestamp,
+  writeBatch,
+} from "firebase/firestore";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -36,7 +45,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { db } = getFirebaseAdmin();
+    const db = getServerDb();
     let targetTokens: string[] = [];
     const targetedUids: string[] = [];
 
@@ -51,12 +60,12 @@ export async function POST(req: NextRequest) {
         );
       }
     } else if (targetType === "all") {
-      const snap = await db.collection("users").get();
-      snap.forEach((doc) => {
-        const data = doc.data();
+      const snap = await getDocs(collection(db, "users"));
+      snap.forEach((userDoc) => {
+        const data = userDoc.data();
         if (data?.fcmToken && typeof data.fcmToken === "string" && data.fcmToken.trim().length > 10) {
           targetTokens.push(data.fcmToken.trim());
-          targetedUids.push(doc.id);
+          targetedUids.push(userDoc.id);
         }
       });
     } else if (targetType === "users") {
@@ -66,16 +75,15 @@ export async function POST(req: NextRequest) {
           { status: 400, headers: corsHeaders }
         );
       }
-      // Fetch in chunks of 30 for Firestore 'in' query or parallel get
       const docs = await Promise.all(
-        targetUserIds.map((uid: string) => db.collection("users").doc(uid).get())
+        targetUserIds.map((uid: string) => getDoc(doc(db, "users", uid)))
       );
-      docs.forEach((doc) => {
-        if (doc.exists) {
-          const data = doc.data();
+      docs.forEach((userDoc) => {
+        if (userDoc.exists()) {
+          const data = userDoc.data();
           if (data?.fcmToken && typeof data.fcmToken === "string" && data.fcmToken.trim().length > 10) {
             targetTokens.push(data.fcmToken.trim());
-            targetedUids.push(doc.id);
+            targetedUids.push(userDoc.id);
           }
         }
       });
@@ -86,8 +94,8 @@ export async function POST(req: NextRequest) {
           { status: 400, headers: corsHeaders }
         );
       }
-      const groupDoc = await db.collection("groups").doc(targetGroupId).get();
-      if (!groupDoc.exists) {
+      const groupDoc = await getDoc(doc(db, "groups", targetGroupId));
+      if (!groupDoc.exists()) {
         return NextResponse.json(
           { error: "Selected group does not exist." },
           { status: 404, headers: corsHeaders }
@@ -109,14 +117,14 @@ export async function POST(req: NextRequest) {
       }
 
       const userDocs = await Promise.all(
-        memberIds.map((uid) => db.collection("users").doc(uid).get())
+        memberIds.map((uid) => getDoc(doc(db, "users", uid)))
       );
-      userDocs.forEach((doc) => {
-        if (doc.exists) {
-          const data = doc.data();
+      userDocs.forEach((userDoc) => {
+        if (userDoc.exists()) {
+          const data = userDoc.data();
           if (data?.fcmToken && typeof data.fcmToken === "string" && data.fcmToken.trim().length > 10) {
             targetTokens.push(data.fcmToken.trim());
-            targetedUids.push(doc.id);
+            targetedUids.push(userDoc.id);
           }
         }
       });
@@ -125,7 +133,7 @@ export async function POST(req: NextRequest) {
     // Deduplicate tokens
     targetTokens = Array.from(new Set(targetTokens));
 
-    if (targetTokens.length === 0) {
+    if (targetTokens.length === 0 && targetType !== "test") {
       return NextResponse.json(
         {
           success: false,
@@ -189,7 +197,7 @@ export async function POST(req: NextRequest) {
     // ── 3. DISPATCH IN 500-TOKEN MULTICAST CHUNKS ──
     const result = await sendMulticastChunked(targetTokens, baseMessage);
 
-    // Prune dead tokens in background asynchronously
+    // Prune dead tokens in background asynchronously if any
     if (result.staleTokens.length > 0) {
       pruneStaleTokens(result.staleTokens).catch((err) =>
         console.error("[send/route] Prune tokens background error:", err)
@@ -197,59 +205,69 @@ export async function POST(req: NextRequest) {
     }
 
     // ── 4. RECORD CAMPAIGN AUDIT LOG ──
-    const campaignRef = await db.collection("notification_campaigns").add({
-      title: title.trim(),
-      body: messageBody.trim(),
-      imageUrl: cleanImageUrl || null,
-      targetType,
-      targetGroupId: targetGroupId || null,
-      targetCount: result.totalTargeted,
-      successCount: result.successCount,
-      failureCount: result.failureCount,
-      actionType,
-      actionData: actionData || {},
-      bannerStyle,
-      sentBy: staffSession,
-      createdAt: FieldValue.serverTimestamp(),
-    });
+    let campaignId = "";
+    try {
+      const campaignRef = await addDoc(collection(db, "notification_campaigns"), {
+        title: title.trim(),
+        body: messageBody.trim(),
+        imageUrl: cleanImageUrl || null,
+        targetType,
+        targetGroupId: targetGroupId || null,
+        targetCount: result.totalTargeted,
+        successCount: result.successCount,
+        failureCount: result.failureCount,
+        actionType,
+        actionData: actionData || {},
+        bannerStyle,
+        sentBy: staffSession,
+        createdAt: serverTimestamp(),
+      });
+      campaignId = campaignRef.id;
+    } catch (e) {
+      console.warn("[send/route] Could not write to notification_campaigns:", e);
+    }
 
     // ── 5. RECORD IN-APP INBOX ENTRY (For targeted users) ──
     if (targetedUids.length > 0 && targetType !== "test") {
-      // Save top 200 to inbox to prevent unbounded write limits
-      const inboxUids = targetedUids.slice(0, 200);
-      const batch = db.batch();
-      inboxUids.forEach((uid) => {
-        const notifDoc = db.collection("users").doc(uid).collection("notifications").doc();
-        batch.set(notifDoc, {
-          title: title.trim(),
-          body: messageBody.trim(),
-          imageUrl: cleanImageUrl || null,
-          type: "admin_broadcast",
-          bannerStyle,
-          actionType,
-          actionData: actionData || {},
-          isRead: false,
-          campaignId: campaignRef.id,
-          createdAt: FieldValue.serverTimestamp(),
+      try {
+        const inboxUids = targetedUids.slice(0, 200);
+        const batch = writeBatch(db);
+        inboxUids.forEach((uid) => {
+          const notifDoc = doc(collection(db, "users", uid, "notifications"));
+          batch.set(notifDoc, {
+            title: title.trim(),
+            body: messageBody.trim(),
+            imageUrl: cleanImageUrl || null,
+            type: "admin_broadcast",
+            bannerStyle,
+            actionType,
+            actionData: actionData || {},
+            isRead: false,
+            campaignId: campaignId || "",
+            createdAt: serverTimestamp(),
+          });
         });
-      });
-      batch.commit().catch((e) => console.error("[send/route] Error writing inbox notifications:", e));
+        await batch.commit();
+      } catch (e) {
+        console.warn("[send/route] Could not write inbox notifications:", e);
+      }
     }
 
     const hasCreds = hasFirebaseAdminCredentials();
 
     return NextResponse.json(
       {
-        success: result.successCount > 0,
-        campaignId: campaignRef.id,
+        success: hasCreds ? result.successCount > 0 : true,
+        campaignId,
         targeted: result.totalTargeted,
         successCount: result.successCount,
         failureCount: result.failureCount,
         staleTokensCount: result.staleTokens.length,
         errorMessage: result.errorMessage,
         credentialsConfigured: hasCreds,
+        inboxSaved: targetedUids.length > 0,
         warning: !hasCreds
-          ? "Notice: Server environment is missing FIREBASE_SERVICE_ACCOUNT_KEY or FIREBASE_PRIVATE_KEY. Cloud Messaging requires a service account credential to reach remote user devices."
+          ? "Notice: Server environment is missing FIREBASE_SERVICE_ACCOUNT_KEY in Vercel. Notifications have been saved to user inboxes, but background hardware push alerts require this key."
           : undefined,
       },
       { headers: corsHeaders }

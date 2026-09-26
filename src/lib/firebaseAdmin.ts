@@ -6,16 +6,9 @@ let adminApp: App | null = null;
 let adminDb: Firestore | null = null;
 let adminMessaging: Messaging | null = null;
 
-export function getFirebaseAdmin(): { db: Firestore; messaging: Messaging } {
+export function getFirebaseAdmin(): { db: Firestore | null; messaging: Messaging | null; isConfigured: boolean } {
   if (adminDb && adminMessaging) {
-    return { db: adminDb, messaging: adminMessaging };
-  }
-
-  if (getApps().length > 0) {
-    adminApp = getApps()[0];
-    adminDb = getFirestore(adminApp);
-    adminMessaging = getMessaging(adminApp);
-    return { db: adminDb, messaging: adminMessaging };
+    return { db: adminDb, messaging: adminMessaging, isConfigured: true };
   }
 
   const serviceAccountKey = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
@@ -32,7 +25,7 @@ export function getFirebaseAdmin(): { db: Firestore; messaging: Messaging } {
       });
       adminDb = getFirestore(adminApp);
       adminMessaging = getMessaging(adminApp);
-      return { db: adminDb, messaging: adminMessaging };
+      return { db: adminDb, messaging: adminMessaging, isConfigured: true };
     } catch (e) {
       console.error("[firebaseAdmin] Failed to parse FIREBASE_SERVICE_ACCOUNT_KEY:", e);
     }
@@ -49,25 +42,15 @@ export function getFirebaseAdmin(): { db: Firestore; messaging: Messaging } {
       });
       adminDb = getFirestore(adminApp);
       adminMessaging = getMessaging(adminApp);
-      return { db: adminDb, messaging: adminMessaging };
+      return { db: adminDb, messaging: adminMessaging, isConfigured: true };
     } catch (e) {
       console.error("[firebaseAdmin] Failed to initialize with privateKey/clientEmail:", e);
     }
   }
 
-  // Fallback to project ID / default application credentials
-  try {
-    adminApp = initializeApp({
-      projectId,
-    });
-  } catch (e) {
-    console.warn("[firebaseAdmin] initializeApp() fallback notice:", e);
-    adminApp = getApps()[0] || null;
-  }
-
-  adminDb = getFirestore(adminApp!);
-  adminMessaging = getMessaging(adminApp!);
-  return { db: adminDb, messaging: adminMessaging };
+  // If no service account credentials, DO NOT call initializeApp() without credentials
+  // because that triggers Application Default Credentials (ADC) lookup which crashes on Vercel
+  return { db: null, messaging: null, isConfigured: false };
 }
 
 export function hasFirebaseAdminCredentials(): boolean {
@@ -84,6 +67,7 @@ export interface MulticastResult {
   failureCount: number;
   staleTokens: string[];
   errorMessage?: string;
+  isConfigured: boolean;
 }
 
 /**
@@ -93,14 +77,26 @@ export async function sendMulticastChunked(
   tokens: string[],
   baseMessage: Omit<MulticastMessage, "tokens">
 ): Promise<MulticastResult> {
-  const { messaging } = getFirebaseAdmin();
+  const { messaging, isConfigured } = getFirebaseAdmin();
+  const uniqueTokens = Array.from(new Set(tokens.filter((t) => t && t.trim().length > 0)));
+
+  if (!isConfigured || !messaging) {
+    console.warn("[firebaseAdmin] Firebase Admin credentials not set. Skipping FCM push.");
+    return {
+      totalTargeted: uniqueTokens.length,
+      successCount: 0,
+      failureCount: 0,
+      staleTokens: [],
+      errorMessage: "FCM credentials not configured on server (missing FIREBASE_SERVICE_ACCOUNT_KEY). Notifications saved to inboxes.",
+      isConfigured: false,
+    };
+  }
+
   const chunkSize = 500;
   let successCount = 0;
   let failureCount = 0;
   let lastErrorMessage: string | undefined;
   const staleTokens: string[] = [];
-
-  const uniqueTokens = Array.from(new Set(tokens.filter((t) => t && t.trim().length > 0)));
 
   for (let i = 0; i < uniqueTokens.length; i += chunkSize) {
     const chunk = uniqueTokens.slice(i, i + chunkSize);
@@ -140,6 +136,7 @@ export async function sendMulticastChunked(
     failureCount,
     staleTokens,
     errorMessage: lastErrorMessage,
+    isConfigured: true,
   };
 }
 
@@ -149,6 +146,7 @@ export async function sendMulticastChunked(
 export async function pruneStaleTokens(staleTokens: string[]) {
   if (!staleTokens || staleTokens.length === 0) return;
   const { db } = getFirebaseAdmin();
+  if (!db) return;
   try {
     const batches = [];
     for (const token of staleTokens) {
