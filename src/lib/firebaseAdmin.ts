@@ -105,7 +105,10 @@ export function getFirebaseAdmin(): { db: Firestore | null; messaging: Messaging
       }
       const parsed = JSON.parse(raw);
       if (parsed.private_key && typeof parsed.private_key === "string") {
-        parsed.private_key = parsed.private_key.replace(/\\n/g, "\n");
+        parsed.private_key = parsed.private_key
+          .replace(/\\n/g, "\n")
+          .replace(/-----BEGIN[ _]PRIVATE[ _]KEY-----/g, "-----BEGIN PRIVATE KEY-----")
+          .replace(/-----END[ _]PRIVATE[ _]KEY-----/g, "-----END PRIVATE KEY-----");
       }
       adminApp = initializeApp({
         credential: cert(parsed),
@@ -128,11 +131,15 @@ export function getFirebaseAdmin(): { db: Firestore | null; messaging: Messaging
       ) {
         cleanPrivKey = cleanPrivKey.slice(1, -1).trim();
       }
+      cleanPrivKey = cleanPrivKey
+        .replace(/\\n/g, "\n")
+        .replace(/-----BEGIN[ _]PRIVATE[ _]KEY-----/g, "-----BEGIN PRIVATE KEY-----")
+        .replace(/-----END[ _]PRIVATE[ _]KEY-----/g, "-----END PRIVATE KEY-----");
       adminApp = initializeApp({
         credential: cert({
           projectId,
           clientEmail,
-          privateKey: cleanPrivKey.replace(/\\n/g, "\n"),
+          privateKey: cleanPrivKey,
         }),
       });
       adminDb = getFirestore(adminApp);
