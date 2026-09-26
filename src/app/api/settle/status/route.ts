@@ -89,8 +89,8 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Check Setu directly if linkId exists
-    if (linkId) {
+    // Check Setu directly ONLY if it is a paid Setu link and not a free P2P UPI session
+    if (linkId && !linkId.startsWith("free_upi_")) {
       const setuStatus = await setuClient.checkPaymentStatus(linkId);
       if (setuStatus.status === "PAID") {
         const utr = setuStatus.utr || `UPI${Date.now()}`;
@@ -114,13 +114,13 @@ export async function GET(req: NextRequest) {
 }
 
 /**
- * Endpoint for instant testing in sandbox/mock mode
+ * Endpoint for confirming direct P2P payments or sandbox simulation
  */
 export async function POST(req: NextRequest) {
   try {
-    const { paymentId, simulateSuccess } = await req.json();
-    if (!paymentId || !simulateSuccess) {
-      return NextResponse.json({ error: "Invalid simulation request" }, { status: 400, headers: corsHeaders });
+    const { paymentId, simulateSuccess, confirmDirectPayment, utr } = await req.json();
+    if (!paymentId || (!simulateSuccess && !confirmDirectPayment)) {
+      return NextResponse.json({ error: "Invalid confirmation request" }, { status: 400, headers: corsHeaders });
     }
 
     const db = getServerDb();
@@ -132,15 +132,21 @@ export async function POST(req: NextRequest) {
     }
 
     const payment = paymentSnap.data();
-    const mockUtr = `SIM${Math.floor(100000000000 + Math.random() * 900000000000)}`;
+    const resolvedUtr = utr && typeof utr === "string" && utr.trim().length > 0
+      ? utr.trim()
+      : (confirmDirectPayment
+          ? `UPI${Math.floor(100000000000 + Math.random() * 900000000000)}`
+          : `SIM${Math.floor(100000000000 + Math.random() * 900000000000)}`);
 
-    await approvePaymentAndUnpackBatch(db, paymentRef, payment, mockUtr, "setu_simulation");
+    const verificationTag = confirmDirectPayment ? "direct_upi_free" : "setu_simulation";
+
+    await approvePaymentAndUnpackBatch(db, paymentRef, payment, resolvedUtr, verificationTag);
 
     return NextResponse.json(
       {
         success: true,
         status: "PAID",
-        utr: mockUtr,
+        utr: resolvedUtr,
       },
       { headers: corsHeaders }
     );

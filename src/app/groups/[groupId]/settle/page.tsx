@@ -67,6 +67,7 @@ interface SetuData {
   feeTier?: "instant" | "free_ad";
   adWatched?: boolean;
   isSimulated: boolean;
+  isFreeDirectUpi?: boolean;
 }
 
 export default function SettleUpPage({
@@ -102,6 +103,8 @@ export default function SettleUpPage({
   const [batchShowMobileQr, setBatchShowMobileQr] = useState(false);
   const [batchShowAdModal, setBatchShowAdModal] = useState(false);
   const [batchCopiedUpi, setBatchCopiedUpi] = useState(false);
+  const [confirmingPayment, setConfirmingPayment] = useState(false);
+  const [batchConfirmingPayment, setBatchConfirmingPayment] = useState(false);
 
   // Other UI States
   const [filterTab, setFilterTab] = useState<"all" | "toPay" | "toCollect">("all");
@@ -281,6 +284,30 @@ export default function SettleUpPage({
     }
   };
 
+  const handleConfirmDirectPayment = async () => {
+    if (!setuData?.paymentId) return;
+    setConfirmingPayment(true);
+    try {
+      const res = await fetch("/api/settle/status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          paymentId: setuData.paymentId,
+          confirmDirectPayment: true,
+        }),
+      });
+      const data = await res.json();
+      if (data.status === "PAID") {
+        setPaymentStatus("paid");
+        setVerifiedUtr(data.utr || "UPI_DIRECT_VERIFIED");
+      }
+    } catch (e) {
+      console.error("Failed to confirm direct payment:", e);
+    } finally {
+      setConfirmingPayment(false);
+    }
+  };
+
 
 
   // Handle opening BATCH Multi-Settlement modal
@@ -380,6 +407,30 @@ export default function SettleUpPage({
       console.error("Error creating batch payment link:", e);
     } finally {
       setBatchDialogLoading(false);
+    }
+  };
+
+  const handleConfirmBatchDirectPayment = async () => {
+    if (!batchSetuData?.paymentId) return;
+    setBatchConfirmingPayment(true);
+    try {
+      const res = await fetch("/api/settle/status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          paymentId: batchSetuData.paymentId,
+          confirmDirectPayment: true,
+        }),
+      });
+      const data = await res.json();
+      if (data.status === "PAID") {
+        setBatchPaymentStatus("paid");
+        setBatchVerifiedUtr(data.utr || "UPI_DIRECT_VERIFIED");
+      }
+    } catch (e) {
+      console.error("Failed to confirm batch direct payment:", e);
+    } finally {
+      setBatchConfirmingPayment(false);
     }
   };
 
@@ -1135,6 +1186,32 @@ export default function SettleUpPage({
                     </p>
                   </div>
 
+                  {/* Direct P2P Confirmation Card for Free Tier */}
+                  {(setuData.platformFee === 0 || setuData.feeTier === "free_ad") && (
+                    <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-50 via-teal-50 to-green-50 border-2 border-emerald-300 space-y-2.5 shadow-xs">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                        <p className="text-xs font-black text-emerald-950">Transferred via your UPI App?</p>
+                      </div>
+                      <p className="text-[11px] text-emerald-800 leading-tight">
+                        After transferring to the UPI ID / QR code in your app, tap below to confirm your free settlement.
+                      </p>
+                      <Button
+                        type="button"
+                        onClick={handleConfirmDirectPayment}
+                        disabled={confirmingPayment}
+                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs h-10 rounded-xl shadow-xs cursor-pointer"
+                      >
+                        {confirmingPayment ? (
+                          <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+                        ) : (
+                          <Check className="h-4 w-4 mr-1.5" />
+                        )}
+                        I Have Paid ₹{setuData.totalAmount.toFixed(2)}
+                      </Button>
+                    </div>
+                  )}
+
                   {/* Mobile-Only Collapsible QR Code Toggle */}
                   <div className="block md:hidden pt-1">
                     <Button
@@ -1512,6 +1589,32 @@ export default function SettleUpPage({
                       One payment automatically clears all {activeBatchDebts.length} debts in the group
                     </p>
                   </div>
+
+                  {/* Direct P2P Confirmation Card for Batch Free Tier */}
+                  {(batchSetuData.platformFee === 0 || batchSetuData.feeTier === "free_ad") && (
+                    <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-50 via-teal-50 to-green-50 border-2 border-emerald-300 space-y-2.5 shadow-xs">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                        <p className="text-xs font-black text-emerald-950">Transferred via your UPI App?</p>
+                      </div>
+                      <p className="text-[11px] text-emerald-800 leading-tight">
+                        After completing the batch transfer in your UPI app, tap below to clear all {activeBatchDebts.length} dues instantly.
+                      </p>
+                      <Button
+                        type="button"
+                        onClick={handleConfirmBatchDirectPayment}
+                        disabled={batchConfirmingPayment}
+                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs h-10 rounded-xl shadow-xs cursor-pointer"
+                      >
+                        {batchConfirmingPayment ? (
+                          <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+                        ) : (
+                          <Check className="h-4 w-4 mr-1.5" />
+                        )}
+                        I Have Paid ₹{batchSetuData.totalAmount.toFixed(2)} for All {activeBatchDebts.length} Dues
+                      </Button>
+                    </div>
+                  )}
 
                   {/* Mobile Collapsible QR */}
                   <div className="block md:hidden pt-1">

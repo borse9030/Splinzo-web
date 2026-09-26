@@ -97,7 +97,9 @@ export async function POST(req: NextRequest) {
       feeTier: isFree ? "free_ad" : "instant",
       adWatched: isFree,
       status: "pending_approval",
-      verifiedVia: isBatch ? "setu_batch" : "setu",
+      verifiedVia: isFree 
+        ? (isBatch ? "direct_upi_free_batch" : "direct_upi_free")
+        : (isBatch ? "setu_batch" : "setu"),
       createdAt: serverTimestamp(),
     };
 
@@ -110,11 +112,53 @@ export async function POST(req: NextRequest) {
       initialPaymentData.toUserId = toUserId;
       initialPaymentData.toUserName = toUserName || "Member";
       initialPaymentData.expenseId = expenseId || "";
+      if (primaryReceiverUpiId) {
+        initialPaymentData.receiverUpiId = primaryReceiverUpiId;
+      }
     }
 
     await setDoc(paymentRef, initialPaymentData);
 
-    // Generate Setu Tracked UPI Deeplink (one link for the entire batch)
+    // ── 100% FREE P2P UPI BRANCH (Zero Setu / Zero Gateway Fees) ──────
+    // When a user watches an ad, we completely bypass Setu to avoid any provider
+    // charges to the platform owner, generating direct NPCI bank-to-bank UPI intent.
+    if (isFree) {
+      const encodedName = encodeURIComponent(primaryReceiverName || "Friend");
+      const encodedDesc = encodeURIComponent(paymentDescription);
+      const receiverPa = primaryReceiverUpiId || "";
+
+      const directUpiUrl = receiverPa
+        ? `upi://pay?pa=${receiverPa}&pn=${encodedName}&am=${baseAmount.toFixed(2)}&cu=INR&tn=${encodedDesc}`
+        : `upi://pay?pn=${encodedName}&am=${baseAmount.toFixed(2)}&cu=INR&tn=${encodedDesc}`;
+
+      await updateDoc(paymentRef, {
+        upiUrl: directUpiUrl,
+      });
+
+      return NextResponse.json(
+        {
+          success: true,
+          paymentId,
+          linkId: `free_upi_${paymentId}`,
+          upiUrl: directUpiUrl,
+          shortUrl: directUpiUrl,
+          qrData: directUpiUrl,
+          baseAmount,
+          platformFee: 0,
+          totalAmount: baseAmount,
+          type: isBatch ? "batch" : "single",
+          batchItems: isBatch ? settlements : undefined,
+          savingsAmount: isBatch ? settlements.length * PLATFORM_FEE : PLATFORM_FEE,
+          feeTier: "free_ad",
+          adWatched: true,
+          isFreeDirectUpi: true,
+          receiverUpiId: primaryReceiverUpiId,
+        },
+        { headers: corsHeaders }
+      );
+    }
+
+    // ── INSTANT FAST-TRACK TIER (Powered by Setu with ₹1 Platform Fee) ──
     const setuResponse = await setuClient.createPaymentLink({
       billerBillID: paymentId,
       amountInPaise,
@@ -142,9 +186,10 @@ export async function POST(req: NextRequest) {
         type: isBatch ? "batch" : "single",
         batchItems: isBatch ? settlements : undefined,
         savingsAmount,
-        feeTier: isFree ? "free_ad" : "instant",
-        adWatched: isFree,
+        feeTier: "instant",
+        adWatched: false,
         isSimulated: setuResponse.isSimulated,
+        isFreeDirectUpi: false,
       },
       { headers: corsHeaders }
     );

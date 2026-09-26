@@ -34,9 +34,10 @@ export async function POST(req: NextRequest) {
       if (!snap.exists()) return;
       const participants: string[] = snap.data()?.participants || [];
       const remaining = participants.filter((p: string) => p !== uid);
+      const shouldEnd = remaining.length <= 1;
       tx.update(callDoc, {
         participants: remaining,
-        ...(remaining.length === 0 ? { status: "ended" } : {}),
+        ...(shouldEnd ? { status: "ended" } : {}),
       });
     });
 

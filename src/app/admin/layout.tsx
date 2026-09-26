@@ -16,6 +16,7 @@ import {
   ChevronRight,
   Sparkles,
   Briefcase,
+  Bell,
 } from "lucide-react";
 
 const AMBER = "#F9B912";
@@ -47,12 +48,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const navLinks = isSuperAdmin
     ? [
         { name: "Overview", href: "/admin", icon: LayoutDashboard, exact: true },
+        { name: "Push Studio", href: "/admin/notifications", icon: Bell, exact: false },
         { name: "Tickets Matrix", href: "/admin/tickets", icon: LifeBuoy, exact: false },
         { name: "Staff Management", href: "/admin/staff", icon: ShieldCheck, exact: false },
         { name: "User Directory", href: "/admin/users", icon: Users, exact: false },
       ]
     : [
         { name: "My Workspace", href: "/admin/workspace", icon: Briefcase, exact: true },
+        { name: "Push Studio", href: "/admin/notifications", icon: Bell, exact: false },
         { name: "All Tickets", href: "/admin/tickets", icon: LifeBuoy, exact: false },
       ];
 

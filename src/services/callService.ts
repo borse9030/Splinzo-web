@@ -159,17 +159,28 @@ export class CallService {
 
   static async leaveCall(groupId: string, callId: string, myUid: string) {
     const callDoc = doc(db, "groups", groupId, "calls", callId);
-    // Use transaction to end call if this was the last participant
+    let shouldEndCall = false;
+    // Use transaction to end call if 1 or 0 participants remain
     await runTransaction(db, async (tx) => {
       const snap = await tx.get(callDoc);
       if (!snap.exists()) return;
       const participants: string[] = snap.data().participants || [];
       const remaining = participants.filter((p) => p !== myUid);
+      shouldEndCall = remaining.length <= 1;
       tx.update(callDoc, {
         participants: remaining,
-        ...(remaining.length === 0 ? { status: "ended" } : {}),
+        ...(shouldEndCall ? { status: "ended" } : {}),
       });
     });
+
+    if (shouldEndCall) {
+      CallService._dispatchPushNotification({
+        groupId,
+        callId,
+        action: "call_ended",
+      });
+      CallService.cleanupSignaling(groupId, callId).catch(() => {});
+    }
   }
 
   static async endCall(groupId: string, callId: string) {
@@ -180,6 +191,7 @@ export class CallService {
     });
     const callDoc = doc(db, "groups", groupId, "calls", callId);
     await updateDoc(callDoc, { status: "ended" });
+    CallService.cleanupSignaling(groupId, callId).catch(() => {});
   }
 
   static async cancelCall(groupId: string, callId: string) {
@@ -190,6 +202,7 @@ export class CallService {
     });
     const callDoc = doc(db, "groups", groupId, "calls", callId);
     await updateDoc(callDoc, { status: "cancelled" });
+    CallService.cleanupSignaling(groupId, callId).catch(() => {});
   }
 
   /** Explicitly marks that a specific user rejected/declined this call without terminating it for others */

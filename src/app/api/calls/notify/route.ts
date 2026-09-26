@@ -118,8 +118,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Exclude caller from receiving incoming call push to their own phone
-    targetMemberIds = targetMemberIds.filter((id) => id && id !== callerId);
+    // Exclude caller from receiving incoming call push to their own phone and deduplicate IDs
+    targetMemberIds = Array.from(
+      new Set(targetMemberIds.filter((id) => id && id !== callerId))
+    );
 
     if (targetMemberIds.length === 0) {
       return NextResponse.json(
@@ -128,20 +130,21 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 2. Fetch FCM tokens for target members
-    const userDocs = await Promise.all(
-      targetMemberIds.map((uid) => db.collection("users").doc(uid).get())
-    );
+    // 2. Fetch FCM tokens for target members using high-speed batched getAll
+    const refs = targetMemberIds.map((uid) => db.collection("users").doc(uid));
+    const userDocs = await db.getAll(...refs);
 
-    const tokens: string[] = [];
+    const tokenSet = new Set<string>();
     userDocs.forEach((doc: any) => {
       if (doc.exists) {
         const token = doc.data()?.fcmToken;
         if (token && typeof token === "string" && token.trim().length > 0) {
-          tokens.push(token.trim());
+          tokenSet.add(token.trim());
         }
       }
     });
+
+    const tokens: string[] = Array.from(tokenSet);
 
     if (tokens.length === 0) {
       console.log(`[FCM Notify] Group ${groupId} members have no registered FCM tokens.`);

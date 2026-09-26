@@ -305,6 +305,12 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
           return;
         }
 
+        // WhatsApp-like instant hangup: If user is actively connected and other peer left
+        if (isJoinedRef.current && currentCall?.id === call.id && call.status === "active" && call.participants.length <= 1) {
+          handleCallEnded();
+          return;
+        }
+
         // Don't override if already in a different call
         if (currentCall && currentCall.id !== call.id) return;
 
@@ -524,6 +530,11 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
           handleCallEnded();
           return;
         }
+        // WhatsApp-like instant hangup: If user is actively connected and other peer left
+        if (isJoinedRef.current && call.status === "active" && call.participants.length <= 1) {
+          handleCallEnded();
+          return;
+        }
         setActiveCall(call);
       });
     },
@@ -586,9 +597,9 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       try {
         if (call.status === "ringing" && call.callerId === uid) {
           await CallService.cancelCall(call.groupId, call.id);
-        } else if (call.participants.length <= 1) {
+        } else if (call.participants.length <= 2) {
+          // In a 1-on-1 or 2-peer call, hanging up terminates the call completely
           await CallService.endCall(call.groupId, call.id);
-          CallService.cleanupSignaling(call.groupId, call.id);
         } else {
           await CallService.leaveCall(call.groupId, call.id, uid);
         }
