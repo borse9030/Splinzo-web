@@ -47,6 +47,46 @@ export const expenseService = {
 
     await setDoc(expenseRef, sanitizedExpense);
 
+    // Automated Push Notification to split members (excluding payer)
+    try {
+      const splitBetween = Array.isArray(expenseData.splitBetweenIds)
+        ? expenseData.splitBetweenIds.filter((id) => id && id !== effectivePayerId)
+        : [];
+      if (splitBetween.length > 0) {
+        const { getDoc } = await import("firebase/firestore");
+        const groupSnap = await getDoc(doc(db, "groups", groupId));
+        const groupName = groupSnap.exists() ? groupSnap.data()?.name || "Group" : "Group";
+
+        let payerName = "A flatmate";
+        if (effectivePayerId) {
+          const payerSnap = await getDoc(doc(db, "users", effectivePayerId));
+          if (payerSnap.exists()) {
+            const uData = payerSnap.data();
+            payerName = uData?.displayName || uData?.name || "A flatmate";
+          }
+        }
+
+        const { sendFlatmatePushNotification } = await import("@/services/flatmateService");
+        sendFlatmatePushNotification({
+          userIds: splitBetween,
+          title: `💸 New Expense: ${expenseData.description}`,
+          body: `${payerName} added "${expenseData.description}" (${expenseData.amount} ${expenseData.currency || "INR"}) in ${groupName}.`,
+          groupId,
+          type: "expense",
+          data: {
+            expenseId: expenseRef.id,
+            amount: expenseData.amount,
+            currency: expenseData.currency || "INR",
+            payerId: effectivePayerId,
+            payerName,
+            bannerStyle: "blinkit",
+          },
+        }).catch((err) => console.warn("[expenseService] Push notification dispatch error:", err));
+      }
+    } catch (e) {
+      console.warn("[expenseService] Error preparing expense push notification:", e);
+    }
+
     return {
       id: expenseRef.id,
       ...sanitizedExpense,

@@ -96,6 +96,25 @@ export const groupService = {
       members: arrayUnion(newMember),
     });
 
+    // Notify all existing members about the newcomer
+    if (memberIds.length > 0) {
+      const groupName = groupData.name || "Group";
+      import("@/services/flatmateService").then(({ sendFlatmatePushNotification }) => {
+        sendFlatmatePushNotification({
+          userIds: memberIds,
+          title: `👋 New Member Joined ${groupName}!`,
+          body: `${userName} just joined the group. Welcome aboard!`,
+          groupId,
+          type: "group",
+          data: {
+            joinedUserId: userId,
+            joinedUserName: userName,
+            bannerStyle: "celebration",
+          },
+        }).catch((err) => console.warn("[groupService] New member push notice error:", err));
+      });
+    }
+
     // 5. Mark any pending invitations for this email in this group as accepted
     try {
       const invQ = query(

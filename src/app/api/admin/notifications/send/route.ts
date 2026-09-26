@@ -163,6 +163,7 @@ export async function POST(req: NextRequest) {
         title: title.trim(),
         body: messageBody.trim(),
         imageUrl: cleanImageUrl || "",
+        appLogo: "https://www.splinzo.in/logo.png",
         groupId: actionData?.groupId || "",
         expenseId: actionData?.expenseId || "",
         externalUrl: actionData?.externalUrl || "",
@@ -175,7 +176,21 @@ export async function POST(req: NextRequest) {
           sound: "default",
           channelId: "splinzo_general",
           priority: "high" as const,
+          icon: "ic_notification",
+          color: "#F9B912",
+          defaultSound: true,
+          defaultVibrateTimings: true,
           ...(cleanImageUrl ? { imageUrl: cleanImageUrl } : {}),
+        },
+      },
+      webpush: {
+        headers: {
+          Urgency: "high",
+        },
+        notification: {
+          icon: "https://www.splinzo.in/logo.png",
+          badge: "https://www.splinzo.in/logo.png",
+          ...(cleanImageUrl ? { image: cleanImageUrl } : {}),
         },
       },
       apns: {

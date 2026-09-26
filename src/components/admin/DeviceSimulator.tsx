@@ -211,8 +211,9 @@ export function DeviceSimulator({
                   {/* Header */}
                   <div className="flex items-center justify-between mb-1.5">
                     <div className="flex items-center gap-2">
-                      <div className="h-5 w-5 rounded-lg bg-[#F9B912] flex items-center justify-center text-gray-950 font-black text-[10px] shadow-xs">
-                        S
+                      <div className="h-5 w-5 rounded-lg bg-[#F9B912] overflow-hidden flex items-center justify-center p-0.5 shadow-xs border border-white/20">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src="/logo.png" alt="Splinzo" className="w-full h-full object-contain" />
                       </div>
                       <span className="text-[11px] font-bold tracking-tight text-white/95 uppercase font-mono">
                         Splinzo
@@ -279,11 +280,12 @@ export function DeviceSimulator({
                 className={`w-full rounded-2xl bg-gradient-to-r ${bannerDetails.gradient} border ${bannerDetails.border} p-3 text-white shadow-2xl`}
               >
                 <div className="flex items-start gap-2.5">
-                  <div
-                    className="h-8 w-8 rounded-xl flex items-center justify-center shrink-0 shadow-sm"
-                    style={{ backgroundColor: `${bannerDetails.accent}20` }}
-                  >
-                    <BannerIcon size={16} style={{ color: bannerDetails.accent }} />
+                  <div className="h-9 w-9 rounded-xl overflow-hidden bg-slate-800 p-1 flex items-center justify-center shrink-0 shadow-sm border border-amber-400/40 relative">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src="/logo.png" alt="Splinzo" className="w-full h-full object-contain" />
+                    <div className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full bg-slate-950 flex items-center justify-center border border-amber-400/50">
+                      <BannerIcon size={8} style={{ color: bannerDetails.accent }} />
+                    </div>
                   </div>
 
                   <div className="flex-1 min-w-0">

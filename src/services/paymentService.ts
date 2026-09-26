@@ -7,10 +7,38 @@ export const paymentService = {
    */
   async approvePayment(paymentId: string): Promise<void> {
     const paymentRef = doc(db, "payments", paymentId);
+    const { getDoc } = await import("firebase/firestore");
+    const snap = await getDoc(paymentRef);
     await updateDoc(paymentRef, {
       status: "approved",
       approvedAt: new Date(), 
     });
+
+    if (snap.exists()) {
+      const data = snap.data();
+      const toUserId = data.toUserId;
+      const fromUserId = data.fromUserId;
+      const amount = data.amount || 0;
+      const groupId = data.groupId || "";
+
+      if (toUserId) {
+        const { sendFlatmatePushNotification } = await import("@/services/flatmateService");
+        sendFlatmatePushNotification({
+          userIds: [toUserId],
+          title: "💸 Settlement Payment Received!",
+          body: `A payment of ₹${amount} has been verified and settled.`,
+          groupId,
+          type: "settlement",
+          data: {
+            paymentId,
+            fromUserId,
+            toUserId,
+            amount,
+            bannerStyle: "celebration",
+          },
+        }).catch((e) => console.warn("[paymentService] Push error:", e));
+      }
+    }
   },
 
   /**

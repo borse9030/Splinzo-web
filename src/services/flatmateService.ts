@@ -176,6 +176,81 @@ export const flatmateService = {
   async updateWaterTimetable(groupId: string, weeklySchedule: Record<string, string>): Promise<void> {
     const docRef = doc(db, `groups/${groupId}/household`, "water_duty");
     await setDoc(docRef, cleanData({ weeklySchedule, updatedAt: serverTimestamp() }), { merge: true });
+
+    // Automated Push Notification to all assigned flatmates
+    const assignedIds = Array.from(new Set(Object.values(weeklySchedule).filter((id) => Boolean(id))));
+    if (assignedIds.length > 0) {
+      sendFlatmatePushNotification({
+        userIds: assignedIds,
+        title: "📅 Water Can Duty Timetable Updated!",
+        body: "The weekly 20L water can schedule has been updated. Tap to see your assigned duty days!",
+        groupId,
+        type: "water_duty",
+        data: { badge: "WATER_TIMETABLE_UPDATED", bannerStyle: "water_duty" },
+      }).catch((e) => console.warn("[flatmateService] Timetable update push error:", e));
+    }
+  },
+
+  async checkAndDispatchDailyWaterReminder(groupId: string): Promise<void> {
+    try {
+      const docRef = doc(db, `groups/${groupId}/household`, "water_duty");
+      const snap = await getDoc(docRef);
+      if (!snap.exists()) return;
+
+      const data = snap.data() || {};
+      const schedule: Record<string, string> = data.weeklySchedule || {};
+
+      const now = new Date();
+      // In JS: 0=Sun, 1=Mon, ..., 6=Sat
+      const todayKey = now.getDay().toString();
+      const todayAssigneeId = schedule[todayKey] || data.currentAssigneeId || "";
+
+      if (!todayAssigneeId) return;
+
+      const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+      const lastReminderDate = data.lastDailyReminderDate;
+
+      if (lastReminderDate !== todayStr) {
+        await setDoc(
+          docRef,
+          cleanData({
+            lastDailyReminderDate: todayStr,
+            currentAssigneeId: todayAssigneeId,
+            updatedAt: serverTimestamp(),
+          }),
+          { merge: true }
+        );
+
+        const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+        const dayName = dayNames[now.getDay()];
+
+        // Get group name
+        let groupName = "Flat";
+        try {
+          const groupSnap = await getDoc(doc(db, "groups", groupId));
+          if (groupSnap.exists()) {
+            groupName = groupSnap.data()?.name || "Flat";
+          }
+        } catch (_) {}
+
+        await sendFlatmatePushNotification({
+          userIds: [todayAssigneeId],
+          title: `🚰 It's Your Water Duty Turn Today (${dayName})!`,
+          body: `Good morning! According to the weekly timetable, today is your turn for 20L water can duty in ${groupName}. Jal hi jeevan hai! 💧`,
+          groupId,
+          type: "water_duty",
+          data: {
+            assigneeId: todayAssigneeId,
+            dayKey: todayKey,
+            dayName,
+            badge: "BLINKIT_WATER_NUDGE",
+            bannerStyle: "water_duty",
+          },
+        });
+      }
+    } catch (err) {
+      console.warn("[flatmateService] Daily water duty check error:", err);
+    }
   },
 
   async sendWaterDutyReminder(

@@ -159,11 +159,15 @@ export async function POST(req: NextRequest) {
           type,
           groupId: groupId || "",
           groupName,
+          appLogo: "https://www.splinzo.in/logo.png",
           click_action: "FLUTTER_NOTIFICATION_CLICK",
           ...Object.fromEntries(
             Object.entries(data || {}).map(([k, v]) => [k, String(v)])
           ),
         };
+
+        const isFlatHq = type.startsWith("water") || type === "chore" || type === "flat_hq" || type === "guilt_jar";
+        const channelId = isFlatHq ? "flat_hq_reminders" : "splinzo_default";
 
         const response = await messaging.sendEachForMulticast({
           tokens,
@@ -176,8 +180,20 @@ export async function POST(req: NextRequest) {
             priority: "high",
             notification: {
               sound: "default",
-              channelId: "flat_hq_reminders",
+              channelId,
+              icon: "ic_notification",
               color: "#F9B912",
+              defaultSound: true,
+              defaultVibrateTimings: true,
+            },
+          },
+          webpush: {
+            headers: {
+              Urgency: "high",
+            },
+            notification: {
+              icon: "https://www.splinzo.in/logo.png",
+              badge: "https://www.splinzo.in/logo.png",
             },
           },
           apns: {

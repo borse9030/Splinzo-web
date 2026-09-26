@@ -246,6 +246,7 @@ export default function FlatHQPage({
         if (duty.status === "fulfilled" && duty.value) {
           updatedWaterDuty = duty.value;
           setWaterDuty(duty.value);
+          flatmateService.checkAndDispatchDailyWaterReminder(groupId).catch(console.warn);
         }
 
         // Auto-seed chores if empty

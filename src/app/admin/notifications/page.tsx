@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { collection, query, getDocs, limit, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase/config";
 import { getCurrentStaffSession } from "@/lib/adminAuth";
 import { DeviceSimulator } from "@/components/admin/DeviceSimulator";
+import { storageService } from "@/services/storageService";
 import {
   Send,
   Sparkles,
@@ -27,6 +28,9 @@ import {
   Copy,
   AlertCircle,
   ShieldCheck,
+  UploadCloud,
+  Trash2,
+  Loader2,
 } from "lucide-react";
 
 interface UserOption {
@@ -103,6 +107,11 @@ export default function PushStudioPage() {
   const [title, setTitle] = useState("⚡ Splinzo Flash Alert");
   const [body, setBody] = useState("Your flatmates just updated shared expenses. Tap to view the breakdown!");
   const [imageUrl, setImageUrl] = useState("");
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [isDraggingOver, setIsDraggingOver] = useState(false);
+  const [showManualUrl, setShowManualUrl] = useState(false);
   const [targetType, setTargetType] = useState<"all" | "users" | "group" | "test">("all");
   const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string>("");
@@ -210,6 +219,52 @@ export default function PushStudioPage() {
       setLoadingHistory(false);
     }
   }
+
+  const handleFileUpload = async (file: File) => {
+    if (!file) return;
+
+    if (!file.type.startsWith("image/") && !file.name.match(/\.(heic|heif|jpg|jpeg|png|webp|gif)$/i)) {
+      setUploadError("Please select a valid image file (PNG, JPG, WEBP, HEIC).");
+      return;
+    }
+
+    if (file.size > 15 * 1024 * 1024) {
+      setUploadError("Image is too large. Please select an image under 15MB.");
+      return;
+    }
+
+    setIsUploadingImage(true);
+    setUploadError(null);
+
+    try {
+      const publicUrl = await storageService.uploadFile(file);
+      setImageUrl(publicUrl);
+    } catch (err: any) {
+      console.error("Banner upload error:", err);
+      setUploadError(err.message || "Failed to upload image to Cloudflare storage.");
+    } finally {
+      setIsUploadingImage(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      handleFileUpload(file);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDraggingOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      handleFileUpload(file);
+    }
+  };
 
   const handleApplyTemplate = (tmpl: (typeof TEMPLATES)[0]) => {
     setTitle(tmpl.title);
@@ -631,50 +686,192 @@ export default function PushStudioPage() {
               />
             </div>
 
-            {/* Hero Image URL */}
-            <div className="space-y-1.5">
+            {/* Hero Image Section with Cloudflare R2 Upload */}
+            <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-bold text-gray-900 flex items-center gap-1.5">
-                  <ImageIcon size={14} className="text-gray-500" />
-                  Hero Banner Image URL (Optional)
+                  <ImageIcon size={14} className="text-amber-500" />
+                  Hero Banner Image (Optional)
                 </label>
-                {imageUrl && (
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 rounded-full flex items-center gap-1">
+                    <ShieldCheck size={11} className="text-emerald-600" />
+                    Cloudflare R2 Store
+                  </span>
+                  {imageUrl && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setImageUrl("");
+                        setUploadError(null);
+                        if (fileInputRef.current) fileInputRef.current.value = "";
+                      }}
+                      className="text-[10px] text-red-600 hover:text-red-700 font-bold flex items-center gap-1 transition-colors"
+                    >
+                      <Trash2 size={11} />
+                      Remove
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Hidden file input */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,.heic,.heif"
+                onChange={handleFileChange}
+                className="hidden"
+              />
+
+              {/* Error Notice if any */}
+              {uploadError && (
+                <div className="flex items-center justify-between p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle size={14} className="text-rose-600 shrink-0" />
+                    <span>{uploadError}</span>
+                  </div>
                   <button
                     type="button"
-                    onClick={() => setImageUrl("")}
-                    className="text-[10px] text-red-600 font-bold"
+                    onClick={() => setUploadError(null)}
+                    className="text-[10px] font-bold text-rose-600 hover:text-rose-800"
                   >
-                    Clear Image
+                    Dismiss
                   </button>
-                )}
-              </div>
-              <input
-                type="url"
-                placeholder="https://images.unsplash.com/photo-..."
-                value={imageUrl}
-                onChange={(e) => setImageUrl(e.target.value)}
-                className="w-full text-xs font-mono px-3.5 py-2.5 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-amber-400"
-              />
-              <div className="flex gap-2 pt-1">
+                </div>
+              )}
+
+              {/* Uploading State */}
+              {isUploadingImage ? (
+                <div className="border-2 border-dashed border-amber-300 bg-amber-50/50 rounded-2xl p-6 text-center animate-pulse">
+                  <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center mx-auto mb-2 shadow-2xs">
+                    <Loader2 size={20} className="animate-spin text-amber-600" />
+                  </div>
+                  <p className="text-xs font-bold text-gray-900">
+                    Uploading image to Cloudflare R2...
+                  </p>
+                  <p className="text-[11px] text-gray-500 mt-0.5">
+                    Compressing & preparing high-speed CDN delivery
+                  </p>
+                </div>
+              ) : imageUrl ? (
+                /* Preview Card */
+                <div className="rounded-2xl border border-gray-200 overflow-hidden bg-gray-50/80 p-3 space-y-3">
+                  <div className="relative h-32 w-full rounded-xl overflow-hidden bg-gray-900 border border-gray-200/80 shadow-inner group">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={imageUrl}
+                      alt="Banner Preview"
+                      className="w-full h-full object-cover transition-transform group-hover:scale-105 duration-300"
+                      onError={() => setUploadError("Failed to render preview. The image URL might be inaccessible.")}
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-90" />
+                    <div className="absolute bottom-2 left-2 right-2 flex items-center justify-between text-white text-[11px]">
+                      <span className="bg-black/50 backdrop-blur-md px-2 py-0.5 rounded-md font-mono text-[10px] truncate max-w-[220px]">
+                        {imageUrl.split("/").pop() || "Cloudflare R2 File"}
+                      </span>
+                      <span className="bg-emerald-500/80 backdrop-blur-md px-1.5 py-0.5 rounded text-[9px] font-bold">
+                        ACTIVE BANNER
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-2">
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-xl border border-gray-300 bg-white hover:bg-gray-50 text-xs font-bold text-gray-700 shadow-2xs transition-all"
+                    >
+                      <UploadCloud size={13} className="text-gray-500" />
+                      Upload Different Image
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setImageUrl("");
+                        if (fileInputRef.current) fileInputRef.current.value = "";
+                      }}
+                      className="py-1.5 px-3 rounded-xl border border-rose-200 bg-rose-50 hover:bg-rose-100 text-xs font-bold text-rose-700 transition-all"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                /* Dropzone / Upload Action Card */
+                <div
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setIsDraggingOver(true);
+                  }}
+                  onDragLeave={() => setIsDraggingOver(false)}
+                  onDrop={handleDrop}
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`border-2 border-dashed rounded-2xl p-5 text-center cursor-pointer transition-all ${
+                    isDraggingOver
+                      ? "border-amber-500 bg-amber-50/60 scale-[1.01]"
+                      : "border-gray-300 hover:border-amber-400 bg-gray-50/50 hover:bg-amber-50/20"
+                  }`}
+                >
+                  <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mx-auto mb-2 shadow-2xs">
+                    <UploadCloud size={20} />
+                  </div>
+                  <div className="text-xs font-bold text-gray-900">
+                    <span>Click to upload hero banner</span> or drag & drop
+                  </div>
+                  <p className="text-[11px] text-gray-500 mt-1">
+                    Supports JPG, PNG, WEBP, HEIC • Auto-compressed to Cloudflare R2
+                  </p>
+                </div>
+              )}
+
+              {/* Preset buttons & Manual URL Toggle */}
+              <div className="flex items-center justify-between pt-1">
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setImageUrl("https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800&q=80")
+                    }
+                    className="text-[10px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 px-2 py-1 rounded-md border border-amber-200 transition-colors"
+                  >
+                    Sample Dinner
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setImageUrl("https://images.unsplash.com/photo-1579621970563-ebec7560ff3e?w=800&q=80")
+                    }
+                    className="text-[10px] font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 px-2 py-1 rounded-md border border-amber-200 transition-colors"
+                  >
+                    Sample Fintech
+                  </button>
+                </div>
+
                 <button
                   type="button"
-                  onClick={() =>
-                    setImageUrl("https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800&q=80")
-                  }
-                  className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-1 rounded-md border border-amber-200"
+                  onClick={() => setShowManualUrl(!showManualUrl)}
+                  className="text-[10px] font-bold text-gray-500 hover:text-gray-800 underline underline-offset-2"
                 >
-                  Sample Dinner
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setImageUrl("https://images.unsplash.com/photo-1579621970563-ebec7560ff3e?w=800&q=80")
-                  }
-                  className="text-[10px] font-bold text-amber-700 bg-amber-50 px-2 py-1 rounded-md border border-amber-200"
-                >
-                  Sample Fintech
+                  {showManualUrl ? "Hide URL input" : "Or enter URL manually"}
                 </button>
               </div>
+
+              {/* Optional manual URL input */}
+              {showManualUrl && (
+                <div className="pt-1.5 space-y-1">
+                  <input
+                    type="url"
+                    placeholder="https://..."
+                    value={imageUrl}
+                    onChange={(e) => setImageUrl(e.target.value)}
+                    className="w-full text-xs font-mono px-3.5 py-2 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white"
+                  />
+                  <p className="text-[10px] text-gray-400">
+                    Paste any public image link if you prefer not uploading a file.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
 
