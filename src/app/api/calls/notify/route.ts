@@ -3,6 +3,9 @@ import { getFirebaseAdmin } from "@/lib/firebaseAdmin";
 import { getServerDb } from "@/lib/firebase/serverDb";
 import { doc, getDoc } from "firebase/firestore";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",

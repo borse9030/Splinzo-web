@@ -11,6 +11,9 @@ import {
   writeBatch,
 } from "firebase/firestore";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",

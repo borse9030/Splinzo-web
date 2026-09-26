@@ -6,19 +6,30 @@ let adminApp: App | null = null;
 let adminDb: Firestore | null = null;
 let adminMessaging: Messaging | null = null;
 
+export function getRuntimeEnv(key: string): string {
+  try {
+    if (process.env[key]) return process.env[key]!.trim();
+    const realProcessEnv = eval("process.env") as Record<string, string | undefined>;
+    if (realProcessEnv && realProcessEnv[key]) {
+      return realProcessEnv[key]!.trim();
+    }
+  } catch (_) {}
+  return "";
+}
+
 export function getFirebaseAdmin(): { db: Firestore | null; messaging: Messaging | null; isConfigured: boolean } {
   if (adminDb && adminMessaging) {
     return { db: adminDb, messaging: adminMessaging, isConfigured: true };
   }
 
   const serviceAccountKey =
-    process.env.FIREBASE_SERVICE_ACCOUNT_KEY ||
-    process.env.FIREBASE_SERVICE_ACCOUNT ||
-    process.env.FIREBASE_ADMIN_KEY ||
-    process.env.GOOGLE_APPLICATION_CREDENTIALS;
-  const privateKey = process.env.FIREBASE_PRIVATE_KEY;
-  const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-  const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "splinzo";
+    getRuntimeEnv("FIREBASE_SERVICE_ACCOUNT_KEY") ||
+    getRuntimeEnv("FIREBASE_SERVICE_ACCOUNT") ||
+    getRuntimeEnv("FIREBASE_ADMIN_KEY") ||
+    getRuntimeEnv("GOOGLE_APPLICATION_CREDENTIALS");
+  const privateKey = getRuntimeEnv("FIREBASE_PRIVATE_KEY");
+  const clientEmail = getRuntimeEnv("FIREBASE_CLIENT_EMAIL");
+  const projectId = getRuntimeEnv("NEXT_PUBLIC_FIREBASE_PROJECT_ID") || "splinzo";
 
   if (serviceAccountKey) {
     try {
@@ -68,11 +79,11 @@ export function getFirebaseAdmin(): { db: Firestore | null; messaging: Messaging
 
 export function hasFirebaseAdminCredentials(): boolean {
   return !!(
-    process.env.FIREBASE_SERVICE_ACCOUNT_KEY ||
-    process.env.FIREBASE_SERVICE_ACCOUNT ||
-    process.env.FIREBASE_ADMIN_KEY ||
-    (process.env.FIREBASE_PRIVATE_KEY && process.env.FIREBASE_CLIENT_EMAIL) ||
-    process.env.GOOGLE_APPLICATION_CREDENTIALS
+    getRuntimeEnv("FIREBASE_SERVICE_ACCOUNT_KEY") ||
+    getRuntimeEnv("FIREBASE_SERVICE_ACCOUNT") ||
+    getRuntimeEnv("FIREBASE_ADMIN_KEY") ||
+    (getRuntimeEnv("FIREBASE_PRIVATE_KEY") && getRuntimeEnv("FIREBASE_CLIENT_EMAIL")) ||
+    getRuntimeEnv("GOOGLE_APPLICATION_CREDENTIALS")
   );
 }
 

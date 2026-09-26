@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getFirebaseAdmin, hasFirebaseAdminCredentials } from "@/lib/firebaseAdmin";
+import { getFirebaseAdmin, getRuntimeEnv } from "@/lib/firebaseAdmin";
 
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const corsHeaders = {
@@ -15,11 +16,10 @@ export async function OPTIONS() {
 
 export async function GET(req: NextRequest) {
   const rawKey =
-    process.env.FIREBASE_SERVICE_ACCOUNT_KEY ||
-    process.env.FIREBASE_SERVICE_ACCOUNT ||
-    process.env.FIREBASE_ADMIN_KEY ||
-    process.env.GOOGLE_APPLICATION_CREDENTIALS ||
-    "";
+    getRuntimeEnv("FIREBASE_SERVICE_ACCOUNT_KEY") ||
+    getRuntimeEnv("FIREBASE_SERVICE_ACCOUNT") ||
+    getRuntimeEnv("FIREBASE_ADMIN_KEY") ||
+    getRuntimeEnv("GOOGLE_APPLICATION_CREDENTIALS");
 
   let parsedSuccess = false;
   let clientEmail = "";
@@ -44,19 +44,24 @@ export async function GET(req: NextRequest) {
   }
 
   const { isConfigured } = getFirebaseAdmin();
-  const existingEnvKeys = Object.keys(process.env).filter(
-    (k) =>
-      k.toLowerCase().includes("firebase") ||
-      k.toLowerCase().includes("service") ||
-      k.toLowerCase().includes("admin")
-  );
+  let realEnvKeys: string[] = [];
+  try {
+    const realEnv = eval("process.env") as Record<string, string | undefined>;
+    realEnvKeys = Object.keys(realEnv).filter(
+      (k) =>
+        k.toLowerCase().includes("firebase") ||
+        k.toLowerCase().includes("service") ||
+        k.toLowerCase().includes("admin") ||
+        k.toLowerCase().includes("resend")
+    );
+  } catch (_) {}
 
   return NextResponse.json(
     {
       isConfigured,
       hasEnvVar: rawKey.length > 0,
       envKeyLength: rawKey.length,
-      existingEnvKeys,
+      realEnvKeys,
       parsedSuccess,
       clientEmail,
       projectId,
