@@ -18,10 +18,19 @@ export function getFirebaseAdmin(): { db: Firestore | null; messaging: Messaging
 
   if (serviceAccountKey) {
     try {
-      const parsed = JSON.parse(serviceAccountKey);
+      let raw = serviceAccountKey.trim();
+      if (!raw.startsWith("{")) {
+        try {
+          raw = Buffer.from(raw, "base64").toString("utf-8").trim();
+        } catch (_) {}
+      }
+      const parsed = JSON.parse(raw);
+      if (parsed.private_key && typeof parsed.private_key === "string") {
+        parsed.private_key = parsed.private_key.replace(/\\n/g, "\n");
+      }
       adminApp = initializeApp({
         credential: cert(parsed),
-        projectId,
+        projectId: parsed.project_id || projectId,
       });
       adminDb = getFirestore(adminApp);
       adminMessaging = getMessaging(adminApp);
