@@ -123,6 +123,12 @@ export default function PushStudioPage() {
   const [isSending, setIsSending] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [sendResult, setSendResult] = useState<any>(null);
+  const [serverStatus, setServerStatus] = useState<{
+    isConfigured?: boolean;
+    hasEnvVar?: boolean;
+    projectId?: string;
+    clientEmail?: string;
+  } | null>(null);
   const [alertModal, setAlertModal] = useState<{
     title: string;
     message: string;
@@ -176,10 +182,22 @@ export default function PushStudioPage() {
 
     loadData();
     loadHistory();
+    checkServerStatus();
   }, []);
+
+  async function checkServerStatus() {
+    try {
+      const res = await fetch("/api/admin/notifications/status");
+      if (res.ok) {
+        const json = await res.json();
+        setServerStatus(json);
+      }
+    } catch (_) {}
+  }
 
   async function loadHistory() {
     setLoadingHistory(true);
+    checkServerStatus();
     try {
       const res = await fetch("/api/admin/notifications/history");
       const json = await res.json();
@@ -297,8 +315,17 @@ export default function PushStudioPage() {
             <span className="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[10px] font-bold font-mono tracking-wide uppercase">
               Broadcast Engine
             </span>
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-xs text-gray-500 font-medium">FCM Multicast Ready</span>
+            {serverStatus?.isConfigured ? (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-semibold">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                FCM Hardware Push Active ({serverStatus.projectId || "splinzo"})
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 text-[11px] font-semibold">
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+                FCM Key Pending Vercel Redeploy
+              </span>
+            )}
           </div>
           <h1 className="text-2xl md:text-3xl font-black text-gray-950 tracking-tight mt-1">
             Push Studio & Nudge Center
