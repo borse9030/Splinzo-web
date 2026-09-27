@@ -58,6 +58,7 @@ interface CampaignRecord {
   targetCount: number;
   successCount: number;
   failureCount: number;
+  openedCount?: number;
   bannerStyle: string;
   actionType: string;
   sentBy?: { name?: string };
@@ -512,9 +513,36 @@ export default function PushStudioPage() {
             {/* Target Type Specific Inputs */}
             {targetType === "test" && (
               <div className="p-4 rounded-2xl bg-amber-50/50 border border-amber-200/60 space-y-2">
-                <label className="text-xs font-bold text-gray-900 block">
-                  Test Device FCM Token
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-gray-900 block">
+                    Test Device FCM Token
+                  </label>
+                  <span className="text-[10px] text-gray-500 font-mono">
+                    Select user or paste token
+                  </span>
+                </div>
+
+                {/* Quick User Picker dropdown */}
+                <select
+                  onChange={(e) => {
+                    const selectedUid = e.target.value;
+                    const found = usersList.find((u) => u.id === selectedUid);
+                    if (found?.fcmToken) {
+                      setTestFcmToken(found.fcmToken);
+                    }
+                  }}
+                  className="w-full text-xs font-medium px-3 py-2 rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
+                >
+                  <option value="">-- Quick fill from registered user --</option>
+                  {usersList
+                    .filter((u) => u.fcmToken && u.fcmToken.length > 5)
+                    .map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.name || u.displayName || u.email} ({u.fcmToken?.slice(0, 12)}...)
+                      </option>
+                    ))}
+                </select>
+
                 <input
                   type="text"
                   placeholder="Paste your device FCM token..."
@@ -523,7 +551,7 @@ export default function PushStudioPage() {
                   className="w-full text-xs font-mono px-3 py-2.5 rounded-xl border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
                 />
                 <p className="text-[11px] text-gray-500">
-                  Tip: Copy from your Flutter debugger log `[FCM] Token:` to test instantly on your phone.
+                  Tip: Auto-select a registered user with active token above, or copy `[FCM] Token:` from your Flutter debugger.
                 </p>
               </div>
             )}
@@ -1028,6 +1056,7 @@ export default function PushStudioPage() {
                   <th className="py-2.5 font-bold">Campaign</th>
                   <th className="py-2.5 font-bold">Audience</th>
                   <th className="py-2.5 font-bold">Delivered</th>
+                  <th className="py-2.5 font-bold">Opens / CTR</th>
                   <th className="py-2.5 font-bold">Banner Style</th>
                   <th className="py-2.5 font-bold">Sent By</th>
                   <th className="py-2.5 font-bold">Date</th>
@@ -1048,6 +1077,12 @@ export default function PushStudioPage() {
                     </td>
                     <td className="py-3 font-mono font-bold text-emerald-600">
                       {c.successCount} / {c.targetCount}
+                    </td>
+                    <td className="py-3 font-mono font-bold text-blue-600">
+                      {c.openedCount || 0}{" "}
+                      <span className="text-[10px] text-gray-400 font-normal">
+                        ({c.targetCount > 0 ? Math.round(((c.openedCount || 0) / c.targetCount) * 100) : 0}%)
+                      </span>
                     </td>
                     <td className="py-3 capitalize text-gray-700">{c.bannerStyle}</td>
                     <td className="py-3 text-gray-600">{c.sentBy?.name || "Admin"}</td>

@@ -1,12 +1,15 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
-import { Home, Users, User as UserIcon, Settings, Inbox, LifeBuoy, Smartphone } from "lucide-react";
+import { Home, Users, User as UserIcon, Settings, Inbox, LifeBuoy, Smartphone, Bell } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useInvitations } from "@/hooks/useInvitations";
+import { useNotifications } from "@/hooks/useNotifications";
+import { NotificationDrawer } from "@/components/notifications/NotificationDrawer";
 import { motion } from "framer-motion";
 
 const AMBER     = "#F9B912";
@@ -16,6 +19,8 @@ export function Navigation() {
   const pathname = usePathname();
   const { appUser } = useAuth();
   const { invitations } = useInvitations();
+  const { unreadCount } = useNotifications();
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   const links = [
     { name: "Home",     href: "/dashboard",             icon: Home,     exact: true  },
@@ -35,6 +40,26 @@ export function Navigation() {
 
   return (
     <>
+      {/* ═══════════ MOBILE TOP HEADER WITH BELL ═══════════ */}
+      <header className="md:hidden sticky top-0 z-40 px-4 py-3 bg-card/80 backdrop-blur-md border-b border-border flex items-center justify-between">
+        <Link href="/dashboard" className="flex items-center gap-2">
+          <Image src="/logo.png" alt="Splinzo" width={28} height={28} className="rounded-lg" />
+          <span className="font-extrabold text-base tracking-tight text-foreground">Splinzo</span>
+        </Link>
+        <button
+          onClick={() => setIsDrawerOpen(true)}
+          className="relative p-2 rounded-xl bg-muted/60 text-foreground hover:bg-muted transition-colors"
+          title="Notifications"
+        >
+          <Bell className="w-4 h-4 text-foreground" />
+          {unreadCount > 0 && (
+            <span className="absolute -top-1 -right-1 text-[9px] min-w-[16px] h-4 flex items-center justify-center rounded-full font-bold px-1 bg-amber-500 text-black">
+              {unreadCount > 9 ? "9+" : unreadCount}
+            </span>
+          )}
+        </button>
+      </header>
+
       {/* ═══════════ DESKTOP SIDEBAR ═══════════ */}
       <aside
         className="hidden md:flex flex-col w-64 h-screen fixed overflow-hidden"
@@ -52,21 +77,32 @@ export function Navigation() {
           </svg>
         </div>
 
-        {/* Logo */}
-        <div className="relative p-6" style={{ borderBottom: "1px solid var(--border)" }}>
+        {/* Logo and Notification Bell */}
+        <div className="relative p-5 flex items-center justify-between" style={{ borderBottom: "1px solid var(--border)" }}>
           <Link href="/dashboard" className="flex items-center gap-3 group">
             <div className="relative">
-              <Image src="/logo.png" alt="Splinzo" width={38} height={38}
+              <Image src="/logo.png" alt="Splinzo" width={36} height={36}
                      className="rounded-xl shadow-sm transition-transform group-hover:scale-105" priority />
               {/* Amber glow on hover */}
               <div className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 blur-sm"
                    style={{ background: AMBER, mixBlendMode: "multiply" }}/>
             </div>
             <div>
-              <span className="text-lg font-black tracking-tight" style={{ color: "var(--foreground)" }}>Splinzo</span>
+              <span className="text-base font-black tracking-tight" style={{ color: "var(--foreground)" }}>Splinzo</span>
               <div className="text-[10px] font-semibold -mt-0.5" style={{ color: "var(--muted-foreground)" }}>Smart Expense Sharing</div>
             </div>
           </Link>
+
+          <button
+            onClick={() => setIsDrawerOpen(true)}
+            className="relative p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5 transition-all"
+            title="Notifications"
+          >
+            <Bell className="w-4 h-4" />
+            {unreadCount > 0 && (
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-amber-500 ring-2 ring-card" />
+            )}
+          </button>
         </div>
 
         {/* Nav links */}
@@ -206,6 +242,12 @@ export function Navigation() {
           );
         })}
       </nav>
+
+      {/* Slide-over Notification Center */}
+      <NotificationDrawer
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+      />
     </>
   );
 }

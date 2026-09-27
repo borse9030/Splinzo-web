@@ -126,26 +126,45 @@ export async function POST(req: NextRequest) {
           groupName,
           data: data || {},
           read: false,
+          isRead: false,
+          actionType: type === "expense" ? "expense" : (groupId ? "group" : "home"),
+          actionData: { groupId: groupId || "", expenseId: data?.expenseId || "" },
           createdAt: FieldValue.serverTimestamp(),
         });
 
-        // Fetch user FCM token(s)
+        // Fetch user FCM token(s) and verify notification preferences
         try {
           const userDoc = await db.collection("users").doc(uid).get();
           if (userDoc.exists) {
             const userData = userDoc.data();
-            const token = userData?.fcmToken;
-            if (token && typeof token === "string" && token.trim().length > 10) {
-              tokens.push(token.trim());
+            const prefs = userData?.notificationPreferences;
+
+            // Check if user disabled this category
+            let isAllowed = true;
+            if (prefs) {
+              if ((type.startsWith("water") || type === "chore" || type === "duty_swap" || type === "flat_hq") && prefs.chores === false) {
+                isAllowed = false;
+              } else if (type === "expense" && prefs.expenses === false) {
+                isAllowed = false;
+              } else if (type === "broadcast" && prefs.broadcasts === false) {
+                isAllowed = false;
+              }
             }
-            if (Array.isArray(userData?.fcmTokens)) {
-              userData.fcmTokens.forEach((t: any) => {
-                if (typeof t === "string" && t.trim().length > 10) {
-                  tokens.push(t.trim());
-                } else if (t?.token && typeof t.token === "string" && t.token.trim().length > 10) {
-                  tokens.push(t.token.trim());
-                }
-              });
+
+            if (isAllowed) {
+              const token = userData?.fcmToken;
+              if (token && typeof token === "string" && token.trim().length > 10) {
+                tokens.push(token.trim());
+              }
+              if (Array.isArray(userData?.fcmTokens)) {
+                userData.fcmTokens.forEach((t: any) => {
+                  if (typeof t === "string" && t.trim().length > 10) {
+                    tokens.push(t.trim());
+                  } else if (t?.token && typeof t.token === "string" && t.token.trim().length > 10) {
+                    tokens.push(t.token.trim());
+                  }
+                });
+              }
             }
           }
         } catch (err) {

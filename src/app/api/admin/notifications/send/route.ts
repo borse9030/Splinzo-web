@@ -251,6 +251,7 @@ export async function POST(req: NextRequest) {
         targetCount: result.totalTargeted,
         successCount: result.successCount,
         failureCount: result.failureCount,
+        openedCount: 0,
         actionType,
         actionData: actionData || {},
         bannerStyle,
@@ -265,24 +266,31 @@ export async function POST(req: NextRequest) {
     // ── 5. RECORD IN-APP INBOX ENTRY (For targeted users) ──
     if (targetedUids.length > 0 && targetType !== "test") {
       try {
-        const inboxUids = targetedUids.slice(0, 200);
-        const batch = writeBatch(db);
-        inboxUids.forEach((uid) => {
-          const notifDoc = doc(collection(db, "users", uid, "notifications"));
-          batch.set(notifDoc, {
-            title: title.trim(),
-            body: messageBody.trim(),
-            imageUrl: cleanImageUrl || null,
-            type: "admin_broadcast",
-            bannerStyle,
-            actionType,
-            actionData: actionData || {},
-            isRead: false,
-            campaignId: campaignId || "",
-            createdAt: serverTimestamp(),
+        const uniqueUids = Array.from(new Set(targetedUids));
+        // Process in batches of 450 to stay well under Firestore's 500 operations per batch limit
+        const CHUNK_SIZE = 450;
+        for (let i = 0; i < uniqueUids.length; i += CHUNK_SIZE) {
+          const chunk = uniqueUids.slice(i, i + CHUNK_SIZE);
+          const batch = writeBatch(db);
+          chunk.forEach((uid) => {
+            const notifDoc = doc(collection(db, "users", uid, "notifications"));
+            batch.set(notifDoc, {
+              id: notifDoc.id,
+              title: title.trim(),
+              body: messageBody.trim(),
+              imageUrl: cleanImageUrl || null,
+              type: "admin_broadcast",
+              bannerStyle: bannerStyle || "blinkit",
+              actionType: actionType || "home",
+              actionData: actionData || {},
+              isRead: false,
+              read: false,
+              campaignId: campaignId || "",
+              createdAt: serverTimestamp(),
+            });
           });
-        });
-        await batch.commit();
+          await batch.commit();
+        }
       } catch (e) {
         console.warn("[send/route] Could not write inbox notifications:", e);
       }
