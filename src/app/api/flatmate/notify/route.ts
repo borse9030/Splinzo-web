@@ -129,13 +129,23 @@ export async function POST(req: NextRequest) {
           createdAt: FieldValue.serverTimestamp(),
         });
 
-        // Fetch user FCM token
+        // Fetch user FCM token(s)
         try {
           const userDoc = await db.collection("users").doc(uid).get();
           if (userDoc.exists) {
-            const token = userDoc.data()?.fcmToken;
-            if (token && typeof token === "string" && token.trim().length > 0) {
+            const userData = userDoc.data();
+            const token = userData?.fcmToken;
+            if (token && typeof token === "string" && token.trim().length > 10) {
               tokens.push(token.trim());
+            }
+            if (Array.isArray(userData?.fcmTokens)) {
+              userData.fcmTokens.forEach((t: any) => {
+                if (typeof t === "string" && t.trim().length > 10) {
+                  tokens.push(t.trim());
+                } else if (t?.token && typeof t.token === "string" && t.token.trim().length > 10) {
+                  tokens.push(t.token.trim());
+                }
+              });
             }
           }
         } catch (err) {
@@ -152,8 +162,9 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. Dispatch FCM Push Notifications if tokens exist
+    const uniqueTokens = Array.from(new Set(tokens.filter((t) => t && typeof t === "string" && t.trim().length > 10)));
     let fcmSentCount = 0;
-    if (tokens.length > 0) {
+    if (uniqueTokens.length > 0) {
       try {
         const payloadData = {
           type,
@@ -170,7 +181,7 @@ export async function POST(req: NextRequest) {
         const channelId = isFlatHq ? "flat_hq_reminders" : "splinzo_default";
 
         const response = await messaging.sendEachForMulticast({
-          tokens,
+          tokens: uniqueTokens,
           notification: {
             title,
             body: messageBody,
@@ -218,7 +229,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         success: true,
-        recipientsNotified: recipientUserIds.length,
+        recipientsNotified: targetUserIds.length,
+        targeted: targetUserIds.length,
+        targetCount: targetUserIds.length,
+        successCount: fcmSentCount,
         fcmPushesSent: fcmSentCount,
       },
       { status: 200, headers: corsHeaders }

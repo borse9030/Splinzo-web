@@ -52,6 +52,23 @@ export async function POST(req: NextRequest) {
     let targetTokens: string[] = [];
     const targetedUids: string[] = [];
 
+    function extractUserTokens(data: any): string[] {
+      const tokens: string[] = [];
+      if (data?.fcmToken && typeof data.fcmToken === "string" && data.fcmToken.trim().length > 10) {
+        tokens.push(data.fcmToken.trim());
+      }
+      if (Array.isArray(data?.fcmTokens)) {
+        data.fcmTokens.forEach((t: any) => {
+          if (typeof t === "string" && t.trim().length > 10) {
+            tokens.push(t.trim());
+          } else if (t?.token && typeof t.token === "string" && t.token.trim().length > 10) {
+            tokens.push(t.token.trim());
+          }
+        });
+      }
+      return tokens;
+    }
+
     // ── 1. RESOLVE RECIPIENTS BASED ON TARGET TYPE ──
     if (targetType === "test") {
       if (testFcmToken && testFcmToken.trim().length > 0) {
@@ -65,9 +82,9 @@ export async function POST(req: NextRequest) {
     } else if (targetType === "all") {
       const snap = await getDocs(collection(db, "users"));
       snap.forEach((userDoc) => {
-        const data = userDoc.data();
-        if (data?.fcmToken && typeof data.fcmToken === "string" && data.fcmToken.trim().length > 10) {
-          targetTokens.push(data.fcmToken.trim());
+        const uTokens = extractUserTokens(userDoc.data());
+        if (uTokens.length > 0) {
+          targetTokens.push(...uTokens);
           targetedUids.push(userDoc.id);
         }
       });
@@ -83,9 +100,9 @@ export async function POST(req: NextRequest) {
       );
       docs.forEach((userDoc) => {
         if (userDoc.exists()) {
-          const data = userDoc.data();
-          if (data?.fcmToken && typeof data.fcmToken === "string" && data.fcmToken.trim().length > 10) {
-            targetTokens.push(data.fcmToken.trim());
+          const uTokens = extractUserTokens(userDoc.data());
+          if (uTokens.length > 0) {
+            targetTokens.push(...uTokens);
             targetedUids.push(userDoc.id);
           }
         }
@@ -124,9 +141,9 @@ export async function POST(req: NextRequest) {
       );
       userDocs.forEach((userDoc) => {
         if (userDoc.exists()) {
-          const data = userDoc.data();
-          if (data?.fcmToken && typeof data.fcmToken === "string" && data.fcmToken.trim().length > 10) {
-            targetTokens.push(data.fcmToken.trim());
+          const uTokens = extractUserTokens(userDoc.data());
+          if (uTokens.length > 0) {
+            targetTokens.push(...uTokens);
             targetedUids.push(userDoc.id);
           }
         }
@@ -278,10 +295,12 @@ export async function POST(req: NextRequest) {
         success: hasCreds ? result.successCount > 0 : true,
         campaignId,
         targeted: result.totalTargeted,
+        targetCount: result.totalTargeted,
         successCount: result.successCount,
         failureCount: result.failureCount,
         staleTokensCount: result.staleTokens.length,
         errorMessage: result.errorMessage,
+        error: result.errorMessage || (result.totalTargeted > 0 && result.successCount === 0 ? "Failed to deliver to targeted device tokens." : undefined),
         credentialsConfigured: hasCreds,
         inboxSaved: targetedUids.length > 0,
         warning: !hasCreds
