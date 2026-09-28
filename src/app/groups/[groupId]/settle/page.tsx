@@ -119,55 +119,93 @@ export default function SettleUpPage({
 
   const loading = groupLoading || expensesLoading || paymentsLoading;
 
-  // Poll for single payment status
+  // Poll for single payment status with smart exponential backoff
   useEffect(() => {
     if (paymentStatus !== "awaiting" || !setuData?.paymentId) {
-      if (pollingRef.current) clearInterval(pollingRef.current);
+      if (pollingRef.current) clearTimeout(pollingRef.current);
       return;
     }
 
-    pollingRef.current = setInterval(async () => {
+    let delay = 3000;
+    const maxDelay = 15000;
+    const maxDuration = 90000; // Stop after 90 seconds
+    const startTime = Date.now();
+    let isCancelled = false;
+
+    const poll = async () => {
+      if (isCancelled) return;
+      if (Date.now() - startTime > maxDuration) {
+        return;
+      }
+
       try {
         const res = await fetch(`/api/settle/status?paymentId=${setuData.paymentId}&linkId=${setuData.linkId}`);
         const data = await res.json();
         if (data.status === "PAID") {
           setPaymentStatus("paid");
           setVerifiedUtr(data.utr || "BANK_VERIFIED");
-          if (pollingRef.current) clearInterval(pollingRef.current);
+          return;
         }
       } catch (err) {
         console.error("Status polling error:", err);
       }
-    }, 2500);
+
+      if (!isCancelled) {
+        delay = Math.min(Math.round(delay * 1.4), maxDelay);
+        pollingRef.current = setTimeout(poll, delay);
+      }
+    };
+
+    pollingRef.current = setTimeout(poll, delay);
 
     return () => {
-      if (pollingRef.current) clearInterval(pollingRef.current);
+      isCancelled = true;
+      if (pollingRef.current) clearTimeout(pollingRef.current);
     };
   }, [paymentStatus, setuData]);
 
-  // Poll for batch payment status
+  // Poll for batch payment status with smart exponential backoff
   useEffect(() => {
     if (batchPaymentStatus !== "awaiting" || !batchSetuData?.paymentId) {
-      if (batchPollingRef.current) clearInterval(batchPollingRef.current);
+      if (batchPollingRef.current) clearTimeout(batchPollingRef.current);
       return;
     }
 
-    batchPollingRef.current = setInterval(async () => {
+    let delay = 3000;
+    const maxDelay = 15000;
+    const maxDuration = 90000; // Stop after 90 seconds
+    const startTime = Date.now();
+    let isCancelled = false;
+
+    const poll = async () => {
+      if (isCancelled) return;
+      if (Date.now() - startTime > maxDuration) {
+        return;
+      }
+
       try {
         const res = await fetch(`/api/settle/status?paymentId=${batchSetuData.paymentId}&linkId=${batchSetuData.linkId}`);
         const data = await res.json();
         if (data.status === "PAID") {
           setBatchPaymentStatus("paid");
           setBatchVerifiedUtr(data.utr || "BANK_VERIFIED");
-          if (batchPollingRef.current) clearInterval(batchPollingRef.current);
+          return;
         }
       } catch (err) {
         console.error("Batch status polling error:", err);
       }
-    }, 2500);
+
+      if (!isCancelled) {
+        delay = Math.min(Math.round(delay * 1.4), maxDelay);
+        batchPollingRef.current = setTimeout(poll, delay);
+      }
+    };
+
+    batchPollingRef.current = setTimeout(poll, delay);
 
     return () => {
-      if (batchPollingRef.current) clearInterval(batchPollingRef.current);
+      isCancelled = true;
+      if (batchPollingRef.current) clearTimeout(batchPollingRef.current);
     };
   }, [batchPaymentStatus, batchSetuData]);
 

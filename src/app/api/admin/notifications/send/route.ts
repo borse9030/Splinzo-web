@@ -9,6 +9,9 @@ import {
   addDoc,
   serverTimestamp,
   writeBatch,
+  query,
+  where,
+  documentId,
 } from "firebase/firestore";
 
 export const runtime = "nodejs";
@@ -69,6 +72,20 @@ export async function POST(req: NextRequest) {
       return tokens;
     }
 
+    async function fetchUsersInChunks(uids: string[]) {
+      if (!uids || uids.length === 0) return [];
+      const unique = Array.from(new Set(uids.filter(Boolean)));
+      const docs: any[] = [];
+      const CHUNK_SIZE = 30; // Firestore limit for 'in' filter is 30
+      for (let i = 0; i < unique.length; i += CHUNK_SIZE) {
+        const chunk = unique.slice(i, i + CHUNK_SIZE);
+        const q = query(collection(db, "users"), where(documentId(), "in", chunk));
+        const snap = await getDocs(q);
+        snap.forEach((d) => docs.push(d));
+      }
+      return docs;
+    }
+
     // ── 1. RESOLVE RECIPIENTS BASED ON TARGET TYPE ──
     if (targetType === "test") {
       if (testFcmToken && testFcmToken.trim().length > 0) {
@@ -76,14 +93,10 @@ export async function POST(req: NextRequest) {
       }
       if (Array.isArray(targetUserIds) && targetUserIds.length > 0) {
         targetedUids.push(...targetUserIds);
-        const docs = await Promise.all(
-          targetUserIds.map((uid: string) => getDoc(doc(db, "users", uid)))
-        );
+        const docs = await fetchUsersInChunks(targetUserIds);
         docs.forEach((uDoc) => {
-          if (uDoc.exists()) {
-            const uTokens = extractUserTokens(uDoc.data());
-            targetTokens.push(...uTokens);
-          }
+          const uTokens = extractUserTokens(uDoc.data());
+          targetTokens.push(...uTokens);
         });
       }
       if (targetTokens.length === 0 && targetedUids.length === 0) {
@@ -108,16 +121,12 @@ export async function POST(req: NextRequest) {
           { status: 400, headers: corsHeaders }
         );
       }
-      const docs = await Promise.all(
-        targetUserIds.map((uid: string) => getDoc(doc(db, "users", uid)))
-      );
+      const docs = await fetchUsersInChunks(targetUserIds);
       docs.forEach((userDoc) => {
-        if (userDoc.exists()) {
-          targetedUids.push(userDoc.id);
-          const uTokens = extractUserTokens(userDoc.data());
-          if (uTokens.length > 0) {
-            targetTokens.push(...uTokens);
-          }
+        targetedUids.push(userDoc.id);
+        const uTokens = extractUserTokens(userDoc.data());
+        if (uTokens.length > 0) {
+          targetTokens.push(...uTokens);
         }
       });
     } else if (targetType === "group") {
@@ -149,16 +158,12 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const userDocs = await Promise.all(
-        memberIds.map((uid) => getDoc(doc(db, "users", uid)))
-      );
+      const userDocs = await fetchUsersInChunks(memberIds);
       userDocs.forEach((userDoc) => {
-        if (userDoc.exists()) {
-          targetedUids.push(userDoc.id);
-          const uTokens = extractUserTokens(userDoc.data());
-          if (uTokens.length > 0) {
-            targetTokens.push(...uTokens);
-          }
+        targetedUids.push(userDoc.id);
+        const uTokens = extractUserTokens(userDoc.data());
+        if (uTokens.length > 0) {
+          targetTokens.push(...uTokens);
         }
       });
     }

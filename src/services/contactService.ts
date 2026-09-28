@@ -85,6 +85,16 @@ export const contactPhoneNormalizer = {
   },
 };
 
+// In-memory cache for registered users phone map to avoid querying the full users table
+let cachedRegisteredPhoneMap: Map<string, any> | null = null;
+let lastPhoneMapFetchTime = 0;
+const PHONE_MAP_CACHE_TTL = 15 * 60 * 1000; // 15 minutes TTL
+
+export function invalidateRegisteredUsersMapCache() {
+  cachedRegisteredPhoneMap = null;
+  lastPhoneMapFetchTime = 0;
+}
+
 export const contactService = {
   /**
    * Reads contacts from the browser using the native Contact Picker API if supported
@@ -121,9 +131,15 @@ export const contactService = {
   },
 
   /**
-   * Fetches registered Splinzo users to cross-reference with contacts
+   * Fetches registered Splinzo users to cross-reference with contacts.
+   * Cached in memory for 15 minutes to eliminate full-table Firestore scans.
    */
-  async fetchRegisteredUsersMap(): Promise<Map<string, any>> {
+  async fetchRegisteredUsersMap(forceRefresh = false): Promise<Map<string, any>> {
+    const now = Date.now();
+    if (!forceRefresh && cachedRegisteredPhoneMap && (now - lastPhoneMapFetchTime < PHONE_MAP_CACHE_TTL)) {
+      return cachedRegisteredPhoneMap;
+    }
+
     const map = new Map<string, any>();
     try {
       const q = query(collection(db, "users"));
@@ -139,8 +155,11 @@ export const contactService = {
           }
         }
       });
+      cachedRegisteredPhoneMap = map;
+      lastPhoneMapFetchTime = now;
     } catch (e) {
       console.error("Error fetching registered users for contacts:", e);
+      if (cachedRegisteredPhoneMap) return cachedRegisteredPhoneMap;
     }
     return map;
   },

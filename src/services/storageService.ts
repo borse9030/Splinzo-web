@@ -41,27 +41,35 @@ export const storageService = {
       if (fileToUpload.type.startsWith('image/')) {
         const imageCompression = (await import('browser-image-compression')).default;
         
+        const isPng = fileToUpload.type === 'image/png';
+        const targetFileType = isPng ? 'image/png' : 'image/webp';
+        const targetExtension = isPng ? '.png' : '.webp';
+
         const options = {
-          maxSizeMB: 1, // Compress to ~1MB max
-          maxWidthOrHeight: 1920, // Max dimension 1920px
-          useWebWorker: true, // Use web workers for performance
-          fileType: fileToUpload.type === 'image/png' ? 'image/png' : 'image/jpeg', // maintain png transparency, convert webp/others to jpeg for standard compression
+          maxSizeMB: 0.25, // Compress to ~250KB max (drastically cuts R2 egress & storage cost)
+          maxWidthOrHeight: 1280, // 1280px is optimal for receipts, bills, and profile pictures
+          useWebWorker: true, // Use web workers for background compression without freezing UI
+          fileType: targetFileType,
+          initialQuality: 0.75,
         };
 
         try {
           // Compress the file
           const compressedBlob = await imageCompression(fileToUpload, options);
           
-          // Re-wrap in a File object to retain the original filename
-          fileToUpload = new File([compressedBlob], fileToUpload.name, {
-            type: options.fileType,
+          // Re-wrap in a File object with updated extension if WebP converted
+          const baseName = fileToUpload.name.replace(/\.[^/.]+$/, "");
+          const newName = `${baseName}${targetExtension}`;
+          
+          fileToUpload = new File([compressedBlob], newName, {
+            type: targetFileType,
             lastModified: Date.now(),
           });
           
-          console.log(`Original: ${(file.size / 1024 / 1024).toFixed(2)} MB, Compressed: ${(fileToUpload.size / 1024 / 1024).toFixed(2)} MB`);
+          console.log(`[Storage] Image optimized: ${(file.size / 1024).toFixed(1)} KB -> ${(fileToUpload.size / 1024).toFixed(1)} KB (${targetFileType})`);
         } catch (compressionError) {
-          console.warn('Image compression failed, falling back to original file:', compressionError);
-          // If compression fails for some reason, we just proceed with the uncompressed file (or HEIC converted file)
+          console.warn('[Storage] Image compression fallback to original:', compressionError);
+          // Fallback gracefully to original file
         }
       }
 
