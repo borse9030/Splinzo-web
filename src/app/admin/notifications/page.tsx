@@ -422,7 +422,7 @@ export default function PushStudioPage() {
       {sendResult && (
         <div
           className={`p-4 rounded-2xl border shadow-sm flex items-start justify-between ${
-            sendResult.successCount > 0
+            (sendResult.successCount > 0 || sendResult.inboxSaved)
               ? "bg-emerald-50 border-emerald-200"
               : "bg-amber-50 border-amber-300"
           }`}
@@ -430,10 +430,10 @@ export default function PushStudioPage() {
           <div className="flex items-start gap-3">
             <div
               className={`h-10 w-10 rounded-xl flex items-center justify-center font-bold text-white shrink-0 ${
-                sendResult.successCount > 0 ? "bg-emerald-500" : "bg-amber-500"
+                (sendResult.successCount > 0 || sendResult.inboxSaved) ? "bg-emerald-500" : "bg-amber-500"
               }`}
             >
-              {sendResult.successCount > 0 ? (
+              {(sendResult.successCount > 0 || sendResult.inboxSaved) ? (
                 <CheckCircle2 size={22} />
               ) : (
                 <AlertTriangle size={22} />
@@ -442,20 +442,33 @@ export default function PushStudioPage() {
             <div className="space-y-1">
               <h3
                 className={`text-sm font-black ${
-                  sendResult.successCount > 0 ? "text-emerald-950" : "text-amber-950"
+                  (sendResult.successCount > 0 || sendResult.inboxSaved) ? "text-emerald-950" : "text-amber-950"
                 }`}
               >
-                {sendResult.successCount > 0
+                {sendResult.successCount > 0 && sendResult.inboxSaved
                   ? "Broadcast Dispatched Successfully!"
+                  : sendResult.inboxSaved
+                  ? "Delivered to In-App Notification Center!"
+                  : sendResult.successCount > 0
+                  ? "Push Alerts Dispatched!"
                   : "Broadcast Delivery Incomplete"}
               </h3>
               <p
                 className={`text-xs leading-relaxed ${
-                  sendResult.successCount > 0 ? "text-emerald-800" : "text-amber-900"
+                  (sendResult.successCount > 0 || sendResult.inboxSaved) ? "text-emerald-800" : "text-amber-900"
                 }`}
               >
-                Delivered to <strong>{sendResult.successCount}</strong> devices.{" "}
-                {sendResult.failureCount > 0 && `(${sendResult.failureCount} failed)`}
+                {sendResult.message || (
+                  <>
+                    {sendResult.successCount > 0 && (
+                      <span>Delivered to <strong>{sendResult.successCount}</strong> hardware push device(s). </span>
+                    )}
+                    {sendResult.inboxSaved && (
+                      <span>Saved to <strong>{sendResult.inboxCount || 1}</strong> user Notification Center(s).</span>
+                    )}
+                  </>
+                )}
+                {sendResult.failureCount > 0 && ` (${sendResult.failureCount} push failed)`}
                 {sendResult.staleTokensCount > 0 &&
                   ` • Cleaned up ${sendResult.staleTokensCount} expired tokens.`}
               </p>
@@ -473,7 +486,7 @@ export default function PushStudioPage() {
           </div>
           <button
             onClick={() => setSendResult(null)}
-            className="text-xs text-gray-500 hover:text-gray-900 font-bold px-2 py-1 shrink-0"
+            className="text-xs text-gray-500 hover:text-gray-900 font-bold px-2 py-1 shrink-0 cursor-pointer"
           >
             Dismiss
           </button>
