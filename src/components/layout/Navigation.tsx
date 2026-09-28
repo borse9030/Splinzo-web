@@ -10,7 +10,6 @@ import { cn } from "@/lib/utils";
 import { useInvitations } from "@/hooks/useInvitations";
 import { useNotifications } from "@/hooks/useNotifications";
 import { NotificationDrawer } from "@/components/notifications/NotificationDrawer";
-import { WebNotificationBanner } from "@/components/notifications/WebNotificationBanner";
 import { motion } from "framer-motion";
 
 const AMBER     = "#F9B912";
@@ -49,11 +48,6 @@ export function Navigation() {
 
   return (
     <>
-      {/* Web notification permission banner for website & iPhone users */}
-      <div className="w-full md:pl-64">
-        <WebNotificationBanner />
-      </div>
-
       {/* ═══════════ MOBILE TOP HEADER WITH BELL & SETTINGS ═══════════ */}
       {!pathname.startsWith("/groups") && (
         <header className="md:hidden sticky top-0 z-40 w-full px-4 py-3 bg-card/80 backdrop-blur-md border-b border-border flex items-center justify-between">
