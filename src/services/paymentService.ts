@@ -42,6 +42,45 @@ export const paymentService = {
   },
 
   /**
+   * Declines a payment and updates its status to 'declined' in Firestore
+   */
+  async declinePayment(paymentId: string): Promise<void> {
+    const paymentRef = doc(db, "payments", paymentId);
+    const { getDoc } = await import("firebase/firestore");
+    const snap = await getDoc(paymentRef);
+    await updateDoc(paymentRef, {
+      status: "declined",
+      declinedAt: new Date(),
+    });
+
+    if (snap?.exists()) {
+      const data = snap.data();
+      const fromUserId = data.fromUserId;
+      const toUserName = data.toUserName || "The receiver";
+      const amount = data.amount || 0;
+      const groupId = data.groupId || "";
+
+      if (fromUserId) {
+        const { sendFlatmatePushNotification } = await import("@/services/flatmateService");
+        sendFlatmatePushNotification({
+          userIds: [fromUserId],
+          title: "❌ Payment Declined",
+          body: `${toUserName} indicated they haven't received your payment of ₹${amount}. Please verify and retry.`,
+          groupId,
+          type: "settlement",
+          data: {
+            paymentId,
+            fromUserId,
+            toUserId: data.toUserId,
+            amount,
+            bannerStyle: "warning",
+          },
+        }).catch((e) => console.warn("[paymentService] Push error:", e));
+      }
+    }
+  },
+
+  /**
    * Fetches pending payments for a specific user within a group
    */
   async getPendingPaymentsForUser(groupId: string, userId: string) {

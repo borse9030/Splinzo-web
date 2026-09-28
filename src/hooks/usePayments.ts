@@ -17,6 +17,7 @@ export function usePayments(groupId?: string) {
   const [outgoingPayments, setOutgoingPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(() => (groupId ? !groupPaymentsCache.has(groupId) : true));
   const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [decliningId, setDecliningId] = useState<string | null>(null);
   const [error, setError] = useState<Error | null>(null);
 
   // If groupId is provided, fetch payments for that specific group
@@ -155,6 +156,18 @@ export function usePayments(groupId?: string) {
     }
   }, []);
 
+  const decline = useCallback(async (paymentId: string) => {
+    setDecliningId(paymentId);
+    try {
+      await paymentService.declinePayment(paymentId);
+    } catch (err) {
+      console.error("Failed to decline payment:", err);
+      throw err;
+    } finally {
+      setDecliningId(null);
+    }
+  }, []);
+
   const pendingIncomingCount = incomingPayments.filter(p => p.status === "pending_approval").length;
 
   return {
@@ -163,7 +176,9 @@ export function usePayments(groupId?: string) {
     outgoingPayments,
     loading,
     approvingId,
+    decliningId,
     approvePayment: approve,
+    declinePayment: decline,
     pendingIncomingCount,
     error,
   };

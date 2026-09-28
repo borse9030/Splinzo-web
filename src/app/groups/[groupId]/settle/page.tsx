@@ -821,7 +821,7 @@ export default function SettleUpPage({
                       </span>
                       <span className="text-[11px] font-bold text-slate-500 hidden sm:inline-flex items-center gap-1">
                         <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
-                        Automated Bank Verification
+                        Peer-to-Peer Verified
                       </span>
                     </div>
 
@@ -1054,7 +1054,7 @@ export default function SettleUpPage({
             <div className="py-16 flex flex-col items-center justify-center gap-3 text-center">
               <Loader2 className="h-10 w-10 animate-spin text-amber-500" />
               <p className="text-sm font-bold text-slate-800">Generating secure UPI payment session...</p>
-              <p className="text-xs text-slate-400">Verifying bank routes & zero-fee options</p>
+              <p className="text-xs text-slate-400">Verifying UPI routes & zero-fee options</p>
             </div>
           ) : paymentStatus === "paid" ? (
             <div className="py-8 flex flex-col items-center text-center space-y-4 max-w-md mx-auto">
@@ -1064,7 +1064,7 @@ export default function SettleUpPage({
               <div>
                 <h3 className="text-2xl font-black text-slate-900">Payment Verified!</h3>
                 <p className="text-sm text-slate-500 mt-1">
-                  Bank confirmation received. Your balance has been automatically squared and recorded.
+                  Payment confirmed. Your balance has been automatically squared and recorded.
                 </p>
               </div>
 

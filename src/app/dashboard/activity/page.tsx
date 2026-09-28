@@ -26,7 +26,8 @@ import {
   CheckCheck,
   Zap,
   Send,
-  Sparkles
+  Sparkles,
+  Clock
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -45,6 +46,8 @@ export default function ActivityPage() {
     loading: payLoading, 
     approvePayment,
     approvingId,
+    declinePayment,
+    decliningId,
     pendingIncomingCount 
   } = usePayments();
 
@@ -81,6 +84,19 @@ export default function ActivityPage() {
     navigator.clipboard.writeText(text);
     setCopiedUtr(text);
     setTimeout(() => setCopiedUtr(null), 2500);
+  };
+
+  const handleDeclinePayment = async (paymentId: string, fromUserName: string, amount: number) => {
+    const confirmed = window.confirm(
+      `Are you sure you haven't received ₹${amount.toFixed(2)} from ${fromUserName}? This will decline the payment and notify them so they can retry paying.`
+    );
+    if (!confirmed) return;
+    try {
+      await declinePayment(paymentId);
+    } catch (e) {
+      console.error("Failed to decline payment:", e);
+      alert("Failed to decline payment. Please try again.");
+    }
   };
 
   const visibleInvitations = invitations.filter(inv => !declinedInviteIds.has(inv.id));
@@ -274,12 +290,17 @@ export default function ActivityPage() {
           <div className="space-y-2.5">
             {incomingPayments.map((payment) => {
               const isApproved = payment.status === "approved";
+              const isDeclined = payment.status === "declined";
+              const isPending = payment.status === "pending_approval";
+
               return (
                 <Card
                   key={payment.id}
                   className={`border transition-all rounded-2xl overflow-hidden bg-white shadow-sm hover:shadow-md ${
                     isApproved 
                       ? "border-emerald-200/80 hover:border-emerald-300" 
+                      : isDeclined
+                      ? "border-rose-200 hover:border-rose-300 bg-rose-50/20"
                       : "border-blue-200 hover:border-blue-300 bg-blue-50/20"
                   }`}
                 >
@@ -289,13 +310,17 @@ export default function ActivityPage() {
                         className={`h-11 w-11 rounded-2xl flex items-center justify-center shrink-0 shadow-sm ${
                           isApproved
                             ? "bg-emerald-100 text-emerald-700 border border-emerald-200"
+                            : isDeclined
+                            ? "bg-rose-100 text-rose-700 border border-rose-200"
                             : "bg-blue-100 text-blue-700 border border-blue-200"
                         }`}
                       >
                         {isApproved ? (
                           <ArrowDownLeft className="h-5 w-5 stroke-[2.5]" />
+                        ) : isDeclined ? (
+                          <X className="h-5 w-5 stroke-[2.5]" />
                         ) : (
-                          <RefreshCw className="h-5 w-5 animate-spin" />
+                          <Clock className="h-5 w-5" />
                         )}
                       </div>
 
@@ -311,6 +336,8 @@ export default function ActivityPage() {
                             className={`inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-md ${
                               isApproved
                                 ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                : isDeclined
+                                ? "bg-rose-50 text-rose-700 border border-rose-200"
                                 : "bg-blue-50 text-blue-700 border border-blue-200"
                             }`}
                           >
@@ -318,9 +345,13 @@ export default function ActivityPage() {
                               <>
                                 <CheckCircle2 className="h-3 w-3" /> ✓ Automated UPI Settlement
                               </>
+                            ) : isDeclined ? (
+                              <>
+                                <X className="h-3 w-3" /> ✕ Payment Declined
+                              </>
                             ) : (
                               <>
-                                <RefreshCw className="h-3 w-3 animate-spin" /> ⚡ Verifying with Bank...
+                                <Clock className="h-3 w-3" /> 🕒 Pending receiver confirmation
                               </>
                             )}
                           </span>
@@ -352,15 +383,26 @@ export default function ActivityPage() {
                         +₹{payment.amount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </div>
 
-                      {!isApproved && (
-                        <Button
-                          size="sm"
-                          disabled={approvingId === payment.id}
-                          onClick={() => approvePayment(payment.id)}
-                          className="h-7 px-3 text-xs font-bold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 mt-1 shadow-sm"
-                        >
-                          {approvingId === payment.id ? "Approving..." : "Confirm Received"}
-                        </Button>
+                      {isPending && (
+                        <div className="flex items-center gap-2 mt-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={approvingId === payment.id || decliningId === payment.id}
+                            onClick={() => handleDeclinePayment(payment.id, payment.fromUserName, payment.amount)}
+                            className="h-7 px-3 text-xs font-bold rounded-lg border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700 shadow-sm"
+                          >
+                            {decliningId === payment.id ? "Declining..." : "Decline"}
+                          </Button>
+                          <Button
+                            size="sm"
+                            disabled={approvingId === payment.id || decliningId === payment.id}
+                            onClick={() => approvePayment(payment.id)}
+                            className="h-7 px-3 text-xs font-bold rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm"
+                          >
+                            {approvingId === payment.id ? "Approving..." : "Confirm Received"}
+                          </Button>
+                        </div>
                       )}
                     </div>
                   </CardContent>
@@ -387,6 +429,8 @@ export default function ActivityPage() {
           <div className="space-y-2.5">
             {outgoingPayments.map((payment) => {
               const isApproved = payment.status === "approved";
+              const isDeclined = payment.status === "declined";
+
               return (
                 <Card
                   key={payment.id}
@@ -394,8 +438,18 @@ export default function ActivityPage() {
                 >
                   <CardContent className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div className="flex items-start sm:items-center gap-3.5">
-                      <div className="h-11 w-11 rounded-2xl flex items-center justify-center shrink-0 shadow-sm bg-gray-100 text-gray-700 border border-gray-200">
-                        <ArrowUpRight className="h-5 w-5 stroke-[2.5]" />
+                      <div className={`h-11 w-11 rounded-2xl flex items-center justify-center shrink-0 shadow-sm ${
+                        isApproved
+                          ? "bg-emerald-100 text-emerald-700 border border-emerald-200"
+                          : isDeclined
+                          ? "bg-rose-100 text-rose-700 border border-rose-200"
+                          : "bg-gray-100 text-gray-700 border border-gray-200"
+                      }`}>
+                        {isDeclined ? (
+                          <X className="h-5 w-5 stroke-[2.5]" />
+                        ) : (
+                          <ArrowUpRight className="h-5 w-5 stroke-[2.5]" />
+                        )}
                       </div>
 
                       <div>
@@ -408,6 +462,8 @@ export default function ActivityPage() {
                             className={`inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-md ${
                               isApproved
                                 ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                : isDeclined
+                                ? "bg-rose-50 text-rose-700 border border-rose-200"
                                 : "bg-blue-50 text-blue-700 border border-blue-200"
                             }`}
                           >
@@ -415,9 +471,13 @@ export default function ActivityPage() {
                               <>
                                 <CheckCircle2 className="h-3 w-3" /> ✓ Verified via UPI
                               </>
+                            ) : isDeclined ? (
+                              <>
+                                <X className="h-3 w-3" /> ✕ Payment Declined
+                              </>
                             ) : (
                               <>
-                                <RefreshCw className="h-3 w-3 animate-spin" /> ⚡ Verifying with Bank...
+                                <Clock className="h-3 w-3" /> 🕒 Pending receiver confirmation
                               </>
                             )}
                           </span>

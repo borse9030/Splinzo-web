@@ -6,7 +6,7 @@ import { useExpense } from "@/hooks/useExpense";
 import { useGroup } from "@/hooks/useGroup";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, Receipt, Calendar, User, Zap } from "lucide-react";
+import { ChevronLeft, Receipt, Calendar, User, Zap, Clock, X } from "lucide-react";
 import Link from "next/link";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePayments } from "@/hooks/usePayments";
@@ -25,7 +25,7 @@ export default function ExpenseDetailsPage({
   const { appUser } = useAuth();
   const { expense, loading: expenseLoading, error: expenseError } = useExpense(groupId, expenseId);
   const { group, loading: groupLoading } = useGroup(groupId);
-  const { payments } = usePayments(groupId);
+  const { payments, approvePayment, approvingId, declinePayment, decliningId } = usePayments(groupId);
 
   if (expenseError) {
     return (
@@ -201,7 +201,7 @@ export default function ExpenseDetailsPage({
       </Card>
 
       {/* Payment Action Bar */}
-      {amIInvolved && myNet < -0.01 && !myPaymentToPayer && (
+      {amIInvolved && myNet < -0.01 && (!myPaymentToPayer || myPaymentToPayer.status === "declined") && (
         <Card className="border-none shadow-sm rounded-3xl overflow-hidden bg-blue-50/50 border border-blue-100">
           <CardContent className="p-6 text-center">
             <h3 className="font-bold text-gray-900 mb-1">
@@ -211,7 +211,7 @@ export default function ExpenseDetailsPage({
             <Button asChild className="w-full rounded-full h-12 text-base font-bold bg-blue-600 hover:bg-blue-700 shadow-md">
               <Link href={`/groups/${group?.id || groupId}/settle`}>
                 <Zap className="h-4 w-4 mr-2 fill-amber-400 text-amber-400" />
-                Settle & Pay via Automated UPI
+                {myPaymentToPayer?.status === "declined" ? "Retry Payment via UPI" : "Settle & Pay via UPI"}
               </Link>
             </Button>
           </CardContent>
@@ -224,6 +224,8 @@ export default function ExpenseDetailsPage({
           className={`border-none shadow-sm rounded-3xl overflow-hidden ${
             myPaymentToPayer.status === "approved"
               ? "bg-emerald-50 border border-emerald-200"
+              : myPaymentToPayer.status === "declined"
+              ? "bg-rose-50 border border-rose-200"
               : "bg-blue-50 border border-blue-200"
           }`}
         >
@@ -243,15 +245,26 @@ export default function ExpenseDetailsPage({
                   </p>
                 )}
               </>
+            ) : myPaymentToPayer.status === "declined" ? (
+              <>
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-100 text-rose-800 text-xs font-bold mb-2">
+                  <X className="w-3.5 h-3.5 text-rose-600" />
+                  <span>Payment Declined by Receiver</span>
+                </div>
+                <h3 className="font-extrabold text-rose-950 text-lg">Payment Declined</h3>
+                <p className="text-sm text-rose-800 mt-1">
+                  {payerName} reported that they have not received this payment. Please verify your transaction and retry using the button above.
+                </p>
+              </>
             ) : (
               <>
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-100 text-blue-800 text-xs font-bold mb-2">
-                  <span className="w-2 h-2 rounded-full bg-blue-600 animate-ping" />
-                  <span>Verifying with Bank...</span>
+                  <Clock className="w-3.5 h-3.5 text-blue-600" />
+                  <span>Waiting for receiver confirmation...</span>
                 </div>
-                <h3 className="font-extrabold text-blue-950 text-lg">UPI Payment in Progress</h3>
+                <h3 className="font-extrabold text-blue-950 text-lg">Payment Sent</h3>
                 <p className="text-sm text-blue-800 mt-1">
-                  Waiting for instant bank confirmation via Setu UPI. Balances update automatically upon verification.
+                  Waiting for {payerName} to confirm receipt. Group balances will update automatically once verified.
                 </p>
               </>
             )}
@@ -280,6 +293,7 @@ export default function ExpenseDetailsPage({
                 (p) => p.expenseId === expenseId && p.fromUserId === userId && p.toUserId === payer.id
               );
               const isSettled = isPayerMember || memberPayment?.status === "approved";
+              const isDeclined = memberPayment?.status === "declined";
               const isVerifying = memberPayment?.status === "pending_approval";
 
               // Contextual label for split mode
@@ -332,9 +346,13 @@ export default function ExpenseDetailsPage({
                         <span className="text-[11px] font-bold text-emerald-600 flex items-center gap-1">
                           ✓ Settled via UPI
                         </span>
+                      ) : isDeclined ? (
+                        <span className="text-[11px] font-bold text-rose-600 flex items-center gap-1">
+                          ✕ Declined by receiver
+                        </span>
                       ) : isVerifying ? (
                         <span className="text-[11px] font-bold text-blue-600 flex items-center gap-1">
-                          ⚡ Verifying with Bank...
+                          🕒 Waiting for confirmation...
                         </span>
                       ) : (
                         <span className="text-[11px] font-medium text-gray-400">Not settled yet</span>
@@ -352,6 +370,49 @@ export default function ExpenseDetailsPage({
           </div>
         </CardContent>
       </Card>
+
+      {/* Pending Settlement Requests for Payer / Creditor to Confirm or Decline */}
+      {amIPayer &&
+        payments &&
+        payments
+          .filter((p) => p.expenseId === expenseId && p.status === "pending_approval" && p.toUserId === appUser?.id)
+          .map((p) => (
+            <Card key={p.id} className="border-blue-200 bg-blue-50/70 border shadow-sm rounded-3xl overflow-hidden mt-3">
+              <CardContent className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <div className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-800 mb-1">
+                    <Clock className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Awaiting Your Confirmation</span>
+                  </div>
+                  <h4 className="font-bold text-blue-950">{p.fromUserName} marked this share as paid</h4>
+                  <p className="text-xs text-blue-700 mt-0.5">Did you receive {expense.currency === "INR" ? "₹" : expense.currency}{p.amount.toFixed(2)} in your bank/UPI?</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={approvingId === p.id || decliningId === p.id}
+                    onClick={() => {
+                      if (window.confirm(`Are you sure you want to decline this payment from ${p.fromUserName}? They will be notified to retry.`)) {
+                        declinePayment(p.id);
+                      }
+                    }}
+                    className="h-8 px-3 text-xs font-bold rounded-xl border-rose-200 text-rose-600 hover:bg-rose-50"
+                  >
+                    {decliningId === p.id ? "Declining..." : "Decline"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    disabled={approvingId === p.id || decliningId === p.id}
+                    onClick={() => approvePayment(p.id)}
+                    className="h-8 px-4 text-xs font-bold rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm"
+                  >
+                    {approvingId === p.id ? "Confirming..." : "Confirm Received"}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
 
       {/* Verified Settlements List for Payer / Creditor */}
       {amIPayer &&

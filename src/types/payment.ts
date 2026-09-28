@@ -21,7 +21,7 @@ export interface Payment {
   setuLinkId?: string;
   utr?: string;
   verifiedVia?: "setu" | "manual" | "setu_batch" | "setu_simulation" | "setu_webhook";
-  status: "pending_approval" | "approved";
+  status: "pending_approval" | "approved" | "declined";
   feeTier?: "instant" | "free_ad";
   adWatched?: boolean;
   type?: "single" | "batch";
@@ -30,4 +30,5 @@ export interface Payment {
   savingsAmount?: number;
   createdAt: Timestamp;
   approvedAt?: Timestamp;
+  declinedAt?: Timestamp;
 }
