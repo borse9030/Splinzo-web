@@ -115,8 +115,8 @@ export default function DashboardPage() {
             />
           </h1>
         </div>
-        {/* Logo top-right with hover glow */}
-        <Link href="/" className="group relative">
+        {/* Logo top-right with hover glow (hidden on mobile as top navbar already shows it) */}
+        <Link href="/" className="group relative hidden sm:block">
           <Image
             src="/logo.png" alt="Splinzo" width={46} height={46}
             className="rounded-2xl shadow-md transition-transform group-hover:scale-105"
@@ -129,30 +129,31 @@ export default function DashboardPage() {
       </motion.header>
 
       {/* ══ SWITCHER: Groups vs Pocket Ledger ══ */}
-      <motion.div variants={fadeUp} className="flex p-1 rounded-2xl max-w-sm" style={{ background: "var(--muted)" }}>
+      <motion.div variants={fadeUp} className="flex p-1 rounded-2xl w-full max-w-sm" style={{ background: "var(--muted)" }}>
         <button
           onClick={() => setViewMode("groups")}
-          className="flex-1 py-2.5 px-4 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-2"
+          className="flex-1 py-2.5 px-2.5 sm:px-4 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer min-w-0"
           style={{
             background: viewMode === "groups" ? "var(--card)" : "transparent",
             color: viewMode === "groups" ? "var(--foreground)" : "var(--muted-foreground)",
             boxShadow: viewMode === "groups" ? "0 2px 8px rgba(0,0,0,0.06)" : "none",
           }}
         >
-          <Users className="h-4 w-4" />
-          Group Balances
+          <Users className="h-4 w-4 shrink-0" />
+          <span className="truncate">Group Balances</span>
         </button>
         <button
           onClick={() => setViewMode("personal")}
-          className="flex-1 py-2.5 px-4 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-2"
+          className="flex-1 py-2.5 px-2.5 sm:px-4 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer min-w-0"
           style={{
             background: viewMode === "personal" ? "var(--card)" : "transparent",
             color: viewMode === "personal" ? "var(--foreground)" : "var(--muted-foreground)",
             boxShadow: viewMode === "personal" ? "0 2px 8px rgba(0,0,0,0.06)" : "none",
           }}
         >
-          <Wallet className="h-4 w-4" />
-          Pocket Ledger (Solo)
+          <Wallet className="h-4 w-4 shrink-0" />
+          <span className="truncate">Pocket Ledger</span>
+          <span className="hidden sm:inline text-[11px] opacity-75">(Solo)</span>
         </button>
       </motion.div>
 
@@ -209,22 +210,22 @@ export default function DashboardPage() {
             {/* You owe / You get */}
             <div className="grid grid-cols-2 gap-3">
               <div
-                className="rounded-2xl px-4 py-3 bg-white/70 backdrop-blur-md border border-white/60 shadow-sm"
+                className="rounded-2xl px-4 py-3 bg-white/70 backdrop-blur-md border border-white/60 shadow-sm min-w-0"
               >
                 <div className="flex items-center gap-1.5 mb-1">
-                  <TrendingDown className="h-3.5 w-3.5 text-red-600" />
-                  <p className="text-xs font-bold text-gray-700">You owe</p>
+                  <TrendingDown className="h-3.5 w-3.5 text-red-600 shrink-0" />
+                  <p className="text-xs font-bold text-gray-700 truncate">You owe</p>
                 </div>
-                <p className="text-xl font-black text-red-600">₹0</p>
+                <p className="text-xl font-black text-red-600 truncate">₹0</p>
               </div>
               <div
-                className="rounded-2xl px-4 py-3 bg-white/70 backdrop-blur-md border border-white/60 shadow-sm"
+                className="rounded-2xl px-4 py-3 bg-white/70 backdrop-blur-md border border-white/60 shadow-sm min-w-0"
               >
                 <div className="flex items-center gap-1.5 mb-1">
-                  <TrendingUp className="h-3.5 w-3.5 text-emerald-600" />
-                  <p className="text-xs font-bold text-gray-700">You get</p>
+                  <TrendingUp className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                  <p className="text-xs font-bold text-gray-700 truncate">You get</p>
                 </div>
-                <p className="text-xl font-black text-emerald-700">₹0</p>
+                <p className="text-xl font-black text-emerald-700 truncate">₹0</p>
               </div>
             </div>
           </div>
@@ -246,29 +247,29 @@ export default function DashboardPage() {
               borderColor: "var(--border)",
             }}
           >
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3 sm:gap-4 min-w-0">
               <div
-                className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-sm"
+                className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-sm"
                 style={{ background: "#FFF8E1", color: "#F9A000" }}
               >
-                <Smartphone className="w-6 h-6 text-amber-500" />
+                <Smartphone className="w-5 h-5 sm:w-6 sm:h-6 text-amber-500" />
               </div>
-              <div>
+              <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
-                  <h3 className="font-extrabold text-sm sm:text-base group-hover:text-amber-500 transition-colors" style={{ color: "var(--foreground)" }}>
+                  <h3 className="font-extrabold text-sm sm:text-base group-hover:text-amber-500 transition-colors truncate" style={{ color: "var(--foreground)" }}>
                     Split with Contacts
                   </h3>
-                  <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400">
+                  <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400 shrink-0">
                     NEW
                   </span>
                 </div>
-                <p className="text-xs font-medium text-gray-500 mt-0.5">
+                <p className="text-xs font-medium text-gray-500 mt-0.5 line-clamp-1 sm:line-clamp-none">
                   Sync phone contacts, 1-on-1 split by phone number & settle via UPI QR
                 </p>
               </div>
             </div>
 
-            <div className="w-8 h-8 rounded-full flex items-center justify-center border text-gray-400 group-hover:text-amber-500 group-hover:border-amber-400 transition-all shrink-0">
+            <div className="w-8 h-8 rounded-full flex items-center justify-center border text-gray-400 group-hover:text-amber-500 group-hover:border-amber-400 transition-all shrink-0 ml-2">
               <ChevronRight className="w-4 h-4" />
             </div>
           </div>
@@ -298,7 +299,7 @@ export default function DashboardPage() {
               onClick={() => setJoinDialogOpen(true)}
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
-              className="flex items-center justify-center gap-2 px-4 h-11 rounded-2xl text-sm font-bold border border-gray-200 bg-white text-gray-800 hover:border-amber-400 hover:text-amber-700 transition-all shadow-xs cursor-pointer whitespace-nowrap"
+              className="flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 h-11 rounded-2xl text-xs sm:text-sm font-bold border border-gray-200 bg-white text-gray-800 hover:border-amber-400 hover:text-amber-700 transition-all shadow-xs cursor-pointer whitespace-nowrap"
             >
               <LogIn className="h-4 w-4 text-blue-600 shrink-0" />
               <span>Join Group</span>
@@ -309,7 +310,7 @@ export default function DashboardPage() {
               <motion.div
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                className="relative flex items-center justify-center gap-2 px-4 h-11 rounded-2xl text-sm font-bold overflow-hidden cursor-pointer whitespace-nowrap shadow-sm hover:shadow-md transition-all"
+                className="relative flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-4 h-11 rounded-2xl text-xs sm:text-sm font-bold overflow-hidden cursor-pointer whitespace-nowrap shadow-sm hover:shadow-md transition-all"
                 style={{
                   background: `linear-gradient(135deg, ${AMBER} 0%, ${AMBER_DARK} 100%)`,
                   color: "#1a1a1a",

@@ -29,7 +29,11 @@ import {
   Wallet,
   Users,
   Check,
+  Settings,
+  LifeBuoy,
+  ChevronRight,
 } from "lucide-react";
+import Link from "next/link";
 import { storageService } from "@/services/storageService";
 
 export default function ProfilePage() {
@@ -511,6 +515,51 @@ export default function ProfilePage() {
             </div>
           </form>
         </CardContent>
+      </Card>
+
+      {/* ── QUICK LINKS (SETTINGS & SUPPORT) ────────────────────── */}
+      <Card className="border border-border/80 shadow-sm rounded-3xl overflow-hidden bg-card">
+        <div className="divide-y divide-border">
+          <Link
+            href="/dashboard/settings"
+            className="flex items-center justify-between p-4 sm:p-5 hover:bg-black/5 dark:hover:bg-white/5 transition-colors group cursor-pointer"
+          >
+            <div className="flex items-center gap-3.5">
+              <div className="h-10 w-10 rounded-2xl flex items-center justify-center bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                <Settings className="h-5 w-5" />
+              </div>
+              <div>
+                <h4 className="font-bold text-sm text-foreground group-hover:text-amber-600 transition-colors">
+                  Preferences & Settings
+                </h4>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Currency, dark mode, password & notification preferences
+                </p>
+              </div>
+            </div>
+            <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-foreground group-hover:translate-x-0.5 transition-all" />
+          </Link>
+
+          <Link
+            href="/dashboard/support"
+            className="flex items-center justify-between p-4 sm:p-5 hover:bg-black/5 dark:hover:bg-white/5 transition-colors group cursor-pointer"
+          >
+            <div className="flex items-center gap-3.5">
+              <div className="h-10 w-10 rounded-2xl flex items-center justify-center bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                <LifeBuoy className="h-5 w-5" />
+              </div>
+              <div>
+                <h4 className="font-bold text-sm text-foreground group-hover:text-blue-600 transition-colors">
+                  Help & Support
+                </h4>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Get help, report an issue, or chat with our team
+                </p>
+              </div>
+            </div>
+            <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-foreground group-hover:translate-x-0.5 transition-all" />
+          </Link>
+        </div>
       </Card>
 
       {/* ── DANGER ZONE ─────────────────────────────────────────── */}

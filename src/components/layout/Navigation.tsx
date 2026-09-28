@@ -31,6 +31,14 @@ export function Navigation() {
     { name: "Profile",  href: "/dashboard/profile",      icon: UserIcon, exact: false },
   ];
 
+  const mobileLinks = [
+    { name: "Home",     href: "/dashboard",             icon: Home,     exact: true  },
+    { name: "Groups",   href: "/dashboard/groups",       icon: Users,    exact: false, activeOn: "/dashboard/groups" },
+    { name: "Contacts", href: "/dashboard/contacts",     icon: Smartphone, exact: false },
+    { name: "Activity", href: "/dashboard/activity",  icon: Inbox,    badge: invitations?.length || 0, exact: false },
+    { name: "Profile",  href: "/dashboard/profile",      icon: UserIcon, exact: false },
+  ];
+
   const isLinkActive = (link: typeof links[0]) =>
     link.exact
       ? pathname === link.href
@@ -40,25 +48,39 @@ export function Navigation() {
 
   return (
     <>
-      {/* ═══════════ MOBILE TOP HEADER WITH BELL ═══════════ */}
-      <header className="md:hidden sticky top-0 z-40 px-4 py-3 bg-card/80 backdrop-blur-md border-b border-border flex items-center justify-between">
-        <Link href="/dashboard" className="flex items-center gap-2">
-          <Image src="/logo.png" alt="Splinzo" width={28} height={28} className="rounded-lg" />
-          <span className="font-extrabold text-base tracking-tight text-foreground">Splinzo</span>
-        </Link>
-        <button
-          onClick={() => setIsDrawerOpen(true)}
-          className="relative p-2 rounded-xl bg-muted/60 text-foreground hover:bg-muted transition-colors"
-          title="Notifications"
-        >
-          <Bell className="w-4 h-4 text-foreground" />
-          {unreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 text-[9px] min-w-[16px] h-4 flex items-center justify-center rounded-full font-bold px-1 bg-amber-500 text-black">
-              {unreadCount > 9 ? "9+" : unreadCount}
-            </span>
-          )}
-        </button>
-      </header>
+      {/* ═══════════ MOBILE TOP HEADER WITH BELL & SETTINGS ═══════════ */}
+      {!pathname.startsWith("/groups") && (
+        <header className="md:hidden sticky top-0 z-40 w-full px-4 py-3 bg-card/80 backdrop-blur-md border-b border-border flex items-center justify-between">
+          <Link href="/dashboard" className="flex items-center gap-2">
+            <Image src="/logo.png" alt="Splinzo" width={28} height={28} className="rounded-lg shadow-xs" priority />
+            <span className="font-extrabold text-base tracking-tight text-foreground">Splinzo</span>
+          </Link>
+          <div className="flex items-center gap-1.5">
+            <Link
+              href="/dashboard/settings"
+              className={cn(
+                "p-2 rounded-xl text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors",
+                pathname === "/dashboard/settings" && "bg-amber-500/15 text-amber-500"
+              )}
+              title="Settings"
+            >
+              <Settings className="w-4 h-4" />
+            </Link>
+            <button
+              onClick={() => setIsDrawerOpen(true)}
+              className="relative p-2 rounded-xl bg-muted/60 text-foreground hover:bg-muted transition-colors cursor-pointer"
+              title="Notifications"
+            >
+              <Bell className="w-4 h-4 text-foreground" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 text-[9px] min-w-[16px] h-4 flex items-center justify-center rounded-full font-bold px-1 bg-amber-500 text-black">
+                  {unreadCount > 9 ? "9+" : unreadCount}
+                </span>
+              )}
+            </button>
+          </div>
+        </header>
+      )}
 
       {/* ═══════════ DESKTOP SIDEBAR ═══════════ */}
       <aside
@@ -196,8 +218,8 @@ export function Navigation() {
           paddingBottom: "max(env(safe-area-inset-bottom, 0px), 4px)",
         }}
       >
-        {[...links, { name: "Settings", href: "/dashboard/settings", icon: Settings, exact: false }].map((link) => {
-          const isActive = isLinkActive(link as any);
+        {mobileLinks.map((link) => {
+          const isActive = isLinkActive(link);
           const Icon = link.icon;
           return (
             <Link

@@ -8,6 +8,7 @@ import { doc, updateDoc } from "firebase/firestore";
 import { signOut, updatePassword, reauthenticateWithCredential, EmailAuthProvider } from "firebase/auth";
 import { useTheme } from "next-themes";
 import { motion } from "framer-motion";
+import Link from "next/link";
 import {
   Moon,
   Globe,
@@ -17,7 +18,8 @@ import {
   ChevronDown,
   AlertTriangle,
   Lock,
-  Loader2
+  Loader2,
+  LifeBuoy
 } from "lucide-react";
 
 const AMBER = "#F9B912";
@@ -232,6 +234,14 @@ export default function SettingsPage() {
               />
             }
           />
+          <Link href="/dashboard/support" className="block hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+            <SettingsRow
+              icon={LifeBuoy}
+              title="Help & Support"
+              description="Get help, report bugs, or submit support tickets."
+              rightElement={<ChevronRight className="h-5 w-5 opacity-60 text-muted-foreground" />}
+            />
+          </Link>
         </div>
       </motion.div>
 
