@@ -18,6 +18,8 @@ import { Expense } from "@/types/expense";
 import { Payment } from "@/types/payment";
 import { balanceService } from "@/services/balanceService";
 import { userService } from "@/services/userService";
+import { pairwiseBreakdownService } from "@/services/pairwiseBreakdownService";
+import SettlementBreakdownView from "@/components/settle/SettlementBreakdownView";
 import { useAuth } from "@/contexts/AuthContext";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -337,6 +339,24 @@ export default function PublicGroupSettlementPage({
                         </span>
                       </div>
                     </div>
+
+                    {/* Contributing Product & Expense Breakdown */}
+                    <SettlementBreakdownView
+                      breakdown={pairwiseBreakdownService.getPairwiseBreakdown(
+                        s.fromUserId,
+                        s.fromUserName,
+                        s.toUserId,
+                        s.toUserName,
+                        expenses,
+                        payments,
+                        currencySymbol,
+                        s.amount
+                      )}
+                      currencySymbol={currencySymbol}
+                      isCurrentUserCreditor={s.toUserId === appUser?.id}
+                      isCurrentUserDebtor={s.fromUserId === appUser?.id}
+                      defaultOpen={false}
+                    />
 
                     {/* Action Row: 1-Tap UPI Deep-link + QR toggle */}
                     <div className="pt-2 border-t border-slate-100 flex flex-col sm:flex-row gap-2.5">

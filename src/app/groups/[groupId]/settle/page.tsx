@@ -51,6 +51,8 @@ import { userService } from "@/services/userService";
 import { exportService } from "@/services/exportService";
 import MemeNudgeModal from "@/components/groups/MemeNudgeModal";
 import SponsorAdModal from "@/components/fintech/SponsorAdModal";
+import { pairwiseBreakdownService } from "@/services/pairwiseBreakdownService";
+import SettlementBreakdownView from "@/components/settle/SettlementBreakdownView";
 
 interface SetuData {
   paymentId: string;
@@ -871,6 +873,29 @@ export default function SettleUpPage({
                       </div>
                     </div>
 
+                    {/* Contributing Product & Expense Breakdown */}
+                    {(() => {
+                      const breakdown = pairwiseBreakdownService.getPairwiseBreakdown(
+                        s.fromUserId,
+                        s.fromUserName,
+                        s.toUserId,
+                        s.toUserName,
+                        expenses,
+                        payments,
+                        currencySymbol,
+                        s.amount
+                      );
+                      return (
+                        <SettlementBreakdownView
+                          breakdown={breakdown}
+                          currencySymbol={currencySymbol}
+                          isCurrentUserCreditor={!iAmPaying}
+                          isCurrentUserDebtor={iAmPaying}
+                          defaultOpen={false}
+                        />
+                      );
+                    })()}
+
                     {/* Bottom Action Area */}
                     <div className="pt-2 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
                       <div className="text-xs text-slate-500 hidden sm:flex items-center gap-1.5">
@@ -919,25 +944,23 @@ export default function SettleUpPage({
                             variant="outline"
                             size="sm"
                             onClick={() => {
-                              const amt = s.amount.toFixed(2);
-                              const myName = appUser?.displayName || appUser?.name || "Your friend";
-                              const myUpi = appUser?.upiId?.trim();
-                              const breakdownLink = `${window.location.origin}/g/${group.id}`;
-                              
-                              let upiBlock = "";
-                              if (myUpi) {
-                                const upiUri = `upi://pay?pa=${myUpi}&pn=${encodeURIComponent(myName)}&am=${amt}&cu=INR&tn=${encodeURIComponent(`Splinzo ${group.name}`)}`;
-                                upiBlock = `⚡ *Tap to pay instantly via UPI (GPay/PhonePe/Paytm):*\n${upiUri}\n\n`;
-                              }
-
-                              const text = encodeURIComponent(
-                                `👋 Hey ${s.fromUserName}!\n\n` +
-                                `Just a friendly reminder for your pending balance of *${currencySymbol}${amt}* in Splinzo for "*${group.name}*".\n\n` +
-                                upiBlock +
-                                `📊 *View group breakdown & settle:*\n${breakdownLink}\n\n` +
-                                `Thanks! ✨`
+                              const breakdown = pairwiseBreakdownService.getPairwiseBreakdown(
+                                s.fromUserId,
+                                s.fromUserName,
+                                s.toUserId,
+                                s.toUserName,
+                                expenses,
+                                payments,
+                                currencySymbol,
+                                s.amount
                               );
-                              window.open(`https://wa.me/?text=${text}`, "_blank");
+                              const reminderMessage = pairwiseBreakdownService.formatWhatsAppReminder(
+                                breakdown,
+                                group.name,
+                                appUser?.upiId,
+                                `${window.location.origin}/g/${group.id}`
+                              );
+                              window.open(`https://wa.me/?text=${encodeURIComponent(reminderMessage)}`, "_blank");
                             }}
                             className="rounded-xl h-10 px-4 font-bold border-green-200 bg-green-50 text-green-700 hover:bg-green-100 shadow-2xs cursor-pointer flex items-center justify-center"
                           >
@@ -1065,6 +1088,28 @@ export default function SettleUpPage({
                 
                 {/* Left Column */}
                 <div className="md:col-span-7 space-y-4">
+                  {/* Contributing Product & Expense Breakdown */}
+                  {selectedSettlement && (
+                    <div className="rounded-2xl border border-slate-200/80 bg-white p-3 shadow-2xs">
+                      <SettlementBreakdownView
+                        breakdown={pairwiseBreakdownService.getPairwiseBreakdown(
+                          selectedSettlement.fromUserId,
+                          selectedSettlement.fromUserName,
+                          selectedSettlement.toUserId,
+                          selectedSettlement.toUserName,
+                          expenses,
+                          payments,
+                          currencySymbol,
+                          selectedSettlement.amount
+                        )}
+                        currencySymbol={currencySymbol}
+                        isCurrentUserCreditor={selectedSettlement.toUserId === appUser?.id}
+                        isCurrentUserDebtor={selectedSettlement.fromUserId === appUser?.id}
+                        defaultOpen={false}
+                      />
+                    </div>
+                  )}
+
                   {/* Settlement Mode Selection Tabs */}
                   <div className="grid grid-cols-2 gap-2 p-1.5 bg-slate-100 rounded-2xl border border-slate-200">
                     <button
