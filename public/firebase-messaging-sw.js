@@ -10,12 +10,14 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(self.clients.claim());
 });
 
-// Parse query params or fallback config if passed
+// Real Firebase configuration for Splinzo Web Push
 const firebaseConfig = {
-  apiKey: "AIzaSyDummyKeyForSwInitFallback",
+  apiKey: "AIzaSyBcUCH1eK-pjdk952HhNOtLQG9v92GTDtw",
+  authDomain: "splinzo.firebaseapp.com",
   projectId: "splinzo",
-  messagingSenderId: "338870104618",
-  appId: "1:338870104618:web:123456",
+  storageBucket: "splinzo.firebasestorage.app",
+  messagingSenderId: "838750105776",
+  appId: "1:838750105776:web:b6435d201bd16cc6c18b75",
 };
 
 try {

@@ -40,6 +40,9 @@ interface UserOption {
   email?: string;
   phone?: string;
   fcmToken?: string;
+  fcmTokens?: string[];
+  fcmPlatform?: string;
+  hasDeviceToken?: boolean;
 }
 
 interface GroupOption {
@@ -160,12 +163,20 @@ export default function PushStudioPage() {
         const users: UserOption[] = [];
         uSnap.forEach((d) => {
           const data = d.data();
+          const hasDeviceToken = Boolean(
+            (data.fcmToken && typeof data.fcmToken === "string" && data.fcmToken.trim().length > 10) ||
+            (Array.isArray(data.fcmTokens) && data.fcmTokens.some((t: any) => typeof t === "string" && t.trim().length > 10))
+          );
+          const resolvedToken = data.fcmToken || (Array.isArray(data.fcmTokens) ? data.fcmTokens[0] : "");
           users.push({
             id: d.id,
             name: data.displayName || data.name || "Anonymous User",
             email: data.email || "",
             phone: data.phone || data.phoneNumber || "",
-            fcmToken: data.fcmToken || "",
+            fcmToken: resolvedToken || "",
+            fcmTokens: Array.isArray(data.fcmTokens) ? data.fcmTokens : [],
+            fcmPlatform: data.fcmPlatform || (hasDeviceToken ? "app" : "web"),
+            hasDeviceToken,
           });
         });
         setUsersList(users);
@@ -310,7 +321,7 @@ export default function PushStudioPage() {
       });
 
       const data = await res.json();
-      if (!res.ok || data.error) {
+      if (!res.ok || (data.error && !data.success)) {
         setAlertModal({
           title: "Broadcast Notice",
           message: data.error || "Failed to dispatch notifications.",
@@ -350,7 +361,8 @@ export default function PushStudioPage() {
 
   const estimatedAudienceCount = () => {
     if (targetType === "all") {
-      return usersList.filter((u) => u.fcmToken && u.fcmToken.length > 5).length || "All Active";
+      const pushCount = usersList.filter((u) => u.hasDeviceToken).length;
+      return `${usersList.length} (${pushCount} push, ${usersList.length - pushCount} web inboxes)`;
     }
     if (targetType === "users") {
       return selectedUserIds.length;
@@ -527,31 +539,35 @@ export default function PushStudioPage() {
                   onChange={(e) => {
                     const selectedUid = e.target.value;
                     const found = usersList.find((u) => u.id === selectedUid);
-                    if (found?.fcmToken) {
-                      setTestFcmToken(found.fcmToken);
+                    if (found) {
+                      setTestFcmToken(found.fcmToken || "");
+                      setSelectedUserIds([found.id]);
                     }
                   }}
                   className="w-full text-xs font-medium px-3 py-2 rounded-xl border border-gray-200 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
                 >
                   <option value="">-- Quick fill from registered user --</option>
-                  {usersList
-                    .filter((u) => u.fcmToken && u.fcmToken.length > 5)
-                    .map((u) => (
+                  {usersList.map((u) => {
+                    const label = u.hasDeviceToken
+                      ? (u.fcmPlatform === "ios_web" || u.fcmPlatform === "web" || u.fcmPlatform === "ios_pwa" ? "Web Push" : "App Push")
+                      : "Web Inbox";
+                    return (
                       <option key={u.id} value={u.id}>
-                        {u.name || u.displayName || u.email} ({u.fcmToken?.slice(0, 12)}...)
+                        {u.name || u.displayName || u.email} [{label}]
                       </option>
-                    ))}
+                    );
+                  })}
                 </select>
 
                 <input
                   type="text"
-                  placeholder="Paste your device FCM token..."
+                  placeholder="Paste device FCM token or select user above..."
                   value={testFcmToken}
                   onChange={(e) => setTestFcmToken(e.target.value)}
                   className="w-full text-xs font-mono px-3 py-2.5 rounded-xl border border-gray-300 bg-white focus:outline-none focus:ring-2 focus:ring-amber-400"
                 />
                 <p className="text-[11px] text-gray-500">
-                  Tip: Auto-select a registered user with active token above, or copy `[FCM] Token:` from your Flutter debugger.
+                  Tip: Select any user to send a test alert (hardware push to device, or instant alert in their website Notification Center).
                 </p>
               </div>
             )}
@@ -639,12 +655,18 @@ export default function PushStudioPage() {
                           </div>
                           <span
                             className={`text-[9px] font-mono px-1.5 py-0.5 rounded-md ${
-                              hasToken
-                                ? "bg-emerald-100 text-emerald-700 font-bold"
-                                : "bg-gray-100 text-gray-500"
+                              u.hasDeviceToken
+                                ? u.fcmPlatform === "ios_web" || u.fcmPlatform === "web" || u.fcmPlatform === "ios_pwa"
+                                  ? "bg-purple-100 text-purple-700 font-bold"
+                                  : "bg-emerald-100 text-emerald-700 font-bold"
+                                : "bg-amber-100 text-amber-800 font-medium"
                             }`}
                           >
-                            {hasToken ? "Ready" : "No Token"}
+                            {u.hasDeviceToken
+                              ? u.fcmPlatform === "ios_web" || u.fcmPlatform === "web" || u.fcmPlatform === "ios_pwa"
+                                ? "Web Push"
+                                : "App Push"
+                              : "Web Inbox"}
                           </span>
                         </label>
                       );

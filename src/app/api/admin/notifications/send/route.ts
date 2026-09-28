@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { sendMulticastChunked, pruneStaleTokens, hasFirebaseAdminCredentials } from "@/lib/firebaseAdmin";
+import { sendMulticastChunked, pruneStaleTokens, hasFirebaseAdminCredentials, MulticastResult } from "@/lib/firebaseAdmin";
 import { getServerDb } from "@/lib/firebase/serverDb";
 import {
   collection,
@@ -73,19 +73,32 @@ export async function POST(req: NextRequest) {
     if (targetType === "test") {
       if (testFcmToken && testFcmToken.trim().length > 0) {
         targetTokens.push(testFcmToken.trim());
-      } else {
+      }
+      if (Array.isArray(targetUserIds) && targetUserIds.length > 0) {
+        targetedUids.push(...targetUserIds);
+        const docs = await Promise.all(
+          targetUserIds.map((uid: string) => getDoc(doc(db, "users", uid)))
+        );
+        docs.forEach((uDoc) => {
+          if (uDoc.exists()) {
+            const uTokens = extractUserTokens(uDoc.data());
+            targetTokens.push(...uTokens);
+          }
+        });
+      }
+      if (targetTokens.length === 0 && targetedUids.length === 0) {
         return NextResponse.json(
-          { error: "No test device FCM token provided. Please specify a test token or target user." },
+          { error: "No test device FCM token or target user provided. Please select a user or enter a token." },
           { status: 400, headers: corsHeaders }
         );
       }
     } else if (targetType === "all") {
       const snap = await getDocs(collection(db, "users"));
       snap.forEach((userDoc) => {
+        targetedUids.push(userDoc.id);
         const uTokens = extractUserTokens(userDoc.data());
         if (uTokens.length > 0) {
           targetTokens.push(...uTokens);
-          targetedUids.push(userDoc.id);
         }
       });
     } else if (targetType === "users") {
@@ -100,10 +113,10 @@ export async function POST(req: NextRequest) {
       );
       docs.forEach((userDoc) => {
         if (userDoc.exists()) {
+          targetedUids.push(userDoc.id);
           const uTokens = extractUserTokens(userDoc.data());
           if (uTokens.length > 0) {
             targetTokens.push(...uTokens);
-            targetedUids.push(userDoc.id);
           }
         }
       });
@@ -141,23 +154,24 @@ export async function POST(req: NextRequest) {
       );
       userDocs.forEach((userDoc) => {
         if (userDoc.exists()) {
+          targetedUids.push(userDoc.id);
           const uTokens = extractUserTokens(userDoc.data());
           if (uTokens.length > 0) {
             targetTokens.push(...uTokens);
-            targetedUids.push(userDoc.id);
           }
         }
       });
     }
 
-    // Deduplicate tokens
+    // Deduplicate tokens & uids
     targetTokens = Array.from(new Set(targetTokens));
+    const uniqueUids = Array.from(new Set(targetedUids));
 
-    if (targetTokens.length === 0 && targetType !== "test") {
+    if (uniqueUids.length === 0 && targetTokens.length === 0) {
       return NextResponse.json(
         {
           success: false,
-          error: "No active device tokens found for the selected audience.",
+          error: "No recipients or active devices found for the selected audience.",
           targetedCount: 0,
         },
         { status: 200, headers: corsHeaders }
@@ -229,14 +243,23 @@ export async function POST(req: NextRequest) {
       },
     };
 
-    // ── 3. DISPATCH IN 500-TOKEN MULTICAST CHUNKS ──
-    const result = await sendMulticastChunked(targetTokens, baseMessage);
+    // ── 3. DISPATCH IN 500-TOKEN MULTICAST CHUNKS (IF TOKENS EXIST) ──
+    let result: MulticastResult = {
+      totalTargeted: targetTokens.length,
+      successCount: 0,
+      failureCount: 0,
+      staleTokens: [],
+      isConfigured: true,
+      errorMessage: undefined,
+    };
 
-    // Prune dead tokens in background asynchronously if any
-    if (result.staleTokens.length > 0) {
-      pruneStaleTokens(result.staleTokens).catch((err) =>
-        console.error("[send/route] Prune tokens background error:", err)
-      );
+    if (targetTokens.length > 0) {
+      result = await sendMulticastChunked(targetTokens, baseMessage);
+      if (result.staleTokens.length > 0) {
+        pruneStaleTokens(result.staleTokens).catch((err) =>
+          console.error("[send/route] Prune tokens background error:", err)
+        );
+      }
     }
 
     // ── 4. RECORD CAMPAIGN AUDIT LOG ──
@@ -248,8 +271,10 @@ export async function POST(req: NextRequest) {
         imageUrl: cleanImageUrl || null,
         targetType,
         targetGroupId: targetGroupId || null,
-        targetCount: result.totalTargeted,
+        targetCount: uniqueUids.length || result.totalTargeted,
         successCount: result.successCount,
+        pushCount: result.successCount,
+        inboxCount: uniqueUids.length,
         failureCount: result.failureCount,
         openedCount: 0,
         actionType,
@@ -263,10 +288,9 @@ export async function POST(req: NextRequest) {
       console.warn("[send/route] Could not write to notification_campaigns:", e);
     }
 
-    // ── 5. RECORD IN-APP INBOX ENTRY (For targeted users) ──
-    if (targetedUids.length > 0 && targetType !== "test") {
+    // ── 5. RECORD IN-APP INBOX ENTRY (For all targeted users) ──
+    if (uniqueUids.length > 0) {
       try {
-        const uniqueUids = Array.from(new Set(targetedUids));
         // Process in batches of 450 to stay well under Firestore's 500 operations per batch limit
         const CHUNK_SIZE = 450;
         for (let i = 0; i < uniqueUids.length; i += CHUNK_SIZE) {
@@ -297,21 +321,27 @@ export async function POST(req: NextRequest) {
     }
 
     const hasCreds = hasFirebaseAdminCredentials();
+    const isSuccess = uniqueUids.length > 0 || (targetTokens.length > 0 && result.successCount > 0);
 
     return NextResponse.json(
       {
-        success: hasCreds ? result.successCount > 0 : true,
+        success: isSuccess,
         campaignId,
-        targeted: result.totalTargeted,
-        targetCount: result.totalTargeted,
+        targeted: uniqueUids.length || result.totalTargeted,
+        targetCount: uniqueUids.length || result.totalTargeted,
         successCount: result.successCount,
+        pushCount: result.successCount,
+        inboxCount: uniqueUids.length,
         failureCount: result.failureCount,
         staleTokensCount: result.staleTokens.length,
         errorMessage: result.errorMessage,
-        error: result.errorMessage || (result.totalTargeted > 0 && result.successCount === 0 ? "Failed to deliver to targeted device tokens." : undefined),
+        error: !isSuccess ? (result.errorMessage || "Failed to deliver notifications.") : undefined,
         credentialsConfigured: hasCreds,
-        inboxSaved: targetedUids.length > 0,
-        warning: !hasCreds
+        inboxSaved: uniqueUids.length > 0,
+        message: targetTokens.length > 0
+          ? `Broadcast sent: ${result.successCount} hardware push alerts dispatched, ${uniqueUids.length} in-app Notification Centers updated.`
+          : `Saved to ${uniqueUids.length} user Notification Centers. (Web & iPhone users will see this in their app Notification Center).`,
+        warning: !hasCreds && targetTokens.length > 0
           ? "Notice: Server environment is missing FIREBASE_SERVICE_ACCOUNT_KEY in Vercel. Notifications have been saved to user inboxes, but background hardware push alerts require this key."
           : undefined,
       },
