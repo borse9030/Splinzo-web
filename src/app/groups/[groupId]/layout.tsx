@@ -14,6 +14,8 @@ import { useCall } from "@/contexts/CallContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { groupService } from "@/services/groupService";
 import { AddMemberDialog } from "@/components/groups/AddMemberDialog";
+import { usePayments } from "@/hooks/usePayments";
+import { balanceService } from "@/services/balanceService";
 
 const AMBER = "#F9B912";
 
@@ -27,6 +29,7 @@ export default function GroupLayout({
   const resolvedParams = use(params);
   const { group, loading, error } = useGroup(resolvedParams.groupId);
   const { expenses } = useExpenses(resolvedParams.groupId);
+  const { payments } = usePayments(resolvedParams.groupId);
   const { startCall, isConnecting } = useCall();
   const { appUser } = useAuth();
   const pathname = usePathname();
@@ -36,6 +39,10 @@ export default function GroupLayout({
 
   const totalExpenses = expenses.reduce((sum, exp) => sum + (Number(exp.amount) || 0), 0);
   const currencySymbol = (group?.currency || "INR") === "INR" ? "₹" : (group?.currency || "INR");
+
+  const userNetBalance = group?.members && appUser?.id
+    ? balanceService.calculateBalances(group.members, expenses, payments)[appUser.id] || 0
+    : 0;
 
   const isAdmin =
     group?.members?.find((m) => m.id === appUser?.id)?.role === "admin" ||
@@ -210,9 +217,22 @@ export default function GroupLayout({
             ) : (
               <>
                 <h1 className="text-2xl font-extrabold text-white tracking-tight">{group?.name}</h1>
-                <p className="text-white/80 text-sm font-medium">
-                  ▣ Total: {currencySymbol} {totalExpenses.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                </p>
+                <div className="flex flex-wrap items-center gap-2 mt-0.5">
+                  <p className="text-white/80 text-sm font-medium">
+                    ▣ Total: {currencySymbol} {totalExpenses.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </p>
+                  {userNetBalance < -0.01 && (
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-400 text-slate-950 shadow-sm flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-pulse" />
+                      You owe {currencySymbol}{Math.abs(userNetBalance).toFixed(0)}
+                    </span>
+                  )}
+                  {userNetBalance > 0.01 && (
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-400 text-slate-950 shadow-sm">
+                      You get {currencySymbol}{userNetBalance.toFixed(0)}
+                    </span>
+                  )}
+                </div>
               </>
             )}
           </div>
@@ -233,11 +253,21 @@ export default function GroupLayout({
             </Button>
             <Button
               asChild
-              className="flex-1 rounded-full h-12 font-bold text-base border-2 border-border bg-card text-foreground hover:bg-accent transition-colors cursor-pointer touch-manipulation active:scale-[0.98]"
+              className={cn(
+                "flex-1 rounded-full h-12 font-bold text-base transition-all cursor-pointer touch-manipulation active:scale-[0.98]",
+                userNetBalance < -0.01
+                  ? "border-2 border-amber-500/80 bg-amber-500/10 text-amber-700 dark:text-amber-400 hover:bg-amber-500/20 shadow-sm"
+                  : "border-2 border-border bg-card text-foreground hover:bg-accent"
+              )}
             >
-              <Link href={`/groups/${resolvedParams.groupId}/settle`}>
-                <Scale className="h-4 w-4 mr-2" />
-                Settle Up
+              <Link href={`/groups/${resolvedParams.groupId}/settle`} className="flex items-center justify-center gap-1.5">
+                <Scale className={cn("h-4 w-4 shrink-0", userNetBalance < -0.01 ? "text-amber-600 dark:text-amber-400" : "")} />
+                <span>Settle Up</span>
+                {userNetBalance < -0.01 && (
+                  <span className="text-[10px] sm:text-[11px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-500 text-slate-950 ml-0.5 shrink-0">
+                    Owe {currencySymbol}{Math.abs(userNetBalance).toFixed(0)}
+                  </span>
+                )}
               </Link>
             </Button>
           </div>

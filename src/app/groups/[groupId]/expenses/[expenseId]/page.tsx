@@ -197,98 +197,6 @@ export default function ExpenseDetailsPage({
               </span>
             </div>
           </div>
-
-          {/* Split Breakdown */}
-          <div className="pt-4 border-t border-gray-100">
-            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">
-              Split Breakdown
-            </h3>
-            <div className="space-y-3">
-              {expense.splitBetweenIds.map((userId) => {
-                const member = group?.members.find((m: any) => m.id === userId);
-                const memberName: string = member?.displayName || member?.name || "Unknown Member";
-
-                const shareAmount = resolvedShares[userId] || 0;
-                const userPaid = resolvedPayerCredits[userId] || 0;
-                const userNet = userPaid - shareAmount;
-
-                const isMe = userId === appUser?.id;
-                const isPayerMember = userId === expense.payerId;
-                const memberPayment = payments?.find(
-                  (p) => p.expenseId === expenseId && p.fromUserId === userId && p.toUserId === payer.id
-                );
-                const isSettled = isPayerMember || memberPayment?.status === "approved";
-                const isVerifying = memberPayment?.status === "pending_approval";
-
-                // Contextual label for split mode
-                let splitModeDetail: string | null = null;
-                if (expense.splitMode === "percentage" && expense.splitPercentages?.[userId] !== undefined) {
-                  splitModeDetail = `${expense.splitPercentages[userId]}%`;
-                } else if (expense.splitMode === "shares" && expense.splitShares?.[userId] !== undefined) {
-                  splitModeDetail = `${expense.splitShares[userId]} ${expense.splitShares[userId] === 1 ? "share" : "shares"}`;
-                } else if (expense.splitMode === "adjustment" && expense.splitAdjustments?.[userId] !== undefined) {
-                  const adj = expense.splitAdjustments[userId];
-                  splitModeDetail = `adj ${adj >= 0 ? "+" : ""}${currencySymbol}${adj.toFixed(2)}`;
-                }
-
-                return (
-                  <div key={userId} className="flex items-center justify-between p-2.5 rounded-2xl bg-gray-50/70">
-                    <div className="flex items-center gap-3">
-                      <div
-                        className="h-9 w-9 rounded-full flex items-center justify-center font-bold shadow-sm text-sm"
-                        style={isMe ? { background: AMBER, color: "#1a1a1a" } : { background: "#FFFFFF", color: "#666" }}
-                      >
-                        {memberName.charAt(0).toUpperCase()}
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-1.5">
-                          <p className="font-semibold text-sm text-gray-900">
-                            {memberName} {isMe && "(You)"}
-                          </p>
-                          {splitModeDetail && (
-                            <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded bg-amber-100/70 text-amber-800">
-                              {splitModeDetail}
-                            </span>
-                          )}
-                        </div>
-                        {hasMultiplePayers ? (
-                          <div className="flex items-center gap-1.5 text-[11px] font-bold">
-                            {userPaid > 0 && (
-                              <span className="text-amber-700">Paid {currencySymbol}{userPaid.toFixed(2)} ·</span>
-                            )}
-                            {userNet > 0.005 ? (
-                              <span className="text-emerald-600">Lent {currencySymbol}{userNet.toFixed(2)}</span>
-                            ) : userNet < -0.005 ? (
-                              <span className="text-red-600">Owes {currencySymbol}{Math.abs(userNet).toFixed(2)}</span>
-                            ) : (
-                              <span className="text-gray-400 font-medium">Settled</span>
-                            )}
-                          </div>
-                        ) : isPayerMember ? (
-                          <span className="text-[11px] font-bold text-emerald-600">Paid original bill</span>
-                        ) : isSettled ? (
-                          <span className="text-[11px] font-bold text-emerald-600 flex items-center gap-1">
-                            ✓ Settled via UPI
-                          </span>
-                        ) : isVerifying ? (
-                          <span className="text-[11px] font-bold text-blue-600 flex items-center gap-1">
-                            ⚡ Verifying with Bank...
-                          </span>
-                        ) : (
-                          <span className="text-[11px] font-medium text-gray-400">Not settled yet</span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-bold text-sm text-gray-900">
-                        {currencySymbol}{shareAmount.toFixed(2)}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
         </CardContent>
       </Card>
 
@@ -350,6 +258,100 @@ export default function ExpenseDetailsPage({
           </CardContent>
         </Card>
       )}
+
+      {/* Split Breakdown */}
+      <Card className="border-none shadow-sm rounded-3xl overflow-hidden">
+        <CardContent className="p-6">
+          <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">
+            Split Breakdown
+          </h3>
+          <div className="space-y-3">
+            {expense.splitBetweenIds.map((userId) => {
+              const member = group?.members.find((m: any) => m.id === userId);
+              const memberName: string = member?.displayName || member?.name || "Unknown Member";
+
+              const shareAmount = resolvedShares[userId] || 0;
+              const userPaid = resolvedPayerCredits[userId] || 0;
+              const userNet = userPaid - shareAmount;
+
+              const isMe = userId === appUser?.id;
+              const isPayerMember = userId === expense.payerId;
+              const memberPayment = payments?.find(
+                (p) => p.expenseId === expenseId && p.fromUserId === userId && p.toUserId === payer.id
+              );
+              const isSettled = isPayerMember || memberPayment?.status === "approved";
+              const isVerifying = memberPayment?.status === "pending_approval";
+
+              // Contextual label for split mode
+              let splitModeDetail: string | null = null;
+              if (expense.splitMode === "percentage" && expense.splitPercentages?.[userId] !== undefined) {
+                splitModeDetail = `${expense.splitPercentages[userId]}%`;
+              } else if (expense.splitMode === "shares" && expense.splitShares?.[userId] !== undefined) {
+                splitModeDetail = `${expense.splitShares[userId]} ${expense.splitShares[userId] === 1 ? "share" : "shares"}`;
+              } else if (expense.splitMode === "adjustment" && expense.splitAdjustments?.[userId] !== undefined) {
+                const adj = expense.splitAdjustments[userId];
+                splitModeDetail = `adj ${adj >= 0 ? "+" : ""}${currencySymbol}${adj.toFixed(2)}`;
+              }
+
+              return (
+                <div key={userId} className="flex items-center justify-between p-2.5 rounded-2xl bg-gray-50/70">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className="h-9 w-9 rounded-full flex items-center justify-center font-bold shadow-sm text-sm"
+                      style={isMe ? { background: AMBER, color: "#1a1a1a" } : { background: "#FFFFFF", color: "#666" }}
+                    >
+                      {memberName.charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <p className="font-semibold text-sm text-gray-900">
+                          {memberName} {isMe && "(You)"}
+                        </p>
+                        {splitModeDetail && (
+                          <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded bg-amber-100/70 text-amber-800">
+                            {splitModeDetail}
+                          </span>
+                        )}
+                      </div>
+                      {hasMultiplePayers ? (
+                        <div className="flex items-center gap-1.5 text-[11px] font-bold">
+                          {userPaid > 0 && (
+                            <span className="text-amber-700">Paid {currencySymbol}{userPaid.toFixed(2)} ·</span>
+                          )}
+                          {userNet > 0.005 ? (
+                            <span className="text-emerald-600">Lent {currencySymbol}{userNet.toFixed(2)}</span>
+                          ) : userNet < -0.005 ? (
+                            <span className="text-red-600">Owes {currencySymbol}{Math.abs(userNet).toFixed(2)}</span>
+                          ) : (
+                            <span className="text-gray-400 font-medium">Settled</span>
+                          )}
+                        </div>
+                      ) : isPayerMember ? (
+                        <span className="text-[11px] font-bold text-emerald-600">Paid original bill</span>
+                      ) : isSettled ? (
+                        <span className="text-[11px] font-bold text-emerald-600 flex items-center gap-1">
+                          ✓ Settled via UPI
+                        </span>
+                      ) : isVerifying ? (
+                        <span className="text-[11px] font-bold text-blue-600 flex items-center gap-1">
+                          ⚡ Verifying with Bank...
+                        </span>
+                      ) : (
+                        <span className="text-[11px] font-medium text-gray-400">Not settled yet</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-bold text-sm text-gray-900">
+                      {currencySymbol}{shareAmount.toFixed(2)}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Verified Settlements List for Payer / Creditor */}
       {amIPayer &&

@@ -500,10 +500,10 @@ export default function SettleUpPage({
   }
 
   return (
-    <div className="space-y-5 sm:space-y-7 pb-16">
+    <div className="space-y-5 sm:space-y-7 pb-16 flex flex-col">
       
       {/* 1. Header Bar with Back Navigation & Group Context */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200">
+      <div className="order-1 flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-200">
         <div className="flex items-center gap-3">
           <Link
             href={`/groups/${group.id}`}
@@ -558,7 +558,7 @@ export default function SettleUpPage({
       </div>
 
       {/* 2. Premier Financial Standing Hero Overview Card */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 p-5 sm:p-7 text-white shadow-xl border border-white/10">
+      <div className="order-2 relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 p-5 sm:p-7 text-white shadow-xl border border-white/10">
         {/* Ambient Glows */}
         <div className="absolute -top-16 -right-16 w-56 h-56 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-16 -left-16 w-56 h-56 bg-indigo-500/15 rounded-full blur-3xl pointer-events-none" />
@@ -604,6 +604,22 @@ export default function SettleUpPage({
                     : "Zero pending dues. Balances are fully balanced."}
               </p>
             </div>
+
+            {/* Direct 1-Tap Single Debt Pay CTA for maximum mobile visibility */}
+            {mySettlementsToPay.length === 1 && (
+              <div className="pt-2">
+                <Button
+                  onClick={() => handleOpenDialog(mySettlementsToPay[0])}
+                  className="rounded-2xl h-12 px-6 bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-500 hover:from-amber-500 hover:to-yellow-600 text-slate-950 font-black text-sm shadow-xl flex items-center justify-center gap-2 cursor-pointer touch-manipulation active:scale-[0.98] w-full sm:w-auto"
+                >
+                  <Zap className="h-4 w-4 text-slate-950 fill-slate-950" />
+                  <span>Pay {currencySymbol}{mySettlementsToPay[0].amount.toFixed(2)} to {mySettlementsToPay[0].toUserName}</span>
+                  <span className="text-[10px] font-black uppercase bg-slate-950 text-amber-300 px-2 py-0.5 rounded-full ml-1">
+                    Instant UPI QR
+                  </span>
+                </Button>
+              </div>
+            )}
 
             {/* 🔥 GAME-CHANGER FEATURE: ONE-CLICK BATCH SETTLEMENT CTA */}
             {mySettlementsToPay.length > 1 && (
@@ -654,7 +670,7 @@ export default function SettleUpPage({
       </div>
 
       {/* 3. Responsive Quick Actions Toolbar */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+      <div className="order-4 sm:order-3 grid grid-cols-1 sm:grid-cols-3 gap-2.5">
         <Button
           variant="outline"
           size="sm"
@@ -692,7 +708,7 @@ export default function SettleUpPage({
 
       {/* 4. Your Settlements Section with Filter Tabs & Batch Settle Action */}
       {mySettlements.length > 0 && (
-        <section className="space-y-4">
+        <section className="order-3 sm:order-4 space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <h3 className="text-sm font-black text-slate-600 uppercase tracking-wider flex items-center gap-2">
               <Wallet className="h-4 w-4 text-slate-400" />
@@ -904,7 +920,7 @@ export default function SettleUpPage({
 
       {/* 5. Other Group Settlements */}
       {otherSettlements.length > 0 && (
-        <section className="space-y-3 pt-2">
+        <section className="order-5 space-y-3 pt-2">
           <h3 className="text-sm font-black text-slate-400 uppercase tracking-wider">
             Other Member Settlements ({otherSettlements.length})
           </h3>
