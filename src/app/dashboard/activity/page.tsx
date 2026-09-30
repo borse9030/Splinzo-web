@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { useInvitations } from "@/hooks/useInvitations";
@@ -504,10 +505,23 @@ export default function ActivityPage() {
                       </div>
                     </div>
 
-                    <div className="text-right border-t sm:border-t-0 pt-2 sm:pt-0 border-gray-100">
+                    <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center border-t sm:border-t-0 pt-2 sm:pt-0 border-gray-100">
                       <div className="text-base sm:text-lg font-black text-gray-900">
                         -₹{payment.amount.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </div>
+                      {isDeclined && payment.groupId && (
+                        <div className="mt-1.5">
+                          <Link href={`/groups/${payment.groupId}/settle`}>
+                            <Button
+                              size="sm"
+                              className="h-7 px-3 text-xs font-bold rounded-lg bg-rose-600 hover:bg-rose-700 text-white shadow-xs flex items-center gap-1 cursor-pointer"
+                            >
+                              <RefreshCw className="h-3 w-3" />
+                              Pay Again
+                            </Button>
+                          </Link>
+                        </div>
+                      )}
                     </div>
                   </CardContent>
                 </Card>

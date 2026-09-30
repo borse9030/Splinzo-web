@@ -1,17 +1,19 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useExpenses } from "@/hooks/useExpenses";
 import { useGroup } from "@/hooks/useGroup";
 import { usePayments } from "@/hooks/usePayments";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { AlertCircle, Receipt, Image as ImageIcon, Repeat } from "lucide-react";
+import { AlertCircle, Receipt, Image as ImageIcon, Repeat, Timer, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { Skeleton } from "@/components/ui/skeleton";
 import { NativeExpenseAdCard } from "@/components/ads/NativeExpenseAdCard";
 import QuickAddExpenseBar from "@/components/groups/QuickAddExpenseBar";
+import { reminderService } from "@/services/reminderService";
+import { Reminder } from "@/types/reminder";
 
 const AMBER = "#F9B912";
 const AMBER_LIGHT = "#FFF8E1";
@@ -54,6 +56,16 @@ export default function GroupExpensesPage({
   const { group } = useGroup(resolvedParams.groupId);
   const { expenses, loading, error } = useExpenses(resolvedParams.groupId);
   const { payments } = usePayments(resolvedParams.groupId);
+  const [reminders, setReminders] = useState<Reminder[]>([]);
+
+  useEffect(() => {
+    if (!resolvedParams?.groupId) return;
+    const unsub = reminderService.subscribeGroupReminders(
+      resolvedParams.groupId,
+      (list) => setReminders(list)
+    );
+    return () => unsub();
+  }, [resolvedParams?.groupId]);
 
   const getMember = (id: string) => group?.members?.find((m: any) => m.id === id);
 
@@ -103,6 +115,52 @@ export default function GroupExpensesPage({
 
   return (
     <div className="space-y-4 mt-4">
+      {/* Active Payment Reminders & Timers Banner */}
+      {(() => {
+        const activeInvolvingMe = reminders.filter(
+          (r) => r.status === "active" && (r.fromUserId === appUser?.id || r.toUserId === appUser?.id)
+        );
+        if (activeInvolvingMe.length === 0) return null;
+        const iOweCount = activeInvolvingMe.filter((r) => r.fromUserId === appUser?.id).length;
+
+        return (
+          <div className="p-4 rounded-2xl bg-gradient-to-r from-amber-500/15 via-amber-400/10 to-transparent border border-amber-300 dark:border-amber-700/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center shrink-0 shadow-sm">
+                <Timer className="w-5 h-5 animate-pulse" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-extrabold text-sm text-foreground">
+                    {activeInvolvingMe.length} Active Payment Timer{activeInvolvingMe.length === 1 ? "" : "s"}
+                  </span>
+                  {iOweCount > 0 && (
+                    <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-rose-500 text-white">
+                      Action Required ({iOweCount})
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5 font-medium">
+                  {iOweCount > 0
+                    ? "You have pending settlement timers waiting for payment. Timers stop immediately upon payment."
+                    : "Active reminder countdowns are running for members who owe you money."}
+                </p>
+              </div>
+            </div>
+            <Button
+              asChild
+              size="sm"
+              className="rounded-xl h-9 px-4 text-xs font-bold bg-amber-500 hover:bg-amber-600 text-slate-950 shrink-0 cursor-pointer"
+            >
+              <Link href={`/groups/${resolvedParams.groupId}/reminders`}>
+                <span>Manage Reminders</span>
+                <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
+              </Link>
+            </Button>
+          </div>
+        );
+      })()}
+
       {/* Smart Natural Language Quick Add */}
       <QuickAddExpenseBar group={group} />
 

@@ -21,12 +21,21 @@ export const paymentService = {
       const amount = data.amount || 0;
       const groupId = data.groupId || "";
 
-      if (toUserId) {
+      // Auto-stop active reminder timers for this settled debt
+      if (groupId && fromUserId && toUserId) {
+        const { reminderService } = await import("@/services/reminderService");
+        reminderService
+          .autoStopReminders(groupId, fromUserId, toUserId, paymentId)
+          .catch((e) => console.warn("[paymentService] Error auto-stopping reminders:", e));
+      }
+
+      const toUserName = data.toUserName || "The receiver";
+      if (fromUserId) {
         const { sendFlatmatePushNotification } = await import("@/services/flatmateService");
         sendFlatmatePushNotification({
-          userIds: [toUserId],
-          title: "💸 Settlement Payment Received!",
-          body: `A payment of ₹${amount} has been verified and settled.`,
+          userIds: [fromUserId],
+          title: "🎉 Payment Verified & Confirmed!",
+          body: `Your payment of ₹${amount} to ${toUserName} has been confirmed. Dues have been settled.`,
           groupId,
           type: "settlement",
           data: {

@@ -38,7 +38,11 @@ import {
   CheckSquare,
   Square,
   BadgePercent,
+  RefreshCw,
+  X,
 } from "lucide-react";
+import { db } from "@/lib/firebase/config";
+import { doc, onSnapshot, updateDoc, serverTimestamp } from "firebase/firestore";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
@@ -53,6 +57,12 @@ import MemeNudgeModal from "@/components/groups/MemeNudgeModal";
 import SponsorAdModal from "@/components/fintech/SponsorAdModal";
 import { pairwiseBreakdownService } from "@/services/pairwiseBreakdownService";
 import SettlementBreakdownView from "@/components/settle/SettlementBreakdownView";
+import { Reminder } from "@/types/reminder";
+import { reminderService } from "@/services/reminderService";
+import { SetReminderModal } from "@/components/reminders/SetReminderModal";
+import { ActiveReminderCard } from "@/components/reminders/ActiveReminderCard";
+import { DebtorReminderAlert } from "@/components/reminders/DebtorReminderAlert";
+import { Clock } from "lucide-react";
 
 interface SetuData {
   paymentId: string;
@@ -90,7 +100,7 @@ export default function SettleUpPage({
   const [dialogLoading, setDialogLoading] = useState(false);
   const [showAdModal, setShowAdModal] = useState(false);
   const [setuData, setSetuData] = useState<SetuData | null>(null);
-  const [paymentStatus, setPaymentStatus] = useState<"idle" | "awaiting" | "paid">("idle");
+  const [paymentStatus, setPaymentStatus] = useState<"idle" | "awaiting" | "pending_approval" | "paid" | "declined">("idle");
   const [verifiedUtr, setVerifiedUtr] = useState<string | null>(null);
   const [showMobileQr, setShowMobileQr] = useState(false);
   const [copiedUpi, setCopiedUpi] = useState(false);
@@ -100,7 +110,7 @@ export default function SettleUpPage({
   const [selectedBatchIndices, setSelectedBatchIndices] = useState<number[]>([]);
   const [batchDialogLoading, setBatchDialogLoading] = useState(false);
   const [batchSetuData, setBatchSetuData] = useState<SetuData | null>(null);
-  const [batchPaymentStatus, setBatchPaymentStatus] = useState<"idle" | "awaiting" | "paid">("idle");
+  const [batchPaymentStatus, setBatchPaymentStatus] = useState<"idle" | "awaiting" | "paid" | "declined">("idle");
   const [batchVerifiedUtr, setBatchVerifiedUtr] = useState<string | null>(null);
   const [batchShowMobileQr, setBatchShowMobileQr] = useState(false);
   const [batchShowAdModal, setBatchShowAdModal] = useState(false);
@@ -116,12 +126,50 @@ export default function SettleUpPage({
     amount: number;
   } | null>(null);
 
+  // Reminders & Automated Timers States
+  const [reminders, setReminders] = useState<Reminder[]>([]);
+  const [reminderModalData, setReminderModalData] = useState<{
+    debtorUid: string;
+    debtorName: string;
+    amount: number;
+  } | null>(null);
+
+  // Subscribe to group payment reminders in real time
+  useEffect(() => {
+    if (!resolvedParams?.groupId) return;
+    const unsub = reminderService.subscribeGroupReminders(
+      resolvedParams.groupId,
+      (list) => setReminders(list)
+    );
+    return () => unsub();
+  }, [resolvedParams?.groupId]);
+
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
   const batchPollingRef = useRef<NodeJS.Timeout | null>(null);
 
   const loading = groupLoading || expensesLoading || paymentsLoading;
 
-  // Poll for single payment status with smart exponential backoff
+  // Real-time listener for single payment document in Firestore (instantaneous sync)
+  useEffect(() => {
+    if ((paymentStatus !== "awaiting" && paymentStatus !== "pending_approval") || !setuData?.paymentId) return;
+
+    const unsub = onSnapshot(doc(db, "payments", setuData.paymentId), (docSnap) => {
+      if (!docSnap.exists()) return;
+      const data = docSnap.data();
+      if (data?.status === "approved") {
+        setPaymentStatus("paid");
+        setVerifiedUtr(data.utr || "BANK_VERIFIED");
+      } else if (data?.status === "declined") {
+        setPaymentStatus("declined");
+      } else if (data?.status === "pending_approval") {
+        setPaymentStatus("pending_approval");
+      }
+    });
+
+    return () => unsub();
+  }, [paymentStatus, setuData?.paymentId]);
+
+  // Poll for single payment status with smart exponential backoff (fallback)
   useEffect(() => {
     if (paymentStatus !== "awaiting" || !setuData?.paymentId) {
       if (pollingRef.current) clearTimeout(pollingRef.current);
@@ -146,6 +194,9 @@ export default function SettleUpPage({
         if (data.status === "PAID") {
           setPaymentStatus("paid");
           setVerifiedUtr(data.utr || "BANK_VERIFIED");
+          return;
+        } else if (data.status === "DECLINED") {
+          setPaymentStatus("declined");
           return;
         }
       } catch (err) {
@@ -328,21 +379,31 @@ export default function SettleUpPage({
     if (!setuData?.paymentId) return;
     setConfirmingPayment(true);
     try {
-      const res = await fetch("/api/settle/status", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          paymentId: setuData.paymentId,
-          confirmDirectPayment: true,
-        }),
+      await updateDoc(doc(db, "payments", setuData.paymentId), {
+        status: "pending_approval",
+        paidAt: serverTimestamp(),
+        verifiedVia: "direct_upi_free",
       });
-      const data = await res.json();
-      if (data.status === "PAID") {
-        setPaymentStatus("paid");
-        setVerifiedUtr(data.utr || "UPI_DIRECT_VERIFIED");
+      setPaymentStatus("pending_approval");
+
+      if (selectedSettlement?.toUserId) {
+        const { sendFlatmatePushNotification } = await import("@/services/flatmateService");
+        sendFlatmatePushNotification({
+          userIds: [selectedSettlement.toUserId],
+          title: "💸 Payment Received — Confirmation Needed",
+          body: `${appUser?.displayName || appUser?.name || "A member"} marked ₹${setuData.totalAmount.toFixed(0)} as paid. Tap to confirm or decline.`,
+          groupId: resolvedParams.groupId,
+          type: "payment_pending",
+          data: {
+            paymentId: setuData.paymentId,
+            fromUserId: appUser?.id,
+            toUserId: selectedSettlement.toUserId,
+            amount: setuData.totalAmount,
+          },
+        }).catch((e) => console.warn("Push error:", e));
       }
     } catch (e) {
-      console.error("Failed to confirm direct payment:", e);
+      console.error("Failed to submit direct payment:", e);
     } finally {
       setConfirmingPayment(false);
     }
@@ -746,6 +807,60 @@ export default function SettleUpPage({
         </Button>
       </div>
 
+      {/* Dedicated Reminders & Countdown Timers Section */}
+      <div className="order-3 p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-amber-500/10 via-amber-400/5 to-transparent border border-amber-300/80 dark:border-amber-700/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5">
+          <div className="w-11 h-11 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center shrink-0 shadow-md shadow-amber-500/20">
+            <Clock className="w-6 h-6 animate-pulse" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h4 className="font-extrabold text-sm sm:text-base text-slate-900 dark:text-slate-100">
+                Payment Reminders & Automated Timers
+              </h4>
+              <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300">
+                Auto-Stop
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mt-0.5">
+              Set custom reminder notes with live countdowns. Timers automatically stop immediately upon payment approval.
+            </p>
+          </div>
+        </div>
+        <Button
+          asChild
+          className="rounded-2xl h-10 px-5 text-xs font-extrabold bg-amber-500 hover:bg-amber-600 text-slate-950 shrink-0 shadow-sm cursor-pointer"
+        >
+          <Link href={`/groups/${group.id}/reminders`}>
+            <span>View All Timers & Reminders</span>
+            <ArrowRight className="w-4 h-4 ml-1.5" />
+          </Link>
+        </Button>
+      </div>
+
+      {/* Active Payment Reminders & Timers for Debtor */}
+      {(() => {
+        const debtorReminders = reminders.filter(
+          (r) => r.fromUserId === appUser?.id && r.status === "active"
+        );
+        if (debtorReminders.length === 0) return null;
+        return (
+          <div className="order-3">
+            <DebtorReminderAlert
+              reminders={debtorReminders}
+              onSettleClick={(reminder) => {
+                const matching = mySettlementsToPay.find(
+                  (s) => s.toUserId === reminder.toUserId
+                );
+                if (matching) {
+                  handleOpenDialog(matching);
+                }
+              }}
+            />
+          </div>
+        );
+      })()}
+
       {/* 4. Your Settlements Section with Filter Tabs & Batch Settle Action */}
       {mySettlements.length > 0 && (
         <section className="order-3 sm:order-4 space-y-4">
@@ -896,6 +1011,26 @@ export default function SettleUpPage({
                       );
                     })()}
 
+                    {/* Active Reminder & Countdown Timer (if any) */}
+                    {(() => {
+                      const activeReminder = reminders.find(
+                        (r) =>
+                          r.fromUserId === s.fromUserId &&
+                          r.toUserId === s.toUserId &&
+                          r.status === "active"
+                      );
+                      if (!activeReminder) return null;
+                      return (
+                        <div className="pt-2">
+                          <ActiveReminderCard
+                            reminder={activeReminder}
+                            groupId={resolvedParams.groupId}
+                            isCreditor={!iAmPaying}
+                          />
+                        </div>
+                      );
+                    })()}
+
                     {/* Bottom Action Area */}
                     <div className="pt-2 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3">
                       <div className="text-xs text-slate-500 hidden sm:flex items-center gap-1.5">
@@ -926,7 +1061,21 @@ export default function SettleUpPage({
                           )}
                         </div>
                       ) : (
-                        <div className="grid grid-cols-2 gap-2 w-full sm:w-auto">
+                        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setReminderModalData({
+                              debtorUid: s.fromUserId,
+                              debtorName: s.fromUserName,
+                              amount: s.amount,
+                            })}
+                            className="rounded-xl h-10 px-3.5 font-bold border-indigo-200 bg-indigo-50/80 text-indigo-900 hover:bg-indigo-100 shadow-2xs cursor-pointer flex items-center justify-center flex-1 sm:flex-none"
+                            title="Set custom message and countdown timer"
+                          >
+                            <Clock className="h-4 w-4 mr-1.5 text-indigo-600" />
+                            <span>Timer Reminder</span>
+                          </Button>
                           <Button
                             variant="outline"
                             size="sm"
@@ -935,10 +1084,10 @@ export default function SettleUpPage({
                               targetName: s.fromUserName,
                               amount: s.amount,
                             })}
-                            className="rounded-xl h-10 px-4 font-bold border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100 shadow-2xs cursor-pointer flex items-center justify-center"
+                            className="rounded-xl h-10 px-3 font-bold border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100 shadow-2xs cursor-pointer flex items-center justify-center flex-1 sm:flex-none"
                           >
-                            <Smile className="h-4 w-4 mr-1.5 text-amber-600" />
-                            Meme Nudge
+                            <Smile className="h-4 w-4 mr-1 text-amber-600" />
+                            Meme
                           </Button>
                           <Button
                             variant="outline"
@@ -962,9 +1111,9 @@ export default function SettleUpPage({
                               );
                               window.open(`https://wa.me/?text=${encodeURIComponent(reminderMessage)}`, "_blank");
                             }}
-                            className="rounded-xl h-10 px-4 font-bold border-green-200 bg-green-50 text-green-700 hover:bg-green-100 shadow-2xs cursor-pointer flex items-center justify-center"
+                            className="rounded-xl h-10 px-3 font-bold border-green-200 bg-green-50 text-green-700 hover:bg-green-100 shadow-2xs cursor-pointer flex items-center justify-center flex-1 sm:flex-none"
                           >
-                            <MessageSquare className="h-4 w-4 mr-1.5 text-green-600" />
+                            <MessageSquare className="h-4 w-4 mr-1 text-green-600" />
                             WhatsApp
                           </Button>
                         </div>
@@ -1081,6 +1230,101 @@ export default function SettleUpPage({
               >
                 Done & View Balances
               </Button>
+            </div>
+          ) : paymentStatus === "declined" ? (
+            <div className="py-8 flex flex-col items-center text-center space-y-4 max-w-md mx-auto">
+              <div className="h-20 w-20 bg-rose-100 rounded-full flex items-center justify-center shadow-inner">
+                <X className="h-10 w-10 text-rose-600 stroke-[2.5]" />
+              </div>
+              <div>
+                <h3 className="text-2xl font-black text-rose-950">Payment Declined</h3>
+                <p className="text-sm text-slate-500 mt-1">
+                  {selectedSettlement?.toUserName || "The receiver"} indicated that they have not received this payment.
+                </p>
+              </div>
+
+              <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-xs text-amber-800 text-left">
+                <p className="font-semibold mb-0.5">Need to retry?</p>
+                <p className="text-[11px] text-amber-700 leading-relaxed">
+                  If funds were debited from your account, they typically auto-reverse within 2-4 hours. You can safely try paying again below.
+                </p>
+              </div>
+
+              <div className="w-full space-y-2">
+                <Button 
+                  onClick={() => {
+                    setPaymentStatus("idle");
+                    setSetuData(null);
+                    setConfirmingPayment(false);
+                    if (selectedSettlement) {
+                      handleOpenDialog(selectedSettlement);
+                    }
+                  }} 
+                  className="w-full rounded-2xl h-12 bg-rose-600 hover:bg-rose-700 text-white font-bold text-base shadow-md cursor-pointer flex items-center justify-center gap-2"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  Pay Again
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={() => setSelectedSettlement(null)}
+                  className="w-full text-slate-400 hover:text-slate-600 text-xs cursor-pointer"
+                >
+                  Close
+                </Button>
+              </div>
+            </div>
+          ) : paymentStatus === "pending_approval" ? (
+            <div className="py-8 flex flex-col items-center text-center space-y-4 max-w-md mx-auto">
+              <div className="h-20 w-20 bg-blue-100 rounded-full flex items-center justify-center shadow-inner">
+                <Clock className="h-10 w-10 text-blue-600 stroke-[2.5] animate-pulse" />
+              </div>
+              <div>
+                <h3 className="text-2xl font-black text-slate-900">Payment Submitted!</h3>
+                <p className="text-sm text-slate-500 mt-1">
+                  Waiting for {selectedSettlement?.toUserName || "the receiver"} to confirm receipt.
+                </p>
+              </div>
+
+              <div className="w-full p-4 rounded-2xl bg-slate-50 border border-slate-200 text-left space-y-2">
+                <div className="flex justify-between text-xs">
+                  <span className="text-slate-500">Amount Paid</span>
+                  <span className="font-bold text-slate-900">₹{setuData?.totalAmount.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-xs">
+                  <span className="text-slate-500">Receiver</span>
+                  <span className="font-bold text-slate-900">{selectedSettlement?.toUserName}</span>
+                </div>
+                <div className="flex justify-between text-xs items-center">
+                  <span className="text-slate-500">Status</span>
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-blue-100 text-blue-700">
+                    <span className="h-2 w-2 rounded-full bg-blue-600 animate-ping"></span>
+                    Awaiting Confirmation
+                  </span>
+                </div>
+              </div>
+
+              <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-200 text-xs text-emerald-800 text-left">
+                <p className="text-[11px] text-emerald-700 leading-relaxed">
+                  We notified {selectedSettlement?.toUserName}. As soon as they confirm receipt, group balances will update automatically.
+                </p>
+              </div>
+
+              <div className="w-full space-y-2 pt-2">
+                <Button 
+                  onClick={() => setSelectedSettlement(null)} 
+                  className="w-full rounded-2xl h-12 bg-blue-600 hover:bg-blue-700 text-white font-bold text-base shadow-md cursor-pointer"
+                >
+                  Done & Return to Balances
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={() => setPaymentStatus("awaiting")}
+                  className="w-full text-slate-400 hover:text-slate-600 text-xs cursor-pointer"
+                >
+                  Back to payment details
+                </Button>
+              </div>
             </div>
           ) : setuData ? (
             <div className="pt-2">
@@ -1839,6 +2083,21 @@ export default function SettleUpPage({
         isOpen={!!nudgeModalData}
         onClose={() => setNudgeModalData(null)}
       />
+
+      {/* Custom Payment Reminder & Countdown Timer Modal */}
+      {reminderModalData && (
+        <SetReminderModal
+          isOpen={!!reminderModalData}
+          onClose={() => setReminderModalData(null)}
+          groupId={resolvedParams.groupId}
+          fromUserId={reminderModalData.debtorUid}
+          fromUserName={reminderModalData.debtorName}
+          toUserId={appUser?.id || ""}
+          toUserName={appUser?.name || "Creditor"}
+          amount={reminderModalData.amount}
+          currency={currencySymbol}
+        />
+      )}
     </div>
   );
 }

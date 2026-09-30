@@ -57,6 +57,7 @@ export default function GroupLayout({
     { name: "Expenses", href: `/groups/${resolvedParams.groupId}` },
     { name: "Chat", href: `/groups/${resolvedParams.groupId}/chat` },
     ...(isRoommateGroup ? [{ name: "Flat HQ 🏠", href: `/groups/${resolvedParams.groupId}/roommates` }] : []),
+    { name: "Reminders ⏱️", href: `/groups/${resolvedParams.groupId}/reminders` },
     { name: "Analytics", href: `/groups/${resolvedParams.groupId}/analytics` },
     { name: "Members", href: `/groups/${resolvedParams.groupId}/members` },
     { name: "Trips", href: `/groups/${resolvedParams.groupId}/trips` },

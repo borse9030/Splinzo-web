@@ -31,6 +31,14 @@ async function approvePaymentAndUnpackBatch(
     verifiedVia,
   });
 
+  // Auto-stop active reminders for single payment
+  if (payment.groupId && payment.fromUserId && payment.toUserId) {
+    try {
+      const { reminderService } = await import("@/services/reminderService");
+      await reminderService.autoStopReminders(payment.groupId, payment.fromUserId, payment.toUserId, payment.id);
+    } catch (_) {}
+  }
+
   // If this was a batch settlement, create approved child payment records for each individual creditor
   if (payment.type === "batch" && Array.isArray(payment.batchItems)) {
     for (const item of payment.batchItems) {
@@ -53,6 +61,12 @@ async function approvePaymentAndUnpackBatch(
         verifiedVia: `${verifiedVia}_child`,
         createdAt: serverTimestamp(),
       });
+
+      // Auto-stop reminder for each batch item creditor
+      try {
+        const { reminderService } = await import("@/services/reminderService");
+        await reminderService.autoStopReminders(payment.groupId, payment.fromUserId, item.toUserId, childPaymentId);
+      } catch (_) {}
     }
   }
 }
@@ -138,6 +152,16 @@ export async function GET(req: NextRequest) {
           status: "PAID",
           utr,
           approvedAt: payment.approvedAt,
+        },
+        { headers: corsHeaders }
+      );
+    }
+
+    if (payment.status === "declined") {
+      return NextResponse.json(
+        {
+          status: "DECLINED",
+          declinedAt: payment.declinedAt,
         },
         { headers: corsHeaders }
       );
