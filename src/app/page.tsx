@@ -19,7 +19,7 @@ import { FAQS } from "@/data/faqs";
 const AMBER       = "#F9B912";
 const AMBER_DARK  = "#F9A000";
 const AMBER_LIGHT = "#FFF8E1";
-const PLAY_STORE_URL = "https://play.google.com/apps/testing/com.splinzo.splinzo";
+const PLAY_STORE_URL = "https://play.google.com/store/apps/details?id=com.splinzo.splinzo&pcampaignid=web_share";
 
 /* ─── SECTION ANIMATION WRAPPER ─────────────────────────── */
 function Section({ children, className = "", delay = 0 }: {
@@ -566,7 +566,7 @@ export default function Home() {
                 </Link>
 
                 {/* Play Store CTA */}
-                <a href="#" onClick={(e) => { e.preventDefault(); alert("App will be available soon!"); }}
+                <a href={PLAY_STORE_URL} target="_blank" rel="noopener noreferrer"
                    className="inline-flex items-center gap-3 px-7 py-4 rounded-2xl text-white font-bold text-base transition-transform hover:scale-105 shadow-md"
                    style={{background:"linear-gradient(135deg,#1a1a1a,#2d2d2d)"}}>
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
@@ -715,7 +715,7 @@ export default function Home() {
               It&apos;s completely free.
             </p>
 
-            <a href="#" onClick={(e) => { e.preventDefault(); alert("App will be available soon!"); }}
+            <a href={PLAY_STORE_URL} target="_blank" rel="noopener noreferrer"
                className="inline-flex items-center gap-4 px-8 py-5 rounded-2xl text-white font-bold text-lg
                           transition-all hover:scale-105 shadow-2xl animate-pulse-glow"
                style={{background:"linear-gradient(135deg,#F9B912,#F9A000)"}}>

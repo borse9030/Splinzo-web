@@ -22,7 +22,7 @@ export function OrganizationSchema() {
         },
         "description": "The smartest way to split expenses with friends, roommates, and groups. Fast, fair, and seamless bill splitting.",
         "sameAs": [
-          "https://play.google.com/apps/testing/com.splinzo.splinzo"
+          "https://play.google.com/store/apps/details?id=com.splinzo.splinzo&pcampaignid=web_share"
         ]
       },
       {
