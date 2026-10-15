@@ -48,6 +48,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const navLinks = isSuperAdmin
     ? [
         { name: "Overview", href: "/admin", icon: LayoutDashboard, exact: true },
+        { name: "App Releases", href: "/admin/app-updates", icon: Sparkles, exact: false },
         { name: "Push Studio", href: "/admin/notifications", icon: Bell, exact: false },
         { name: "Tickets Matrix", href: "/admin/tickets", icon: LifeBuoy, exact: false },
         { name: "Staff Management", href: "/admin/staff", icon: ShieldCheck, exact: false },
@@ -55,6 +56,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       ]
     : [
         { name: "My Workspace", href: "/admin/workspace", icon: Briefcase, exact: true },
+        { name: "App Releases", href: "/admin/app-updates", icon: Sparkles, exact: false },
         { name: "Push Studio", href: "/admin/notifications", icon: Bell, exact: false },
         { name: "All Tickets", href: "/admin/tickets", icon: LifeBuoy, exact: false },
       ];

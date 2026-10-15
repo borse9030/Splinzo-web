@@ -9,6 +9,9 @@ export interface AppUser {
   photoURL?: string;
   phoneNumber?: string;
   phone?: string;
+  normalizedPhone?: string;
+  phoneTenDigit?: string;
+  dialCode?: string;
   bio?: string;
   defaultCurrency?: string;
   upiId?: string;

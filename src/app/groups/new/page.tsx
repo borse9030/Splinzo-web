@@ -8,6 +8,7 @@ import { groupService } from "@/services/groupService";
 import { motion } from "framer-motion";
 import { Camera, ChevronLeft, Loader2, Plane, Home, Heart, Users } from "lucide-react";
 import Link from "next/link";
+import { MandatoryPhoneGateModal } from "@/components/auth/MandatoryPhoneGateModal";
 
 const AMBER = "#F9B912";
 
@@ -59,6 +60,10 @@ export default function NewGroupPage() {
       setError("You must be logged in to create a group.");
       return;
     }
+    if (!appUser.phoneNumber && !appUser.phone) {
+      setError("Please link your mobile number to create groups and sync with contacts.");
+      return;
+    }
 
     setLoading(true);
     setError("");
@@ -81,6 +86,7 @@ export default function NewGroupPage() {
 
   return (
     <div className="min-h-screen p-4 sm:p-8" style={{ background: "var(--background)" }}>
+      <MandatoryPhoneGateModal />
       <div className="max-w-xl mx-auto">
         {/* Header */}
         <div className="flex items-center gap-3 mb-8">

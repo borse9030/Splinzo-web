@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { signInWithEmailAndPassword, signInWithPopup } from "firebase/auth";
-import { auth, googleProvider } from "@/lib/firebase/config";
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { auth } from "@/lib/firebase/config";
+import { executeGoogleAuth, handleGoogleRedirectResult } from "@/lib/firebase/authUtils";
 import { userService } from "@/services/userService";
 import { motion, AnimatePresence } from "framer-motion";
 import { AlertCircle, Eye, EyeOff, Star, ArrowRight, ShieldCheck } from "lucide-react";
@@ -387,6 +388,23 @@ export default function LoginPage() {
     setTimeout(() => setShake(false), 500);
   };
 
+  // Listen for returning Google OAuth redirect results (critical for Safari & iOS)
+  useEffect(() => {
+    let isMounted = true;
+    handleGoogleRedirectResult()
+      .then((cred) => {
+        if (isMounted && cred?.user) {
+          router.push("/dashboard");
+        }
+      })
+      .catch((err) => {
+        console.warn("[Login] Redirect result notice:", err);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [router]);
+
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -446,10 +464,16 @@ export default function LoginPage() {
     setGLoading(true);
     setError("");
     try {
-      const result = await signInWithPopup(auth, googleProvider);
-      const user = result.user;
-      await userService.createUser(user.uid, user.email || "", user.displayName || "User", user.photoURL || "");
-      router.push("/dashboard");
+      const res = await executeGoogleAuth();
+      if (res.redirecting) {
+        // Navigating via redirect (Safari / iOS fallback)
+        return;
+      }
+      if (res.credential?.user) {
+        const user = res.credential.user;
+        await userService.createUser(user.uid, user.email || "", user.displayName || "User", user.photoURL || "");
+        router.push("/dashboard");
+      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Failed to log in with Google.";
       setError(message);

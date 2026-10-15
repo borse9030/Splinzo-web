@@ -1,14 +1,17 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
-import { createUserWithEmailAndPassword, signInWithPopup, updateProfile } from "firebase/auth";
-import { auth, googleProvider } from "@/lib/firebase/config";
+import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
+import { auth } from "@/lib/firebase/config";
+import { executeGoogleAuth, handleGoogleRedirectResult } from "@/lib/firebase/authUtils";
 import { userService } from "@/services/userService";
+import { COUNTRIES, Country, DEFAULT_COUNTRY, validatePhoneNumber, formatE164 } from "@/lib/countryData";
+import { evaluatePassword } from "@/lib/passwordSecurity";
 import { motion, AnimatePresence } from "framer-motion";
-import { AlertCircle, Eye, EyeOff, ArrowRight, Star, Check } from "lucide-react";
+import { AlertCircle, Eye, EyeOff, ArrowRight, Star, Check, X, ChevronDown, Lock } from "lucide-react";
 
 /* ─── CONSTANTS ─────────────────────────────────────────── */
 const AMBER = "#F9B912";
@@ -211,24 +214,187 @@ function AnimatedInput({
   );
 }
 
-/* ─── PASSWORD INPUT ─────────────────────────────────────── */
-function PasswordInput({ id, value, onChange, error }: {
-  id: string; value: string; onChange: (v: string) => void; error?: boolean;
+/* ─── COUNTRY PHONE INPUT ───────────────────────────────── */
+function CountryPhoneInput({
+  id,
+  label,
+  value,
+  onChange,
+  selectedCountry,
+  onCountryChange,
+  error,
+}: {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  selectedCountry: Country;
+  onCountryChange: (c: Country) => void;
+  error?: boolean;
+}) {
+  const [focused, setFocused] = useState(false);
+  const [openDropdown, setOpenDropdown] = useState(false);
+  const [search, setSearch] = useState("");
+
+  const filtered = COUNTRIES.filter(
+    (c) =>
+      c.name.toLowerCase().includes(search.toLowerCase()) ||
+      c.dialCode.includes(search) ||
+      c.code.toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <motion.div
+      animate={error ? { x: [0, -8, 8, -6, 6, -4, 4, 0] } : { x: 0 }}
+      transition={{ duration: 0.4 }}
+      className="flex flex-col gap-1.5 relative"
+    >
+      <div className="flex items-center justify-between">
+        <label htmlFor={id} className="text-sm font-semibold text-gray-700">
+          {label}
+        </label>
+        <span className="text-[11px] font-bold text-gray-400">
+          {selectedCountry.minLength === selectedCountry.maxLength
+            ? `${selectedCountry.minLength} digits`
+            : `${selectedCountry.minLength}-${selectedCountry.maxLength} digits`}
+        </span>
+      </div>
+      <div
+        className="flex items-center rounded-2xl transition-all duration-200 relative"
+        style={{
+          height: 52,
+          background: focused ? "#FFFFFF" : "#F8F8F8",
+          border: `2px solid ${error ? "#EF4444" : focused ? AMBER : "#EBEBEB"}`,
+          boxShadow: focused
+            ? `0 0 0 4px ${error ? "rgba(239,68,68,0.1)" : "rgba(249,185,18,0.15)"}`
+            : "none",
+        }}
+      >
+        {/* Country Selector Trigger */}
+        <button
+          type="button"
+          onClick={() => setOpenDropdown(!openDropdown)}
+          className="flex items-center gap-1.5 px-3 h-full border-r border-gray-200 hover:bg-gray-100/60 rounded-l-2xl transition text-xs font-bold text-gray-800 shrink-0"
+        >
+          <span className="text-base">{selectedCountry.flag}</span>
+          <span className="font-mono">{selectedCountry.dialCode}</span>
+          <ChevronDown size={13} className="text-gray-400" />
+        </button>
+
+        {/* Digits Input */}
+        <input
+          id={id}
+          type="tel"
+          placeholder={selectedCountry.placeholder}
+          value={value}
+          maxLength={selectedCountry.maxLength}
+          autoComplete="tel"
+          onChange={(e) => onChange(e.target.value.replace(/\D/g, ""))}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          required
+          className="w-full px-3.5 py-3 bg-transparent text-sm font-semibold text-gray-900 outline-none"
+        />
+
+        {/* Dropdown Modal */}
+        {openDropdown && (
+          <>
+            <div
+              className="fixed inset-0 z-40"
+              onClick={() => {
+                setOpenDropdown(false);
+                setSearch("");
+              }}
+            />
+            <div className="absolute top-[56px] left-0 z-50 w-72 max-h-64 overflow-y-auto bg-white rounded-2xl border border-gray-200 shadow-2xl p-2 space-y-1">
+              <input
+                type="text"
+                placeholder="Search country or code..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full px-3 py-1.5 text-xs bg-gray-50 rounded-xl border border-gray-200 outline-none mb-1 font-medium"
+                autoFocus
+              />
+              {filtered.map((c) => (
+                <button
+                  key={c.code}
+                  type="button"
+                  onClick={() => {
+                    onCountryChange(c);
+                    setOpenDropdown(false);
+                    setSearch("");
+                  }}
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition text-left ${
+                    c.code === selectedCountry.code
+                      ? "bg-amber-50 text-amber-950 font-bold"
+                      : "hover:bg-gray-50 text-gray-800"
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="text-base">{c.flag}</span>
+                    <span className="truncate max-w-[130px]">{c.name}</span>
+                  </div>
+                  <span className="text-gray-500 font-mono font-bold">{c.dialCode}</span>
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    </motion.div>
+  );
+}
+
+/* ─── STRICT PASSWORD INPUT WITH LIVE CHECKLIST ──────────── */
+function PasswordInput({
+  id,
+  value,
+  onChange,
+  error,
+}: {
+  id: string;
+  value: string;
+  onChange: (v: string) => void;
+  error?: boolean;
 }) {
   const [focused, setFocused] = useState(false);
   const [show, setShow] = useState(false);
+
+  const pwdEval = evaluatePassword(value);
+  const showChecklist = focused || value.length > 0;
+
   return (
     <motion.div
       animate={error ? { x: [0, -8, 8, -6, 6, -4, 4, 0] } : { x: 0 }}
       transition={{ duration: 0.4 }}
       className="flex flex-col gap-1.5"
     >
-      <label htmlFor={id} className="text-sm font-semibold text-gray-700">Password</label>
+      <div className="flex items-center justify-between">
+        <label htmlFor={id} className="text-sm font-semibold text-gray-700">
+          Password
+        </label>
+        {value.length > 0 && (
+          <span
+            className={`text-xs font-black uppercase tracking-wider ${
+              pwdEval.strengthLabel === "Strong"
+                ? "text-emerald-600"
+                : pwdEval.strengthLabel === "Good"
+                ? "text-amber-600"
+                : "text-red-500"
+            }`}
+          >
+            {pwdEval.strengthLabel}
+          </span>
+        )}
+      </div>
       <div className="relative">
         <input
-          id={id} type={show ? "text" : "password"} placeholder="Min 6 characters"
-          value={value} autoComplete="new-password"
-          onChange={e => onChange(e.target.value)}
+          id={id}
+          type={show ? "text" : "password"}
+          placeholder="Min 8 chars with upper, number & symbol"
+          value={value}
+          autoComplete="new-password"
+          onChange={(e) => onChange(e.target.value)}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
           required
@@ -242,52 +408,178 @@ function PasswordInput({ id, value, onChange, error }: {
               : "none",
           }}
         />
-        <button type="button" onClick={() => setShow(!show)} tabIndex={-1}
-                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 transition-colors"
-                aria-label={show ? "Hide password" : "Show password"}>
+        <button
+          type="button"
+          onClick={() => setShow(!show)}
+          tabIndex={-1}
+          className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 transition-colors"
+          aria-label={show ? "Hide password" : "Show password"}
+        >
           <AnimatePresence mode="wait">
-            <motion.div key={show ? "hide" : "show"}
-                        initial={{ opacity: 0, scale: 0.7 }} animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.7 }} transition={{ duration: 0.15 }}>
-              {show ? <EyeOff size={17}/> : <Eye size={17}/>}
+            <motion.div
+              key={show ? "hide" : "show"}
+              initial={{ opacity: 0, scale: 0.7 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.7 }}
+              transition={{ duration: 0.15 }}
+            >
+              {show ? <EyeOff size={17} /> : <Eye size={17} />}
             </motion.div>
           </AnimatePresence>
         </button>
       </div>
+
+      {/* Live Strict Requirement Checklist */}
+      {showChecklist && (
+        <div className="mt-1 p-3 rounded-2xl bg-gray-50 border border-gray-100 space-y-1.5 text-xs">
+          {/* Progress bar */}
+          <div className="grid grid-cols-4 gap-1 mb-2">
+            {[1, 2, 3, 4].map((step) => (
+              <div
+                key={step}
+                className={`h-1 rounded-full transition-all duration-300 ${
+                  pwdEval.score >= step
+                    ? pwdEval.score === 4
+                      ? "bg-emerald-500"
+                      : pwdEval.score === 3
+                      ? "bg-amber-400"
+                      : "bg-orange-400"
+                    : "bg-gray-200"
+                }`}
+              />
+            ))}
+          </div>
+
+          {pwdEval.rules.map((rule) => (
+            <div
+              key={rule.id}
+              className={`flex items-center gap-1.5 transition-colors ${
+                rule.passed ? "text-emerald-700 font-semibold" : "text-gray-400 font-normal"
+              }`}
+            >
+              {rule.passed ? (
+                <Check size={12} className="text-emerald-600 shrink-0" />
+              ) : (
+                <div className="w-2.5 h-2.5 rounded-full border border-gray-300 shrink-0" />
+              )}
+              <span>{rule.label}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </motion.div>
   );
 }
 
-/* ─── MAIN SIGNUP CONTENT ─────────────────────────────────── */
 function SignupContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialEmail = searchParams.get("email") || "";
-  const [name, setName]         = useState("");
-  const [email, setEmail]       = useState(initialEmail);
-  const [password, setPassword] = useState("");
-  const [error, setError]       = useState("");
-  const [loading, setLoading]   = useState(false);
-  const [gLoading, setGLoading] = useState(false);
-  const [shake, setShake]       = useState(false);
+  const [name, setName]                 = useState("");
+  const [phone, setPhone]               = useState("");
+  const [selectedCountry, setSelectedCountry] = useState<Country>(DEFAULT_COUNTRY);
+  const [email, setEmail]               = useState(initialEmail);
+  const [password, setPassword]         = useState("");
+  const [error, setError]               = useState("");
+  const [loading, setLoading]           = useState(false);
+  const [gLoading, setGLoading]         = useState(false);
+  const [shake, setShake]               = useState(false);
 
   const triggerShake = () => {
     setShake(true);
     setTimeout(() => setShake(false), 500);
   };
 
+  // Listen for returning Google OAuth redirect results (critical for Safari & iOS)
+  useEffect(() => {
+    let isMounted = true;
+    handleGoogleRedirectResult()
+      .then((cred) => {
+        if (isMounted && cred?.user) {
+          router.push("/dashboard");
+        }
+      })
+      .catch((err) => {
+        console.warn("[Signup] Redirect result notice:", err);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [router]);
+
   const handleEmailSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError("");
+
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes("@")) {
+      setError("Please enter a valid email address.");
+      triggerShake();
+      setLoading(false);
+      return;
+    }
+
+    // 1. Strict password validation
+    const pwdEval = evaluatePassword(password);
+    if (!pwdEval.isValid) {
+      setError(pwdEval.error || "Password does not meet all security requirements.");
+      triggerShake();
+      setLoading(false);
+      return;
+    }
+
+    // 2. Validate phone number according to country rules
+    const phoneValidation = validatePhoneNumber(phone, selectedCountry);
+    if (!phoneValidation.isValid) {
+      setError(phoneValidation.error || "Please enter a valid phone number.");
+      triggerShake();
+      setLoading(false);
+      return;
+    }
+
     try {
-      const result = await createUserWithEmailAndPassword(auth, email, password);
+      // 3. Pre-check for duplicate email in Firestore
+      const existingUser = await userService.getUserByEmail(cleanEmail);
+      if (existingUser) {
+        setError("An account with this email address already exists. Please log in instead.");
+        triggerShake();
+        setLoading(false);
+        return;
+      }
+
+      // 4. Verify phone number uniqueness across accounts
+      const phoneCheck = await userService.checkPhoneAvailability(phone, undefined, selectedCountry.dialCode);
+      if (!phoneCheck.available) {
+        setError(phoneCheck.error || "This mobile number is already registered with another account.");
+        triggerShake();
+        setLoading(false);
+        return;
+      }
+
+      const formattedPhone = formatE164(phone, selectedCountry);
+      const result = await createUserWithEmailAndPassword(auth, cleanEmail, password);
       const user = result.user;
       await updateProfile(user, { displayName: name });
-      await userService.createUser(user.uid, email, name, "");
+      await userService.createUser(user.uid, cleanEmail, name, "", formattedPhone, selectedCountry.dialCode);
       router.push("/dashboard");
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Failed to create account.";
+      console.error("[Signup] Email signup error:", err);
+      let message = "Failed to create account.";
+      if (err && typeof err === "object" && "code" in err) {
+        const code = (err as { code: string }).code;
+        if (code === "auth/email-already-in-use") {
+          message = "An account with this email address already exists. Please log in instead.";
+        } else if (code === "auth/weak-password") {
+          message = "Password must be at least 8 characters and include uppercase, lowercase, numbers, and symbols.";
+        } else if (code === "auth/invalid-email") {
+          message = "Please enter a valid email address.";
+        } else if (err instanceof Error) {
+          message = err.message;
+        }
+      } else if (err instanceof Error) {
+        message = err.message;
+      }
       setError(message);
       triggerShake();
     } finally {
@@ -299,11 +591,18 @@ function SignupContent() {
     setGLoading(true);
     setError("");
     try {
-      const result = await signInWithPopup(auth, googleProvider);
-      const user = result.user;
-      await userService.createUser(user.uid, user.email || "", user.displayName || "User", user.photoURL || "");
-      router.push("/dashboard");
+      const res = await executeGoogleAuth();
+      if (res.redirecting) {
+        // Navigating via redirect (Safari / iOS fallback)
+        return;
+      }
+      if (res.credential?.user) {
+        const user = res.credential.user;
+        await userService.createUser(user.uid, user.email || "", user.displayName || "User", user.photoURL || "");
+        router.push("/dashboard");
+      }
     } catch (err: unknown) {
+      console.error("Google signup error:", err);
       const message = err instanceof Error ? err.message : "Failed to sign up with Google.";
       setError(message);
     } finally {
@@ -389,7 +688,19 @@ function SignupContent() {
                 autoComplete="name" error={shake && !!error}/>
             </motion.div>
 
-            <motion.div {...fadeUp(0.35)}>
+            <motion.div {...fadeUp(0.33)}>
+              <CountryPhoneInput
+                id="signup-phone"
+                label="Mobile Number"
+                value={phone}
+                onChange={setPhone}
+                selectedCountry={selectedCountry}
+                onCountryChange={setSelectedCountry}
+                error={shake && !!error}
+              />
+            </motion.div>
+
+            <motion.div {...fadeUp(0.36)}>
               <AnimatedInput id="signup-email" label="Email" type="email"
                 value={email} onChange={setEmail} placeholder="name@example.com"
                 autoComplete="email" error={shake && !!error}/>

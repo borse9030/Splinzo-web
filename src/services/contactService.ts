@@ -2,15 +2,18 @@ import { db } from "@/lib/firebase/config";
 import {
   collection,
   doc,
+  getDoc,
   getDocs,
   query,
   where,
   setDoc,
+  updateDoc,
   serverTimestamp,
   Timestamp,
 } from "firebase/firestore";
 import { Group, GroupMember } from "@/types/group";
 import { Expense } from "@/types/expense";
+import { sendFlatmatePushNotification } from "@/services/flatmateService";
 
 export interface SplinzoContact {
   id: string;
@@ -42,6 +45,17 @@ export interface ContactSplitItem {
   category: string;
 }
 
+export interface ContactSettlementRecord {
+  id: string;
+  fromUserId: string;
+  fromUserName: string;
+  toUserId: string;
+  toUserName: string;
+  amount: number;
+  createdAt: Date;
+  didIPay: boolean;
+}
+
 export interface ContactSplitSummary {
   netBalance: number;
   totalYouOwe: number;
@@ -50,7 +64,12 @@ export interface ContactSplitSummary {
   youOweThem: boolean;
   isSettled: boolean;
   splits: ContactSplitItem[];
+  settlements: ContactSettlementRecord[];
   sharedGroupNames: string[];
+  connectionStatus?: "none" | "pending_sent" | "pending_received" | "accepted";
+  directGroupId?: string;
+  requestedBy?: string;
+  requestedByName?: string;
 }
 
 export const contactPhoneNormalizer = {
@@ -165,7 +184,8 @@ export const contactService = {
   },
 
   /**
-   * Aggregates all splits and calculates net balance with a specific contact
+   * Aggregates all splits and calculates net balance strictly for the 1-on-1 contact
+   * Isolated from other shared groups (flat/trip groups remain completely separate).
    */
   async getContactSplitSummary(
     currentUserId: string,
@@ -180,134 +200,140 @@ export const contactService = {
         youOweThem: false,
         isSettled: true,
         splits: [],
+        settlements: [],
         sharedGroupNames: [],
+        connectionStatus: "none",
       };
     }
 
     const contactUid = contact.registeredUid;
     const contactPhone = contact.normalizedPhone;
-    const contactNameLower = (contact.displayName || "").toLowerCase().trim();
 
     try {
-      // 1. Fetch all groups current user is a member of
-      const groupsQuery = query(
-        collection(db, "groups"),
-        where("memberIds", "array-contains", currentUserId)
-      );
-      const groupsSnap = await getDocs(groupsQuery);
-      const groups: Group[] = [];
-      groupsSnap.forEach((d) => {
-        groups.push({ id: d.id, ...d.data() } as Group);
-      });
+      // 1. Check if dedicated 1-on-1 direct group exists
+      const directGroup = await this.findDirectGroup(currentUserId, contact);
+      if (!directGroup) {
+        return {
+          netBalance: 0,
+          totalYouOwe: 0,
+          totalTheyOwe: 0,
+          theyOweYou: false,
+          youOweThem: false,
+          isSettled: true,
+          splits: [],
+          settlements: [],
+          sharedGroupNames: [],
+          connectionStatus: "none",
+        };
+      }
+
+      // Read group doc to inspect connectionStatus
+      const groupDocSnap = await getDoc(doc(db, "groups", directGroup.id));
+      const groupData = groupDocSnap.exists() ? groupDocSnap.data() : {};
+      const rawStatus = groupData.connectionStatus;
+      const requestedBy = groupData.requestedBy;
+      const requestedByName = groupData.requestedByName;
+
+      let connectionStatus: "none" | "pending_sent" | "pending_received" | "accepted" = "accepted";
+      if (rawStatus === "pending") {
+        connectionStatus = requestedBy === currentUserId ? "pending_sent" : "pending_received";
+      } else if (rawStatus === "declined") {
+        connectionStatus = "none";
+      } else if (rawStatus === "accepted") {
+        connectionStatus = "accepted";
+      } else if (!rawStatus) {
+        // Grandfather existing groups
+        connectionStatus = "accepted";
+      }
+
+      const contactMemberId = contactUid || `phone_${contactPhone}`;
 
       const allSplits: ContactSplitItem[] = [];
-      const sharedGroupNames = new Set<string>();
+      const allSettlements: ContactSettlementRecord[] = [];
       let totalYouOwe = 0;
       let totalTheyOwe = 0;
 
-      for (const group of groups) {
-        let matchedMember: GroupMember | null = null;
-        for (const m of group.members || []) {
-          if (m.id === currentUserId) continue;
+      // 2. Fetch direct split expenses strictly from this direct group
+      const expQuery = query(collection(db, `groups/${directGroup.id}/expenses`));
+      const expSnap = await getDocs(expQuery);
+      const expenses: Expense[] = [];
+      expSnap.forEach((d) => {
+        expenses.push({ id: d.id, ...d.data() } as Expense);
+      });
 
-          if (contactUid && (m.id === contactUid || (m as any).claimedByUid === contactUid)) {
-            matchedMember = m;
-            break;
+      for (const exp of expenses) {
+        const isCurrentUserPayer = exp.payerId === currentUserId;
+        const isContactPayer =
+          exp.payerId === contactMemberId || (Boolean(contactUid) && exp.payerId === contactUid);
+
+        let myShare = 0;
+        let contactShare = 0;
+
+        if (exp.customSplitAmounts) {
+          myShare = exp.customSplitAmounts[currentUserId] || 0;
+          contactShare =
+            exp.customSplitAmounts[contactMemberId] ||
+            (contactUid ? exp.customSplitAmounts[contactUid] || 0 : 0);
+        } else if (exp.splitBetweenIds && exp.splitBetweenIds.length > 0) {
+          const splitCount = exp.splitBetweenIds.length;
+          const equalShare = exp.amount / splitCount;
+          if (exp.splitBetweenIds.includes(currentUserId)) myShare = equalShare;
+          if (
+            exp.splitBetweenIds.includes(contactMemberId) ||
+            (contactUid && exp.splitBetweenIds.includes(contactUid))
+          ) {
+            contactShare = equalShare;
           }
-          if (contactPhone && (m.id.includes(contactPhone) || (m.email && m.email.includes(contactPhone)))) {
-            matchedMember = m;
-            break;
-          }
-          if (group.type === "direct" && (m.name || "").toLowerCase().trim() === contactNameLower) {
-            matchedMember = m;
-            break;
-          }
+        } else {
+          // Default 50/50
+          myShare = exp.amount / 2;
+          contactShare = exp.amount / 2;
         }
 
-        if (!matchedMember) continue;
+        const expDate = exp.createdAt?.toDate ? exp.createdAt.toDate() : new Date();
 
-        sharedGroupNames.add(group.type === "direct" ? "1-on-1 Direct Split" : group.name);
-        const memberContactId = matchedMember.id;
-
-        // Fetch expenses
-        const expQuery = query(collection(db, `groups/${group.id}/expenses`));
-        const expSnap = await getDocs(expQuery);
-        const expenses: Expense[] = [];
-        expSnap.forEach((d) => {
-          expenses.push({ id: d.id, ...d.data() } as Expense);
-        });
-
-        for (const exp of expenses) {
-          const isCurrentUserPayer = exp.payerId === currentUserId;
-          const isContactPayer =
-            exp.payerId === memberContactId || (Boolean(contactUid) && exp.payerId === contactUid);
-
-          // Calculate shares
-          let myShare = 0;
-          let contactShare = 0;
-
-          if (exp.customSplitAmounts) {
-            myShare = exp.customSplitAmounts[currentUserId] || 0;
-            contactShare =
-              exp.customSplitAmounts[memberContactId] ||
-              (contactUid ? exp.customSplitAmounts[contactUid] || 0 : 0);
-          } else if (exp.splitBetweenIds && exp.splitBetweenIds.length > 0) {
-            const splitCount = exp.splitBetweenIds.length;
-            const equalShare = exp.amount / splitCount;
-            if (exp.splitBetweenIds.includes(currentUserId)) myShare = equalShare;
-            if (
-              exp.splitBetweenIds.includes(memberContactId) ||
-              (contactUid && exp.splitBetweenIds.includes(contactUid))
-            ) {
-              contactShare = equalShare;
-            }
-          }
-
-          if (isCurrentUserPayer && contactShare > 0.01) {
-            totalTheyOwe += contactShare;
-            const expDate = exp.createdAt?.toDate ? exp.createdAt.toDate() : new Date();
-            allSplits.push({
-              expenseId: exp.id,
-              groupId: group.id,
-              groupName: group.type === "direct" ? "Direct Split" : group.name,
-              description: exp.description || "Expense",
-              totalAmount: exp.amount,
-              currency: exp.currency || "INR",
-              myShare,
-              contactShare,
-              payerId: exp.payerId,
-              payerName: "You",
-              didIPay: true,
-              didContactPay: false,
-              netImpact: contactShare,
-              createdAt: expDate,
-              category: exp.category || "General",
-            });
-          } else if (isContactPayer && myShare > 0.01) {
-            totalYouOwe += myShare;
-            const expDate = exp.createdAt?.toDate ? exp.createdAt.toDate() : new Date();
-            allSplits.push({
-              expenseId: exp.id,
-              groupId: group.id,
-              groupName: group.type === "direct" ? "Direct Split" : group.name,
-              description: exp.description || "Expense",
-              totalAmount: exp.amount,
-              currency: exp.currency || "INR",
-              myShare,
-              contactShare,
-              payerId: exp.payerId,
-              payerName: contact.displayName,
-              didIPay: false,
-              didContactPay: true,
-              netImpact: -myShare,
-              createdAt: expDate,
-              category: exp.category || "General",
-            });
-          }
+        if (isCurrentUserPayer && contactShare > 0.01) {
+          totalTheyOwe += contactShare;
+          allSplits.push({
+            expenseId: exp.id,
+            groupId: directGroup.id,
+            groupName: "1-on-1 Direct Split",
+            description: exp.description || "Expense",
+            totalAmount: exp.amount,
+            currency: exp.currency || "INR",
+            myShare,
+            contactShare,
+            payerId: exp.payerId,
+            payerName: "You",
+            didIPay: true,
+            didContactPay: false,
+            netImpact: contactShare,
+            createdAt: expDate,
+            category: exp.category || "General",
+          });
+        } else if (isContactPayer && myShare > 0.01) {
+          totalYouOwe += myShare;
+          allSplits.push({
+            expenseId: exp.id,
+            groupId: directGroup.id,
+            groupName: "1-on-1 Direct Split",
+            description: exp.description || "Expense",
+            totalAmount: exp.amount,
+            currency: exp.currency || "INR",
+            myShare,
+            contactShare,
+            payerId: exp.payerId,
+            payerName: contact.displayName,
+            didIPay: false,
+            didContactPay: true,
+            netImpact: -myShare,
+            createdAt: expDate,
+            category: exp.category || "General",
+          });
         }
       }
 
-      // Check payments collection for approved settlements
+      // 3. Fetch direct payments between current user and contact
       const payQuery1 = query(
         collection(db, "payments"),
         where("fromUserId", "==", currentUserId),
@@ -316,8 +342,32 @@ export const contactService = {
       const paySnap1 = await getDocs(payQuery1);
       paySnap1.forEach((d) => {
         const p = d.data();
-        if ((contactUid && p.toUserId === contactUid) || p.toUserId === `phone_${contactPhone}`) {
-          totalYouOwe = Math.max(0, totalYouOwe - (p.amount || 0));
+        const toId = p.toUserId || "";
+        const gId = p.groupId || "";
+        const isContactSplit =
+          p.paymentType === "contact_split" ||
+          p.scope === "direct_contact" ||
+          gId === directGroup.id;
+
+        if (
+          isContactSplit &&
+          ((contactUid && toId === contactUid) ||
+            (contactPhone && (toId === `phone_${contactPhone}` || toId.includes(contactPhone))) ||
+            gId === directGroup.id)
+        ) {
+          const amt = p.amount || 0;
+          totalYouOwe = Math.max(0, totalYouOwe - amt);
+          const paidDate = p.paidAt?.toDate ? p.paidAt.toDate() : (p.createdAt?.toDate ? p.createdAt.toDate() : new Date());
+          allSettlements.push({
+            id: d.id,
+            fromUserId: currentUserId,
+            fromUserName: p.fromUserName || "You",
+            toUserId: toId,
+            toUserName: p.toUserName || contact.displayName,
+            amount: amt,
+            createdAt: paidDate,
+            didIPay: true,
+          });
         }
       });
 
@@ -329,12 +379,37 @@ export const contactService = {
       const paySnap2 = await getDocs(payQuery2);
       paySnap2.forEach((d) => {
         const p = d.data();
-        if ((contactUid && p.fromUserId === contactUid) || p.fromUserId === `phone_${contactPhone}`) {
-          totalTheyOwe = Math.max(0, totalTheyOwe - (p.amount || 0));
+        const fromId = p.fromUserId || "";
+        const gId = p.groupId || "";
+        const isContactSplit =
+          p.paymentType === "contact_split" ||
+          p.scope === "direct_contact" ||
+          gId === directGroup.id;
+
+        if (
+          isContactSplit &&
+          ((contactUid && fromId === contactUid) ||
+            (contactPhone && (fromId === `phone_${contactPhone}` || fromId.includes(contactPhone))) ||
+            gId === directGroup.id)
+        ) {
+          const amt = p.amount || 0;
+          totalTheyOwe = Math.max(0, totalTheyOwe - amt);
+          const paidDate = p.paidAt?.toDate ? p.paidAt.toDate() : (p.createdAt?.toDate ? p.createdAt.toDate() : new Date());
+          allSettlements.push({
+            id: d.id,
+            fromUserId: fromId,
+            fromUserName: p.fromUserName || contact.displayName,
+            toUserId: currentUserId,
+            toUserName: p.toUserName || "You",
+            amount: amt,
+            createdAt: paidDate,
+            didIPay: false,
+          });
         }
       });
 
       allSplits.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+      allSettlements.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
 
       const net = totalTheyOwe - totalYouOwe;
       return {
@@ -345,7 +420,12 @@ export const contactService = {
         youOweThem: net < -0.01,
         isSettled: Math.abs(net) <= 0.01,
         splits: allSplits,
-        sharedGroupNames: Array.from(sharedGroupNames),
+        settlements: allSettlements,
+        sharedGroupNames: ["1-on-1 Direct Split"],
+        connectionStatus,
+        directGroupId: directGroup.id,
+        requestedBy,
+        requestedByName,
       };
     } catch (e) {
       console.error("Error aggregating contact split summary:", e);
@@ -357,9 +437,69 @@ export const contactService = {
         youOweThem: false,
         isSettled: true,
         splits: [],
+        settlements: [],
         sharedGroupNames: [],
+        connectionStatus: "none",
       };
     }
+  },
+
+  /**
+   * Searches for an existing 1-on-1 direct group between current user and the contact without auto-creating
+   */
+  async findDirectGroup(
+    currentUserId: string,
+    contact: SplinzoContact
+  ): Promise<Group | null> {
+    const contactMemberId = contact.registeredUid || `phone_${contact.normalizedPhone}`;
+    const contactPhone = contact.normalizedPhone;
+    const contactNameLower = (contact.displayName || "").toLowerCase().trim();
+
+    const q = query(
+      collection(db, "groups"),
+      where("type", "==", "direct"),
+      where("memberIds", "array-contains", currentUserId)
+    );
+    const snap = await getDocs(q);
+
+    for (const d of snap.docs) {
+      const data = d.data();
+      const memberIds: string[] = data.memberIds || [];
+      
+      let isMatch = false;
+      if (memberIds.includes(contactMemberId)) {
+        isMatch = true;
+      } else if (contact.registeredUid && memberIds.includes(contact.registeredUid)) {
+        isMatch = true;
+      } else if (contactPhone && memberIds.includes(`phone_${contactPhone}`)) {
+        isMatch = true;
+      } else {
+        const membersList = data.members || [];
+        for (const m of membersList) {
+          if (contact.registeredUid && (m.id === contact.registeredUid || m.claimedByUid === contact.registeredUid)) {
+            isMatch = true;
+            break;
+          }
+          if (contactPhone && (m.id.includes(contactPhone) || (m.email && m.email.includes(contactPhone)))) {
+            isMatch = true;
+            break;
+          }
+          if (contactNameLower && (m.name || "").toLowerCase().trim() === contactNameLower && m.id !== currentUserId) {
+            isMatch = true;
+            break;
+          }
+        }
+      }
+
+      if (isMatch) {
+        if (contact.registeredUid && !memberIds.includes(contact.registeredUid)) {
+          memberIds.push(contact.registeredUid);
+          await updateDoc(doc(db, "groups", d.id), { memberIds });
+        }
+        return { id: d.id, ...data } as Group;
+      }
+    }
+    return null;
   },
 
   /**
@@ -371,28 +511,22 @@ export const contactService = {
     currentUserEmail: string,
     contact: SplinzoContact
   ): Promise<Group> {
+    const existing = await this.findDirectGroup(currentUserId, contact);
+    if (existing) return existing;
+
     const contactMemberId = contact.registeredUid || `phone_${contact.normalizedPhone}`;
-
-    const q = query(
-      collection(db, "groups"),
-      where("type", "==", "direct"),
-      where("memberIds", "array-contains", currentUserId)
-    );
-    const snap = await getDocs(q);
-
-    for (const d of snap.docs) {
-      const data = d.data();
-      const memberIds = data.memberIds || [];
-      if (
-        memberIds.includes(contactMemberId) ||
-        (contact.registeredUid && memberIds.includes(contact.registeredUid))
-      ) {
-        return { id: d.id, ...data } as Group;
-      }
-    }
+    const contactPhone = contact.normalizedPhone;
 
     // Create new direct group
     const newGroupRef = doc(collection(db, "groups"));
+    const allMemberIds = [currentUserId, contactMemberId];
+    if (contact.registeredUid && !allMemberIds.includes(contact.registeredUid)) {
+      allMemberIds.push(contact.registeredUid);
+    }
+    if (contactPhone && !allMemberIds.includes(`phone_${contactPhone}`)) {
+      allMemberIds.push(`phone_${contactPhone}`);
+    }
+
     const newGroupData: any = {
       name: contact.displayName,
       description: `1-on-1 split between you and ${contact.displayName}`,
@@ -400,7 +534,8 @@ export const contactService = {
       currency: "INR",
       createdBy: currentUserId,
       createdAt: serverTimestamp(),
-      memberIds: [currentUserId, contactMemberId],
+      memberIds: allMemberIds,
+      connectionStatus: "none",
       members: [
         {
           id: currentUserId,
@@ -423,6 +558,241 @@ export const contactService = {
 
     await setDoc(newGroupRef, newGroupData);
     return { id: newGroupRef.id, ...newGroupData } as Group;
+  },
+
+  /**
+   * Sends a connection request to a registered contact with real-time push & in-app notifications
+   */
+  async sendConnectionRequest(params: {
+    currentUserId: string;
+    currentUserName: string;
+    currentUserEmail?: string;
+    contact: SplinzoContact;
+  }): Promise<void> {
+    const { currentUserId, currentUserName, currentUserEmail, contact } = params;
+    if (!contact.isRegistered || !contact.registeredUid) {
+      throw new Error("Connection requests can only be sent to registered Splinzo members.");
+    }
+
+    const directGroup = await this.getOrCreateDirectGroup(
+      currentUserId,
+      currentUserName,
+      currentUserEmail || "",
+      contact
+    );
+
+    await updateDoc(doc(db, "groups", directGroup.id), {
+      connectionStatus: "pending",
+      requestedBy: currentUserId,
+      requestedByName: currentUserName,
+      requestedTo: contact.registeredUid,
+      requestedAt: serverTimestamp(),
+    });
+
+    // Push & in-app notification via /api/flatmate/notify
+    await sendFlatmatePushNotification({
+      userIds: [contact.registeredUid],
+      title: "🤝 Connection Request",
+      body: `${currentUserName} wants to connect with you on Splinzo to split expenses and settle bills.`,
+      groupId: directGroup.id,
+      type: "contact_request",
+      data: {
+        type: "contact_request",
+        requesterUid: currentUserId,
+        requesterName: currentUserName,
+        directGroupId: directGroup.id,
+      },
+    });
+  },
+
+  /**
+   * Accepts an incoming connection request and notifies the requester
+   */
+  async acceptConnectionRequest(params: {
+    directGroupId: string;
+    currentUserId: string;
+    currentUserName: string;
+    requesterUid?: string;
+  }): Promise<void> {
+    const { directGroupId, currentUserId, currentUserName, requesterUid } = params;
+    await updateDoc(doc(db, "groups", directGroupId), {
+      connectionStatus: "accepted",
+      acceptedAt: serverTimestamp(),
+    });
+
+    if (requesterUid && requesterUid !== currentUserId) {
+      await sendFlatmatePushNotification({
+        userIds: [requesterUid],
+        title: "🎉 Connection Request Accepted",
+        body: `${currentUserName} accepted your connection request. You can now split expenses and settle bills!`,
+        groupId: directGroupId,
+        type: "contact_request_accepted",
+        data: {
+          type: "contact_request_accepted",
+          acceptedBy: currentUserId,
+          acceptedByName: currentUserName,
+          directGroupId,
+        },
+      });
+    }
+  },
+
+  /**
+   * Declines an incoming connection request
+   */
+  async declineConnectionRequest(directGroupId: string): Promise<void> {
+    await updateDoc(doc(db, "groups", directGroupId), {
+      connectionStatus: "declined",
+      declinedAt: serverTimestamp(),
+    });
+  },
+
+  /**
+   * Fetches incoming pending connection requests for the current user
+   */
+  async getIncomingPendingRequests(currentUserId: string): Promise<Array<{
+    groupId: string;
+    name: string;
+    requestedBy: string;
+    requestedByName: string;
+    requestedAt: any;
+  }>> {
+    if (!currentUserId) return [];
+    try {
+      const q = query(
+        collection(db, "groups"),
+        where("type", "==", "direct"),
+        where("memberIds", "array-contains", currentUserId)
+      );
+      const snap = await getDocs(q);
+      const requests: Array<{
+        groupId: string;
+        name: string;
+        requestedBy: string;
+        requestedByName: string;
+        requestedAt: any;
+      }> = [];
+      snap.forEach((d) => {
+        const data = d.data();
+        if (data.connectionStatus === "pending" && data.requestedBy !== currentUserId) {
+          requests.push({
+            groupId: d.id,
+            name: data.name || "Contact",
+            requestedBy: data.requestedBy,
+            requestedByName: data.requestedByName || "Splinzo User",
+            requestedAt: data.requestedAt,
+          });
+        }
+      });
+      return requests;
+    } catch (e) {
+      console.error("Error fetching incoming contact requests:", e);
+      return [];
+    }
+  },
+
+  /**
+   * Records a settlement payment directly between current user and contact
+   */
+  async recordDirectPayment(params: {
+    currentUserId: string;
+    currentUserName: string;
+    contact: SplinzoContact;
+    amount: number;
+    currentUserEmail?: string;
+  }): Promise<void> {
+    const { currentUserId, currentUserName, contact, amount, currentUserEmail } = params;
+    const group = await this.getOrCreateDirectGroup(
+      currentUserId,
+      currentUserName,
+      currentUserEmail || "",
+      contact
+    );
+    const toUserId = contact.registeredUid || `phone_${contact.normalizedPhone}`;
+
+    const payRef = doc(collection(db, "payments"));
+    await setDoc(payRef, {
+      expenseId: `contact_settlement_${Date.now()}`,
+      groupId: group.id,
+      fromUserId: currentUserId,
+      fromUserName: currentUserName,
+      toUserId,
+      toUserName: contact.displayName,
+      amount,
+      status: "approved",
+      paymentType: "contact_split",
+      isContactDirectPayment: true,
+      scope: "direct_contact",
+      paidAt: serverTimestamp(),
+      createdAt: serverTimestamp(),
+      approvedAt: serverTimestamp(),
+      verifiedVia: "direct_contact_settlement",
+    });
+
+    // Send push & in-app notification if contact is a registered user
+    if (contact.registeredUid) {
+      sendFlatmatePushNotification({
+        userIds: [contact.registeredUid],
+        title: "💸 Direct Settlement Received",
+        body: `${currentUserName} recorded a payment of ₹${amount.toFixed(0)} for your 1-on-1 split.`,
+        groupId: group.id,
+        type: "payment",
+        data: {
+          paymentType: "contact_split",
+          scope: "direct_contact",
+          amount: String(amount),
+          fromUserId: currentUserId,
+          fromUserName: currentUserName,
+        },
+      }).catch((e) => console.warn("Failed to send contact payment notification:", e));
+    }
+  },
+
+  /**
+   * Fetches cloud-synced contacts from users/{userId}/contacts
+   */
+  async getCloudContacts(userId: string): Promise<SplinzoContact[]> {
+    if (!userId) return [];
+    try {
+      const q = query(collection(db, `users/${userId}/contacts`));
+      const snap = await getDocs(q);
+      const list: SplinzoContact[] = [];
+      snap.forEach((d) => {
+        list.push({ id: d.id, ...d.data() } as SplinzoContact);
+      });
+      return list;
+    } catch (e) {
+      console.error("Error fetching cloud contacts:", e);
+      return [];
+    }
+  },
+
+  /**
+   * Saves a contact to cloud for sync across mobile and web
+   */
+  async saveContactToCloud(userId: string, contact: SplinzoContact): Promise<void> {
+    if (!userId || !contact.normalizedPhone) return;
+    try {
+      const contactRef = doc(db, `users/${userId}/contacts`, contact.normalizedPhone);
+      await setDoc(
+        contactRef,
+        {
+          id: contact.id,
+          displayName: contact.displayName,
+          phoneNumber: contact.phoneNumber,
+          normalizedPhone: contact.normalizedPhone,
+          isRegistered: Boolean(contact.isRegistered),
+          registeredUid: contact.registeredUid || null,
+          registeredAvatarUrl: contact.registeredAvatarUrl || null,
+          upiId: contact.upiId || null,
+          email: contact.email || null,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+    } catch (e) {
+      console.error("Error saving contact to cloud:", e);
+    }
   },
 
   /**
@@ -450,6 +820,13 @@ export const contactService = {
       currentUserEmail,
       contact
     );
+
+    const groupDocSnap = await getDoc(doc(db, "groups", group.id));
+    const groupData = groupDocSnap.data();
+    if (groupData?.connectionStatus && groupData.connectionStatus !== "accepted") {
+      throw new Error("Connection request has not been accepted yet. You can only split after connecting.");
+    }
+
     const contactMemberId = contact.registeredUid || `phone_${contact.normalizedPhone}`;
     const payerId = iPaid ? currentUserId : contactMemberId;
     const half = Number((amount / 2).toFixed(2));

@@ -25,6 +25,10 @@ import {
   X,
   CreditCard,
   MessageCircle,
+  Handshake,
+  Clock,
+  UserPlus,
+  Send,
 } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 
@@ -38,10 +42,15 @@ export default function ContactsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTab, setSelectedTab] = useState<"all" | "splinzo">("all");
 
+  // Incoming connection requests
+  const [incomingRequests, setIncomingRequests] = useState<any[]>([]);
+  const [isConnecting, setIsConnecting] = useState(false);
+
   // Selected contact for detail drawer / modal
   const [activeContact, setActiveContact] = useState<SplinzoContact | null>(null);
   const [splitSummary, setSplitSummary] = useState<ContactSplitSummary | null>(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
+  const [contactLedgerTab, setContactLedgerTab] = useState<"splits" | "settlements">("splits");
 
   // Modals
   const [isSplitModalOpen, setIsSplitModalOpen] = useState(false);
@@ -54,10 +63,71 @@ export default function ContactsPage() {
   const [isPayModalOpen, setIsPayModalOpen] = useState(false);
   const [payAmount, setPayAmount] = useState("");
   const [payUpi, setPayUpi] = useState("");
+  const [isRecordingPayment, setIsRecordingPayment] = useState(false);
 
   const [isAddContactModalOpen, setIsAddContactModalOpen] = useState(false);
   const [newContactName, setNewContactName] = useState("");
   const [newContactPhone, setNewContactPhone] = useState("");
+
+  async function handleSendRequest() {
+    if (!activeContact || !currentUid) return;
+    setIsConnecting(true);
+    try {
+      await contactService.sendConnectionRequest({
+        currentUserId: currentUid,
+        currentUserName: user?.displayName || appUser?.name || "You",
+        currentUserEmail: user?.email || "",
+        contact: activeContact,
+      });
+      const updated = await contactService.getContactSplitSummary(currentUid, activeContact);
+      setSplitSummary(updated);
+    } catch (err: any) {
+      alert(err.message || "Failed to send connection request");
+    } finally {
+      setIsConnecting(false);
+    }
+  }
+
+  async function handleAcceptRequest(directGroupId: string, requesterUid?: string) {
+    if (!currentUid) return;
+    setIsConnecting(true);
+    try {
+      await contactService.acceptConnectionRequest({
+        directGroupId,
+        currentUserId: currentUid,
+        currentUserName: user?.displayName || appUser?.name || "You",
+        requesterUid,
+      });
+      const reqs = await contactService.getIncomingPendingRequests(currentUid);
+      setIncomingRequests(reqs);
+      if (activeContact) {
+        const updated = await contactService.getContactSplitSummary(currentUid, activeContact);
+        setSplitSummary(updated);
+      }
+    } catch (err: any) {
+      alert(err.message || "Failed to accept connection request");
+    } finally {
+      setIsConnecting(false);
+    }
+  }
+
+  async function handleDeclineRequest(directGroupId: string) {
+    if (!currentUid) return;
+    setIsConnecting(true);
+    try {
+      await contactService.declineConnectionRequest(directGroupId);
+      const reqs = await contactService.getIncomingPendingRequests(currentUid);
+      setIncomingRequests(reqs);
+      if (activeContact) {
+        const updated = await contactService.getContactSplitSummary(currentUid, activeContact);
+        setSplitSummary(updated);
+      }
+    } catch (err: any) {
+      alert(err.message || "Failed to decline connection request");
+    } finally {
+      setIsConnecting(false);
+    }
+  }
 
   // Load contacts
   useEffect(() => {
@@ -67,12 +137,33 @@ export default function ContactsPage() {
   async function loadContacts() {
     setLoading(true);
     try {
+      if (currentUid) {
+        contactService.getIncomingPendingRequests(currentUid).then(setIncomingRequests);
+      }
+
       // 1. Fetch registered users from Firestore
       const registeredMap = await contactService.fetchRegisteredUsersMap();
 
-      // 2. Fetch existing direct groups
+      // 2. Fetch cloud-synced contacts from Firestore users/{uid}/contacts (synced from mobile)
+      const cloudContacts = currentUid ? await contactService.getCloudContacts(currentUid) : [];
+
       const list: SplinzoContact[] = [];
       const seen = new Set<string>();
+
+      // Populate cloud contacts first (from mobile phone address book & previous web adds)
+      for (const c of cloudContacts) {
+        if (!c.normalizedPhone || seen.has(c.normalizedPhone)) continue;
+        seen.add(c.normalizedPhone);
+        const reg = registeredMap.get(c.normalizedPhone);
+        list.push({
+          ...c,
+          isRegistered: Boolean(c.isRegistered || reg),
+          registeredUid: c.registeredUid || reg?.uid,
+          registeredAvatarUrl: c.registeredAvatarUrl || reg?.photoUrl,
+          upiId: c.upiId || reg?.upiId,
+          email: c.email || reg?.email,
+        });
+      }
 
       // Populate from registered users
       registeredMap.forEach((userData, phone) => {
@@ -93,14 +184,14 @@ export default function ContactsPage() {
         });
       });
 
-      // Check localStorage for previously synced browser contacts
+      // Check localStorage for previously cached browser contacts as fallback
       if (typeof window !== "undefined") {
         const cached = localStorage.getItem("splinzo_web_contacts");
         if (cached) {
           try {
             const parsed = JSON.parse(cached);
             for (const c of parsed) {
-              if (!seen.has(c.normalizedPhone)) {
+              if (c.normalizedPhone && !seen.has(c.normalizedPhone)) {
                 seen.add(c.normalizedPhone);
                 const reg = registeredMap.get(c.normalizedPhone);
                 list.push({
@@ -131,6 +222,7 @@ export default function ContactsPage() {
       return;
     }
 
+    setContactLedgerTab("splits");
     setSummaryLoading(true);
     contactService
       .getContactSplitSummary(currentUid, activeContact)
@@ -173,28 +265,76 @@ export default function ContactsPage() {
   }
 
   // Add new contact manual
-  function handleAddManualContact(e: React.FormEvent) {
+  async function handleAddManualContact(e: React.FormEvent) {
     e.preventDefault();
     if (!newContactName.trim() || !newContactPhone.trim()) return;
 
     const norm = contactPhoneNormalizer.normalize(newContactPhone);
+    const registeredMap = await contactService.fetchRegisteredUsersMap();
+    const reg = registeredMap.get(norm);
+
     const newC: SplinzoContact = {
       id: `manual_${Date.now()}`,
       displayName: newContactName.trim(),
       phoneNumber: newContactPhone.trim(),
       normalizedPhone: norm,
-      isRegistered: false,
+      isRegistered: Boolean(reg),
+      registeredUid: reg?.uid,
+      registeredAvatarUrl: reg?.photoUrl,
+      upiId: reg?.upiId,
+      email: reg?.email,
     };
 
-    const updated = [newC, ...contacts];
+    const updated = [newC, ...contacts.filter((c) => c.normalizedPhone !== norm)];
     setContacts(updated);
     if (typeof window !== "undefined") {
       localStorage.setItem("splinzo_web_contacts", JSON.stringify(updated));
     }
+
+    // Cloud sync so contact is instantly available on Android app
+    if (currentUid) {
+      await contactService.saveContactToCloud(currentUid, newC);
+    }
+
     setNewContactName("");
     setNewContactPhone("");
     setIsAddContactModalOpen(false);
     setActiveContact(newC);
+  }
+
+  // Record settlement payment
+  async function handleRecordPayment() {
+    if (!activeContact || !currentUid) return;
+    const amt = parseFloat(payAmount);
+    if (isNaN(amt) || amt <= 0) {
+      alert("Please enter a valid payment amount");
+      return;
+    }
+
+    setIsRecordingPayment(true);
+    try {
+      await contactService.recordDirectPayment({
+        currentUserId: currentUid,
+        currentUserName: appUser?.displayName || user?.displayName || "You",
+        currentUserEmail: appUser?.email || user?.email || "",
+        contact: activeContact,
+        amount: amt,
+      });
+
+      // Refresh split summary immediately
+      const updatedSummary = await contactService.getContactSplitSummary(
+        currentUid,
+        activeContact
+      );
+      setSplitSummary(updatedSummary);
+      setIsPayModalOpen(false);
+      alert(`Recorded settlement of ₹${amt.toFixed(0)} with ${activeContact.displayName}!`);
+    } catch (e: any) {
+      console.error("Error recording payment:", e);
+      alert("Failed to record settlement: " + (e?.message || e));
+    } finally {
+      setIsRecordingPayment(false);
+    }
   }
 
   // Submit split
@@ -327,6 +467,42 @@ export default function ContactsPage() {
           </button>
         </div>
       </div>
+
+      {/* ─── PENDING CONNECTION REQUESTS BANNER ─── */}
+      {incomingRequests.length > 0 && (
+        <div className="p-4 rounded-3xl border border-emerald-500/30 bg-emerald-500/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center font-bold shadow-sm">
+              <Handshake className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-sm font-extrabold" style={{ color: "var(--foreground)" }}>
+                {incomingRequests.length} Connection Request{incomingRequests.length > 1 ? "s" : ""} Pending
+              </div>
+              <p className="text-xs text-gray-500 font-medium">
+                {incomingRequests[0].requestedByName} wants to connect with you to split expenses and settle bills.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => handleAcceptRequest(incomingRequests[0].groupId, incomingRequests[0].requestedBy)}
+              disabled={isConnecting}
+              className="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 transition-colors shadow-sm flex items-center gap-1.5"
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              Accept
+            </button>
+            <button
+              onClick={() => handleDeclineRequest(incomingRequests[0].groupId)}
+              disabled={isConnecting}
+              className="px-3 py-2 rounded-xl text-xs font-bold border border-red-500/30 text-red-500 hover:bg-red-500/10 transition-colors"
+            >
+              Decline
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ─── CONTACTS GRID ─── */}
       {loading ? (
@@ -507,35 +683,57 @@ export default function ContactsPage() {
                 {summaryLoading ? (
                   <div className="h-28 rounded-2xl animate-pulse bg-gray-100 dark:bg-gray-800" />
                 ) : splitSummary ? (
-                  <div
-                    className={`p-5 rounded-2xl text-white shadow-lg ${
-                      splitSummary.theyOweYou
-                        ? "bg-emerald-600"
-                        : splitSummary.youOweThem
-                        ? "bg-red-600"
-                        : "bg-gray-800"
-                    }`}
-                  >
-                    <div className="text-xs font-black tracking-wider uppercase opacity-80">
-                      {splitSummary.theyOweYou
-                        ? `${activeContact.displayName.split(" ")[0]} Owes You`
-                        : splitSummary.youOweThem
-                        ? `You Owe ${activeContact.displayName.split(" ")[0]}`
-                        : "Balance Status"}
+                  splitSummary.connectionStatus && splitSummary.connectionStatus !== "accepted" ? (
+                    <div className="p-5 rounded-2xl text-white shadow-lg bg-gray-800 border border-gray-700">
+                      <div className="text-xs font-black tracking-wider uppercase opacity-80">
+                        Connection Status
+                      </div>
+                      <div className="text-2xl font-black mt-1">
+                        {splitSummary.connectionStatus === "pending_sent"
+                          ? "Request Pending"
+                          : splitSummary.connectionStatus === "pending_received"
+                          ? "Request Received"
+                          : "Not Connected"}
+                      </div>
+                      <p className="text-xs opacity-80 mt-1">
+                        {splitSummary.connectionStatus === "pending_sent"
+                          ? `Waiting for ${activeContact.displayName.split(" ")[0]} to accept your connection request.`
+                          : splitSummary.connectionStatus === "pending_received"
+                          ? `Accept ${activeContact.displayName.split(" ")[0]}'s request to begin splitting bills.`
+                          : `Connect with ${activeContact.displayName.split(" ")[0]} to start splitting expenses.`}
+                      </p>
                     </div>
-                    <div className="text-3xl font-black mt-1">
-                      {splitSummary.isSettled
-                        ? "All Settled Up 🎉"
-                        : `₹${Math.abs(splitSummary.netBalance).toFixed(0)}`}
+                  ) : (
+                    <div
+                      className={`p-5 rounded-2xl text-white shadow-lg ${
+                        splitSummary.theyOweYou
+                          ? "bg-emerald-600"
+                          : splitSummary.youOweThem
+                          ? "bg-red-600"
+                          : "bg-gray-800"
+                      }`}
+                    >
+                      <div className="text-xs font-black tracking-wider uppercase opacity-80">
+                        {splitSummary.theyOweYou
+                          ? `${activeContact.displayName.split(" ")[0]} Owes You`
+                          : splitSummary.youOweThem
+                          ? `You Owe ${activeContact.displayName.split(" ")[0]}`
+                          : "Balance Status"}
+                      </div>
+                      <div className="text-3xl font-black mt-1">
+                        {splitSummary.isSettled
+                          ? "All Settled Up 🎉"
+                          : `₹${Math.abs(splitSummary.netBalance).toFixed(0)}`}
+                      </div>
+                      <p className="text-xs opacity-80 mt-1">
+                        {splitSummary.isSettled
+                          ? "No pending debts with this contact"
+                          : splitSummary.theyOweYou
+                          ? "Total receivable from shared splits"
+                          : "Clear balance anytime via UPI"}
+                      </p>
                     </div>
-                    <p className="text-xs opacity-80 mt-1">
-                      {splitSummary.isSettled
-                        ? "No pending debts with this contact"
-                        : splitSummary.theyOweYou
-                        ? "Total receivable from shared splits"
-                        : "Clear balance anytime via UPI"}
-                    </p>
-                  </div>
+                  )
                 ) : null}
 
                 {/* Action Buttons */}
@@ -557,6 +755,71 @@ export default function ContactsPage() {
                     >
                       <MessageCircle className="w-4 h-4" />
                       Invite {activeContact.displayName.split(" ")[0]} via WhatsApp
+                    </button>
+                  </div>
+                ) : splitSummary?.connectionStatus === "pending_received" ? (
+                  <div className="p-4 rounded-2xl border bg-emerald-500/10 border-emerald-500/30 space-y-3">
+                    <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-bold text-xs">
+                      <Handshake className="w-4 h-4" />
+                      Connection Request Received
+                    </div>
+                    <p className="text-xs text-gray-500 leading-relaxed">
+                      {activeContact.displayName} wants to connect with you on Splinzo. Accept to enable bill splitting and settlements.
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleAcceptRequest(splitSummary.directGroupId!, splitSummary.requestedBy)}
+                        disabled={isConnecting}
+                        className="flex-1 py-3 rounded-xl font-bold text-xs bg-emerald-600 text-white hover:bg-emerald-700 transition-colors shadow-sm flex items-center justify-center gap-1.5"
+                      >
+                        {isConnecting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                        Accept Request
+                      </button>
+                      <button
+                        onClick={() => handleDeclineRequest(splitSummary.directGroupId!)}
+                        disabled={isConnecting}
+                        className="px-4 py-3 rounded-xl font-bold text-xs border border-red-500/30 text-red-500 hover:bg-red-500/10 transition-colors"
+                      >
+                        Decline
+                      </button>
+                    </div>
+                  </div>
+                ) : splitSummary?.connectionStatus === "pending_sent" ? (
+                  <div className="p-4 rounded-2xl border bg-amber-500/10 border-amber-500/30 space-y-3">
+                    <div className="flex items-center gap-2 text-amber-600 dark:text-amber-400 font-bold text-xs">
+                      <Clock className="w-4 h-4" />
+                      Connection Request Pending
+                    </div>
+                    <p className="text-xs text-gray-500 leading-relaxed">
+                      Waiting for {activeContact.displayName.split(" ")[0]} to accept your connection request. Transactions will unlock automatically once accepted.
+                    </p>
+                    <button
+                      onClick={() => {
+                        const msg = `Hey ${activeContact.displayName}! 👋 I sent you a connection request on Splinzo so we can split expenses and settle bills easily: https://www.splinzo.in`;
+                        window.open(`https://wa.me/${activeContact.normalizedPhone}?text=${encodeURIComponent(msg)}`, "_blank");
+                      }}
+                      className="w-full py-2.5 rounded-xl font-bold text-xs border border-amber-500/40 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 transition-colors flex items-center justify-center gap-2"
+                    >
+                      <MessageCircle className="w-4 h-4" />
+                      Ping {activeContact.displayName.split(" ")[0]} on WhatsApp
+                    </button>
+                  </div>
+                ) : splitSummary?.connectionStatus === "none" ? (
+                  <div className="p-4 rounded-2xl border bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-800 space-y-3">
+                    <div className="flex items-center gap-2 text-foreground font-bold text-xs">
+                      <UserPlus className="w-4 h-4 text-amber-500" />
+                      Connect to Start Splitting
+                    </div>
+                    <p className="text-xs text-gray-500 leading-relaxed">
+                      Send a connection request to {activeContact.displayName.split(" ")[0]}. Once accepted, you can split expenses and record payments directly.
+                    </p>
+                    <button
+                      onClick={handleSendRequest}
+                      disabled={isConnecting}
+                      className="w-full py-3 rounded-xl font-bold text-xs bg-amber-400 text-gray-950 hover:bg-amber-500 transition-colors shadow-sm flex items-center justify-center gap-2"
+                    >
+                      {isConnecting ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                      Send Connection Request
                     </button>
                   </div>
                 ) : (
@@ -599,50 +862,130 @@ export default function ContactsPage() {
                   </div>
                 )}
 
-                {/* Shared Splits Ledger */}
-                <div>
-                  <h4 className="font-extrabold text-sm mb-3" style={{ color: "var(--foreground)" }}>
-                    Shared Splits ({splitSummary?.splits.length || 0})
-                  </h4>
-
-                  {splitSummary?.splits.length === 0 ? (
-                    <div className="text-center py-8 rounded-2xl border border-dashed text-gray-400 text-xs">
-                      No shared splits yet. Click &ldquo;Split Bill&rdquo; to record your first expense!
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {splitSummary?.splits.map((s) => (
-                        <div
-                          key={s.expenseId}
-                          className="p-3 rounded-2xl border flex items-center justify-between"
-                          style={{ background: "var(--card)", borderColor: "var(--border)" }}
-                        >
-                          <div>
-                            <p className="font-bold text-xs" style={{ color: "var(--foreground)" }}>
-                              {s.description}
-                            </p>
-                            <p className="text-[10px] text-gray-500 mt-0.5">
-                              {s.groupName} • {s.didIPay ? "You paid" : `${s.payerName} paid`} ₹{s.totalAmount}
-                            </p>
-                          </div>
-
-                          <div className="text-right">
-                            <span
-                              className={`text-xs font-black ${
-                                s.netImpact > 0 ? "text-emerald-600" : "text-red-500"
-                              }`}
-                            >
-                              {s.netImpact > 0 ? `+₹${s.netImpact.toFixed(0)}` : `-₹${Math.abs(s.netImpact).toFixed(0)}`}
-                            </span>
-                            <p className="text-[9px] text-gray-400 font-semibold">
-                              {s.netImpact > 0 ? "they owe" : "you owe"}
-                            </p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                {/* Ledger Segmented Tab Switcher */}
+                <div className="flex items-center p-1 rounded-2xl bg-gray-100 dark:bg-gray-800/80 border border-gray-200 dark:border-gray-700/60">
+                  <button
+                    type="button"
+                    onClick={() => setContactLedgerTab("splits")}
+                    className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${
+                      contactLedgerTab === "splits"
+                        ? "bg-white dark:bg-gray-900 text-gray-950 dark:text-white shadow-sm"
+                        : "text-gray-500 hover:text-gray-900 dark:hover:text-white"
+                    }`}
+                  >
+                    Splits ({splitSummary?.splits.length || 0})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setContactLedgerTab("settlements")}
+                    className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${
+                      contactLedgerTab === "settlements"
+                        ? "bg-white dark:bg-gray-900 text-emerald-600 dark:text-emerald-400 shadow-sm"
+                        : "text-gray-500 hover:text-gray-900 dark:hover:text-white"
+                    }`}
+                  >
+                    Settlements ({splitSummary?.settlements?.length || 0})
+                  </button>
                 </div>
+
+                {/* Ledger Content: Splits or Settlements */}
+                {contactLedgerTab === "splits" ? (
+                  <div>
+                    {splitSummary?.splits.length === 0 ? (
+                      <div className="text-center py-8 rounded-2xl border border-dashed text-gray-400 text-xs">
+                        No shared splits yet. Click &ldquo;Split Bill&rdquo; to record your first expense!
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {splitSummary?.splits.map((s) => (
+                          <div
+                            key={s.expenseId}
+                            className="p-3 rounded-2xl border flex items-center justify-between"
+                            style={{ background: "var(--card)", borderColor: "var(--border)" }}
+                          >
+                            <div>
+                              <p className="font-bold text-xs" style={{ color: "var(--foreground)" }}>
+                                {s.description}
+                              </p>
+                              <p className="text-[10px] text-gray-500 mt-0.5">
+                                {s.groupName} • {s.didIPay ? "You paid" : `${s.payerName} paid`} ₹{s.totalAmount}
+                              </p>
+                            </div>
+
+                            <div className="text-right">
+                              <span
+                                className={`text-xs font-black ${
+                                  s.netImpact > 0 ? "text-emerald-600" : "text-red-500"
+                                }`}
+                              >
+                                {s.netImpact > 0 ? `+₹${s.netImpact.toFixed(0)}` : `-₹${Math.abs(s.netImpact).toFixed(0)}`}
+                              </span>
+                              <p className="text-[9px] text-gray-400 font-semibold">
+                                {s.netImpact > 0 ? "they owe" : "you owe"}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div>
+                    {splitSummary?.settlements?.length === 0 ? (
+                      <div className="text-center py-8 px-4 rounded-2xl border border-dashed text-gray-400 text-xs space-y-1">
+                        <p className="font-bold text-gray-600 dark:text-gray-300">No settlements recorded yet</p>
+                        <p className="text-[11px] leading-relaxed">
+                          Payments made through &ldquo;Pay / Settle&rdquo; for this contact are stored securely here and isolated from group feeds.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {splitSummary?.settlements?.map((st) => (
+                          <div
+                            key={st.id}
+                            className="p-3.5 rounded-2xl border flex items-center justify-between"
+                            style={{ background: "var(--card)", borderColor: "var(--border)" }}
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold text-sm">
+                                ✓
+                              </div>
+                              <div>
+                                <p className="font-bold text-xs" style={{ color: "var(--foreground)" }}>
+                                  {st.didIPay
+                                    ? `You paid ${activeContact.displayName}`
+                                    : `${activeContact.displayName} paid you`}
+                                </p>
+                                <div className="flex items-center gap-1.5 mt-0.5">
+                                  <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                                    Direct Settlement
+                                  </span>
+                                  <span className="text-[10px] text-gray-500">
+                                    • {new Date(st.createdAt).toLocaleDateString("en-IN", {
+                                      month: "short",
+                                      day: "numeric",
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    })}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="text-right">
+                              <span className="text-sm font-black text-emerald-600 dark:text-emerald-400">
+                                ₹{st.amount.toFixed(0)}
+                              </span>
+                              <p className="text-[9px] text-gray-400 font-semibold">
+                                {st.didIPay ? "paid out" : "received"}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </motion.div>
           </div>
@@ -799,14 +1142,26 @@ export default function ContactsPage() {
                 </div>
               </div>
 
-              <a
-                href={`upi://pay?pa=${payUpi}&pn=${encodeURIComponent(
-                  activeContact.displayName
-                )}&am=${payAmount || "100"}&cu=INR&tn=Settlement via Splinzo`}
-                className="mt-4 block w-full py-3 rounded-2xl font-bold text-xs bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
-              >
-                Open UPI App Directly
-              </a>
+              <div className="mt-4 space-y-2">
+                <a
+                  href={`upi://pay?pa=${payUpi}&pn=${encodeURIComponent(
+                    activeContact.displayName
+                  )}&am=${payAmount || "100"}&cu=INR&tn=Settlement via Splinzo`}
+                  className="block w-full py-3 rounded-2xl font-bold text-xs bg-emerald-600 text-white hover:bg-emerald-700 transition-colors shadow-sm text-center"
+                >
+                  Open UPI App Directly
+                </a>
+
+                <button
+                  type="button"
+                  onClick={handleRecordPayment}
+                  disabled={isRecordingPayment}
+                  className="w-full py-3 rounded-2xl font-bold text-xs bg-amber-400 text-gray-950 hover:bg-amber-500 transition-colors shadow-sm disabled:opacity-50 flex items-center justify-center gap-1.5"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  {isRecordingPayment ? "Recording Settlement..." : "Mark as Settled & Record Payment"}
+                </button>
+              </div>
             </motion.div>
           </div>
         )}

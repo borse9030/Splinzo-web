@@ -6,6 +6,7 @@ import { useGroups } from "@/hooks/useGroups";
 import { auth, db } from "@/lib/firebase/config";
 import { signOut, updateProfile } from "firebase/auth";
 import { doc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { userService } from "@/services/userService";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -159,6 +160,31 @@ export default function ProfilePage() {
     setMessage(null);
 
     try {
+      const trimmedPhone = phoneNumber.trim();
+      const existingPhone = appUser.phoneNumber || appUser.phone || "";
+      let canonical = appUser.phoneTenDigit || "";
+
+      // If user provided or changed their phone number, enforce uniqueness
+      if (trimmedPhone && trimmedPhone !== existingPhone) {
+        const cleanDigits = trimmedPhone.replace(/\D/g, "");
+        if (cleanDigits.length < 7) {
+          setMessage({ type: "error", text: "Please enter a valid phone number (at least 7 digits)." });
+          setSaving(false);
+          return;
+        }
+
+        try {
+          canonical = await userService.claimPhoneNumber(appUser.id, trimmedPhone, existingPhone);
+        } catch (phoneErr: any) {
+          setMessage({
+            type: "error",
+            text: phoneErr.message || "This mobile number is already in use by another account.",
+          });
+          setSaving(false);
+          return;
+        }
+      }
+
       // 1. Update Firebase Auth Profile
       await updateProfile(auth.currentUser, {
         displayName: name.trim(),
@@ -170,8 +196,10 @@ export default function ProfilePage() {
       await updateDoc(userRef, {
         name: name.trim(),
         displayName: name.trim(),
-        phoneNumber: phoneNumber.trim(),
-        phone: phoneNumber.trim(),
+        phoneNumber: trimmedPhone,
+        phone: trimmedPhone,
+        phoneTenDigit: canonical,
+        normalizedPhone: canonical ? `91${canonical}` : "",
         upiId: upiId.trim(),
         bio: bio.trim(),
         photoUrl: photoUrl || "",

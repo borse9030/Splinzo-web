@@ -37,7 +37,9 @@ export function usePayments(groupId?: string) {
       (snapshot) => {
         const fetched: Payment[] = [];
         snapshot.forEach((doc) => {
-          fetched.push({ id: doc.id, ...doc.data() } as Payment);
+          const data = doc.data();
+          if (data.paymentType === "contact_split" || data.isContactDirectPayment) return;
+          fetched.push({ id: doc.id, ...data } as Payment);
         });
 
         fetched.sort((a, b) => {

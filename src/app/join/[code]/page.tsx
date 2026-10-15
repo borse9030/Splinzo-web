@@ -3,8 +3,8 @@
 import { useEffect, useState, use } from "react";
 import { useRouter } from "next/navigation";
 import { collection, query, where, getDocs, doc, updateDoc, arrayUnion, getDoc } from "firebase/firestore";
-import { signInWithPopup } from "firebase/auth";
-import { db, auth, googleProvider } from "@/lib/firebase/config";
+import { db } from "@/lib/firebase/config";
+import { executeGoogleAuth, handleGoogleRedirectResult } from "@/lib/firebase/authUtils";
 import { useAuth } from "@/contexts/AuthContext";
 import { Group, GroupMember } from "@/types/group";
 import { Users, LogIn, ExternalLink, AlertCircle, CheckCircle2, ShieldCheck } from "lucide-react";
@@ -21,6 +21,24 @@ export default function JoinGroupPage({ params }: { params: Promise<{ code: stri
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isJoining, setIsJoining] = useState(false);
+  const [redirectedUser, setRedirectedUser] = useState<any>(null);
+
+  // Catch OAuth redirect on return (Safari / iOS fallback)
+  useEffect(() => {
+    let isMounted = true;
+    handleGoogleRedirectResult()
+      .then((cred) => {
+        if (isMounted && cred?.user) {
+          setRedirectedUser(cred.user);
+        }
+      })
+      .catch((err) => {
+        console.warn("[JoinGroup] Redirect result notice:", err);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     async function fetchGroup() {
@@ -59,15 +77,28 @@ export default function JoinGroupPage({ params }: { params: Promise<{ code: stri
     fetchGroup();
   }, [code]);
 
+  useEffect(() => {
+    const activeUser = redirectedUser || user;
+    if (activeUser && group && !isJoining && redirectedUser) {
+      completeJoin(activeUser);
+    }
+  }, [redirectedUser, group]);
+
   async function handleJoin() {
     if (!group) return;
 
-    if (!user) {
+    const activeUser = user || redirectedUser;
+    if (!activeUser) {
       try {
         setIsJoining(true);
-        const cred = await signInWithPopup(auth, googleProvider);
-        const signedUser = cred.user;
-        await completeJoin(signedUser);
+        const res = await executeGoogleAuth();
+        if (res.redirecting) {
+          // Navigating via redirect (Safari / iOS fallback)
+          return;
+        }
+        if (res.credential?.user) {
+          await completeJoin(res.credential.user);
+        }
       } catch (err: any) {
         console.error("Auth error:", err);
         setIsJoining(false);
@@ -75,7 +106,7 @@ export default function JoinGroupPage({ params }: { params: Promise<{ code: stri
       return;
     }
 
-    await completeJoin(user);
+    await completeJoin(activeUser);
   }
 
   async function completeJoin(currentUser: any) {
@@ -111,7 +142,7 @@ export default function JoinGroupPage({ params }: { params: Promise<{ code: stri
     }
   }
 
-  const isAlreadyMember = user && group && group.memberIds?.includes(user.uid);
+  const isAlreadyMember = (user || redirectedUser) && group && group.memberIds?.includes((user || redirectedUser).uid);
 
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col justify-center items-center px-4 py-12 text-slate-100 selection:bg-amber-400 selection:text-slate-950">
