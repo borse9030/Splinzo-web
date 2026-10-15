@@ -20,6 +20,8 @@ export default function robots(): MetadataRoute.Robots {
           '/manifest.webmanifest',
           '/opengraph-image.png',
           '/icon.png',
+          '/app-ads.txt',
+          '/ads.txt',
         ],
         disallow: [
           '/dashboard',
