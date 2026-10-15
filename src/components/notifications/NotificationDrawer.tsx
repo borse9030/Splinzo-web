@@ -303,6 +303,7 @@ export function NotificationDrawer({ isOpen, onClose }: NotificationDrawerProps)
                               src={notif.imageUrl}
                               alt={notif.title}
                               fill
+                              unoptimized
                               className="object-cover"
                             />
                           </div>
