@@ -146,6 +146,7 @@ export default function SettleUpPage({
 
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
   const batchPollingRef = useRef<NodeJS.Timeout | null>(null);
+  const userDismissedPendingRef = useRef(false);
 
   const loading = groupLoading || expensesLoading || paymentsLoading;
 
@@ -161,7 +162,7 @@ export default function SettleUpPage({
         setVerifiedUtr(data.utr || "BANK_VERIFIED");
       } else if (data?.status === "declined") {
         setPaymentStatus("declined");
-      } else if (data?.status === "pending_approval") {
+      } else if (data?.status === "pending_approval" && !userDismissedPendingRef.current) {
         setPaymentStatus("pending_approval");
       }
     });
@@ -299,6 +300,7 @@ export default function SettleUpPage({
   // Handle opening single settlement dialog
   const handleOpenDialog = async (settlement: any) => {
     setSelectedSettlement(settlement);
+    userDismissedPendingRef.current = false;
     setReceiverDetails(null);
     setSetuData(null);
     setPaymentStatus("idle");
@@ -377,6 +379,7 @@ export default function SettleUpPage({
 
   const handleConfirmDirectPayment = async () => {
     if (!setuData?.paymentId) return;
+    userDismissedPendingRef.current = false;
     setConfirmingPayment(true);
     try {
       await updateDoc(doc(db, "payments", setuData.paymentId), {
@@ -1319,7 +1322,10 @@ export default function SettleUpPage({
                 </Button>
                 <Button
                   variant="ghost"
-                  onClick={() => setPaymentStatus("awaiting")}
+                  onClick={() => {
+                    userDismissedPendingRef.current = true;
+                    setPaymentStatus("awaiting");
+                  }}
                   className="w-full text-slate-400 hover:text-slate-600 text-xs cursor-pointer"
                 >
                   Back to payment details

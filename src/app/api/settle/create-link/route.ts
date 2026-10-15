@@ -96,7 +96,7 @@ export async function POST(req: NextRequest) {
       type: isBatch ? "batch" : "single",
       feeTier: isFree ? "free_ad" : "instant",
       adWatched: isFree,
-      status: "pending_approval",
+      status: "awaiting",
       verifiedVia: isFree 
         ? (isBatch ? "direct_upi_free_batch" : "direct_upi_free")
         : (isBatch ? "setu_batch" : "setu"),
