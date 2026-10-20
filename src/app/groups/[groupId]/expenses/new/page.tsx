@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, use, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/contexts/AuthContext";
 import { useGroup } from "@/hooks/useGroup";
@@ -98,13 +98,14 @@ export default function AddExpensePage({
 }) {
   const resolvedParams = use(params);
   const router         = useRouter();
+  const searchParams   = useSearchParams();
   const { appUser }    = useAuth();
   const { group, loading: groupLoading } = useGroup(resolvedParams.groupId);
 
   const [step,           setStep]           = useState(1);
-  const [amount,         setAmount]         = useState("");
-  const [description,    setDescription]    = useState("");
-  const [category,       setCategory]       = useState("General");
+  const [amount,         setAmount]         = useState(searchParams.get("amount") || "");
+  const [description,    setDescription]    = useState(searchParams.get("description") || "");
+  const [category,       setCategory]       = useState(searchParams.get("category") || "General");
   const [payerId,        setPayerId]        = useState<string>(appUser?.id || "");
   const [isMultiPayer,   setIsMultiPayer]   = useState(false);
   const [payerAmounts,   setPayerAmounts]   = useState<{ [key: string]: number }>({});

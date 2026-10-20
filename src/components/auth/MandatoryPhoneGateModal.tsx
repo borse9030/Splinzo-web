@@ -15,11 +15,21 @@ export function MandatoryPhoneGateModal() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [dismissed, setDismissed] = useState(() => {
+    if (typeof window === "undefined" || !appUser?.id) return false;
+    return Boolean(sessionStorage.getItem("splinzo_phone_dismissed_" + appUser.id));
+  });
 
-  const hasPhone = Boolean(appUser?.phoneNumber || appUser?.phone);
+  const hasPhone = Boolean(
+    appUser?.phoneNumber ||
+    appUser?.phone ||
+    (appUser as any)?.normalizedPhone ||
+    (appUser as any)?.phoneTenDigit ||
+    (typeof window !== "undefined" && appUser?.id && localStorage.getItem("splinzo_phone_saved_" + appUser.id))
+  );
 
-  // If no user is logged in or user already has phone registered, don't show gate
-  if (!appUser || hasPhone) {
+  // If no user is logged in, user already has phone registered, or dismissed this session
+  if (!appUser || hasPhone || dismissed) {
     return null;
   }
 
@@ -51,6 +61,9 @@ export function MandatoryPhoneGateModal() {
 
       const formatted = formatE164(phoneNumber, selectedCountry);
       await userService.updateUserPhoneNumber(appUser.id, formatted, selectedCountry.dialCode);
+      if (typeof window !== "undefined" && appUser?.id) {
+        localStorage.setItem("splinzo_phone_saved_" + appUser.id, "true");
+      }
       await refreshUser();
     } catch (err: unknown) {
       console.error("Error saving phone number:", err);
@@ -203,6 +216,19 @@ export function MandatoryPhoneGateModal() {
                 <ArrowRight className="w-4 h-4" />
               </>
             )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              if (appUser?.id && typeof window !== "undefined") {
+                sessionStorage.setItem("splinzo_phone_dismissed_" + appUser.id, "true");
+              }
+              setDismissed(true);
+            }}
+            className="w-full py-2 text-xs font-semibold text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+          >
+            Maybe Later
           </button>
         </form>
       </motion.div>
