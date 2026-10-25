@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Sparkles, Send, Check, AlertCircle, Users, User, ArrowRight } from "lucide-react";
+import { Sparkles, Send, Check, AlertCircle, Users, User, ArrowRight, Mic } from "lucide-react";
 import { parseExpenseText, ParsedWebExpense } from "@/lib/nlpExpenseParser";
 import { expenseService } from "@/services/expenseService";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
+import VoiceExpenseModal from "@/components/expenses/VoiceExpenseModal";
 
 const AMBER = "#F9B912";
 
@@ -18,6 +19,7 @@ export default function QuickAddExpenseBar({ group, onExpenseAdded }: QuickAddEx
   const { appUser } = useAuth();
   const [text, setText] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [voiceModalOpen, setVoiceModalOpen] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -100,6 +102,16 @@ export default function QuickAddExpenseBar({ group, onExpenseAdded }: QuickAddEx
           style={{ color: "var(--foreground)" }}
         />
 
+        {/* Voice Input Mic Button */}
+        <button
+          type="button"
+          onClick={() => setVoiceModalOpen(true)}
+          title="Voice to Expense"
+          className="h-8 w-8 rounded-xl flex items-center justify-center shrink-0 transition-all hover:bg-amber-100 dark:hover:bg-amber-950/40 text-amber-600 hover:scale-105 active:scale-95 cursor-pointer"
+        >
+          <Mic className="h-4 w-4" />
+        </button>
+
         <Button
           type="submit"
           size="sm"
@@ -118,9 +130,16 @@ export default function QuickAddExpenseBar({ group, onExpenseAdded }: QuickAddEx
         </Button>
       </form>
 
-      {/* Quick Prompts */}
+      {/* Quick Prompts + Voice Button */}
       {!parsed && text.length === 0 && (
         <div className="flex flex-wrap items-center gap-1.5 mt-2.5 pt-2 border-t border-dashed" style={{ borderColor: "var(--border)" }}>
+          <button
+            type="button"
+            onClick={() => setVoiceModalOpen(true)}
+            className="text-[11px] px-2.5 py-0.5 rounded-full font-bold bg-amber-500/15 text-amber-700 dark:text-amber-400 hover:bg-amber-500/25 flex items-center gap-1 transition-colors cursor-pointer"
+          >
+            <Mic className="h-3 w-3" /> Voice Add
+          </button>
           <span className="text-[11px] font-semibold text-gray-400 mr-1">Try:</span>
           {quickPrompts.map((p) => (
             <button
@@ -179,6 +198,14 @@ export default function QuickAddExpenseBar({ group, onExpenseAdded }: QuickAddEx
           {errorMsg}
         </div>
       )}
+
+      {/* Voice to Expense Modal */}
+      <VoiceExpenseModal
+        open={voiceModalOpen}
+        onOpenChange={setVoiceModalOpen}
+        group={group}
+        onExpenseAdded={onExpenseAdded}
+      />
     </div>
   );
 }
