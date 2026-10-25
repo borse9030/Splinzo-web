@@ -98,7 +98,7 @@ export default function QuickAddExpenseBar({ group, onExpenseAdded }: QuickAddEx
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="Smart Quick Add: 'Dinner 1200 paid by me for Rahul'..."
-          className="flex-1 bg-transparent text-sm font-medium outline-none placeholder:text-gray-400"
+          className="flex-1 min-w-0 bg-transparent text-sm font-medium outline-none placeholder:text-gray-400"
           style={{ color: "var(--foreground)" }}
         />
 

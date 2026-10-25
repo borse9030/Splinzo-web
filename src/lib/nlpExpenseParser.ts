@@ -7,6 +7,7 @@ export interface ParsedWebExpense {
   category: string;
   rawInput: string;
   isAiEnhanced?: boolean;
+  isConversational?: boolean;
 }
 
 // Spoken verbal numbers dictionary (English & Hindi/Hinglish)
@@ -62,6 +63,11 @@ export function normalizeSpokenText(text: string): string {
     return String(mult * 1000);
   });
 
+  // 4.5. Protect imperative Hindi verbs "do / de" (e.g. "kar do", "split kar do", "adjust kar do")
+  // so that "kar do" does NOT turn into "kar 2"
+  normalized = normalized.replace(/\b(kar|split|adjust|de|bhej|daal|dal|mat)\s+(do|de)\b/gi, "$1__VERB_DO__");
+  normalized = normalized.replace(/\b(kardo|karde|dedo|bhejdo)\b/gi, "$1__VERB_DO__");
+
   // 5. Individual number words
   for (const [word, val] of Object.entries(VERBAL_NUMBERS)) {
     if (!word.includes(" ")) {
@@ -69,6 +75,9 @@ export function normalizeSpokenText(text: string): string {
       normalized = normalized.replace(reg, String(val));
     }
   }
+
+  // Restore protected verbs
+  normalized = normalized.replace(/__VERB_DO__/g, " do");
 
   return normalized;
 }
@@ -83,7 +92,8 @@ export function inferCategory(title: string): string {
     t.includes("drink") || t.includes("beer") || t.includes("pizza") ||
     t.includes("burger") || t.includes("tea") || t.includes("snack") ||
     t.includes("restaurant") || t.includes("swiggy") || t.includes("zomato") ||
-    t.includes("chai") || t.includes("nashta") || t.includes("khana") || t.includes("daru")
+    t.includes("chai") || t.includes("nashta") || t.includes("khana") || t.includes("daru") ||
+    t.includes("puri") || t.includes("pani puri") || t.includes("panipuri")
   ) {
     return "Food";
   }
@@ -158,7 +168,7 @@ export function parseExpenseText(
   const findMemberByName = (query: string) => {
     const q = stripHonorifics(query.trim().toLowerCase());
     if (!q) return null;
-    if (q === "me" || q === "myself" || q === "i" || q === "you" || q === "maine" || q === "mene") {
+    if (q === "me" || q === "myself" || q === "i" || q === "you" || q === "maine" || q === "mene" || q === "mere") {
       return currentMember;
     }
     for (const m of members) {
@@ -171,18 +181,45 @@ export function parseExpenseText(
     return null;
   };
 
-  // 1. Amount Extraction
-  const amountRegex = /(?:₹|\$|€|£)?\s*([0-9]+(?:,[0-9]{3})*(?:\.[0-9]{1,2})?|[0-9]+(?:\.[0-9]{1,2})?)/i;
-  const amountMatch = working.match(amountRegex);
+  // 1. Amount Extraction (Score-based prioritization to pick real amounts over spurious numbers)
+  const amountPattern = /(?:₹|\$|€|£)?\s*([0-9]+(?:,[0-9]{3})*(?:\.[0-9]{1,2})?|[0-9]+(?:\.[0-9]{1,2})?)/gi;
+  const matches = Array.from(working.matchAll(amountPattern));
   let amount: number | null = null;
+  let bestMatch: RegExpMatchArray | null = null;
 
-  if (amountMatch && amountMatch[1]) {
-    const rawVal = amountMatch[1].replace(/,/g, "");
-    const parsedNum = parseFloat(rawVal);
-    if (!isNaN(parsedNum) && parsedNum > 0) {
-      amount = parsedNum;
+  if (matches.length > 0) {
+    let bestScore = -1;
+    for (const m of matches) {
+      const numStr = m[1].replace(/,/g, "");
+      const val = parseFloat(numStr);
+      if (isNaN(val) || val <= 0) continue;
+
+      let score = val; // Baseline: higher values prioritized (e.g. 1000 over 2)
+      const fullMatch = m[0];
+      const matchIndex = m.index ?? 0;
+      const afterSlice = working.slice(matchIndex + fullMatch.length, matchIndex + fullMatch.length + 12).toLowerCase();
+      const beforeSlice = working.slice(Math.max(0, matchIndex - 12), matchIndex).toLowerCase();
+
+      if (fullMatch.includes("₹") || fullMatch.includes("$") || fullMatch.includes("€") || fullMatch.includes("£")) {
+        score += 1000000;
+      }
+      if (/\b(?:ka|ki|ke|rs|inr|rupaye)\b/i.test(afterSlice) || /\b(?:ka|ki|ke)\b/i.test(beforeSlice)) {
+        score += 500000;
+      }
+      if (/\b(?:for|amount|total)\b/i.test(beforeSlice)) {
+        score += 200000;
+      }
+
+      if (score > bestScore) {
+        bestScore = score;
+        amount = val;
+        bestMatch = m;
+      }
     }
-    working = (working.slice(0, amountMatch.index!) + " " + working.slice(amountMatch.index! + amountMatch[0].length)).trim();
+
+    if (bestMatch && bestMatch.index !== undefined) {
+      working = (working.slice(0, bestMatch.index) + " " + working.slice(bestMatch.index + bestMatch[0].length)).trim();
+    }
   }
 
   // 2. Payer Extraction
@@ -264,9 +301,9 @@ export function parseExpenseText(
     }
   }
 
-  // C. Split Between Two Members: "between [name1] and [name2]" / "[name1] aur [name2] ke beech"
+  // C. Split Between Two or more Members: "between [name1] and [name2]" / "[name1] aur [name2] ke beech"
   if (splitMemberIds.length === 0) {
-    const betweenRegex = /\b(?:between|split\s+between)\s+([a-zA-Z0-9_\s&,]+?)(?:\s+ke\s+beech)?$/i;
+    const betweenRegex = /\b(?:between|split\s+between)\s+([a-zA-Z0-9_\s&,]+?)(?:\s+(?:ke\s+beech|ke\s+bich))?$/i;
     const betweenMatch = working.match(betweenRegex);
     if (betweenMatch && betweenMatch[1]) {
       const candidates = betweenMatch[1]
@@ -289,9 +326,7 @@ export function parseExpenseText(
   }
 
   // D. "split with [name]" / "with [name]" / "[name] ke saath"
-  // Semantics: Splits between Payer AND that named member (2 people)!
   if (splitMemberIds.length === 0) {
-    // Check Hindi postposition first: "[name] ke saath"
     const hindiWithRegex = /\b([a-zA-Z0-9_\s]+?)\s+(?:ke\s+saath|ke\s+sath)(?:\s+split)?$/i;
     const hindiWithMatch = working.match(hindiWithRegex);
     if (hindiWithMatch && hindiWithMatch[1]) {
@@ -310,7 +345,6 @@ export function parseExpenseText(
   }
 
   if (splitMemberIds.length === 0) {
-    // English: "split with [name]", "with [name]", "for [name]"
     const splitWithRegex = /\b(?:split\s+with|with|for)\s+([a-zA-Z0-9_\s&,]+)$/i;
     const splitWithMatch = working.match(splitWithRegex);
     if (splitWithMatch && splitWithMatch[1]) {
@@ -330,7 +364,6 @@ export function parseExpenseText(
       }
 
       if (splitMemberIds.length > 0) {
-        // Include payer in the split (e.g. split with Rahul => You + Rahul)
         if (effectivePayerId && !splitMemberIds.includes(effectivePayerId)) {
           splitMemberIds.unshift(effectivePayerId);
         }
@@ -339,10 +372,9 @@ export function parseExpenseText(
     }
   }
 
-  // E. Direct Member Mention: "Dinner 1200 Rahul"
+  // E. Mention of members anywhere in sentence: check all members
   if (splitMemberIds.length === 0 && members.length > 0) {
     for (const m of members) {
-      if (m.id === effectivePayerId) continue;
       const firstName = (m.name || m.displayName || "").split(" ")[0].toLowerCase();
       if (firstName.length >= 3 && new RegExp(`\\b${firstName}\\b`, "i").test(working)) {
         if (effectivePayerId && !splitMemberIds.includes(effectivePayerId)) {
@@ -351,7 +383,6 @@ export function parseExpenseText(
         if (!splitMemberIds.includes(m.id)) {
           splitMemberIds.push(m.id);
         }
-        working = working.replace(new RegExp(`\\b${firstName}\\b`, "gi"), "").trim();
       }
     }
   }
@@ -363,10 +394,25 @@ export function parseExpenseText(
 
   // 4. Clean Title
   let cleanedTitle = working
-    .replace(/\b(paid|done|by|for|split|between|equally|with|at|that|is|me|diya|diye|ne|bharatha|sirf|ke|saath|sath|liye|beech|aur|and)\b/gi, "")
+    .replace(/\b(paid|done|by|for|split|between|equally|with|at|that|is|me|mere|diya|diye|ne|bharatha|sirf|ke|saath|sath|liye|beech|bich|aur|and|kar|do|kardo|adjust|barabar|properly|properli|sab|kuchh|kuch|nahin|nahi|vishay|phool|mein|bhejo|daal)\b/gi, "")
     .replace(/₹|\$|€|£/g, "")
     .replace(/\s+/g, " ")
     .trim();
+
+  // Remove any member names from title
+  for (const m of members) {
+    const fn = (m.name || m.displayName || "").split(" ")[0].toLowerCase();
+    if (fn.length >= 3) {
+      cleanedTitle = cleanedTitle.replace(new RegExp(`\\b${fn}\\b`, "gi"), "").trim();
+    }
+  }
+
+  cleanedTitle = cleanedTitle.replace(/\s+/g, " ").trim();
+
+  const isConversational =
+    text.trim().split(/\s+/).length >= 5 ||
+    cleanedTitle.split(/\s+/).length >= 4 ||
+    cleanedTitle.length > 25;
 
   if (!cleanedTitle) {
     cleanedTitle = "Quick Expense";
@@ -384,5 +430,6 @@ export function parseExpenseText(
     splitMemberIds,
     category,
     rawInput: text,
+    isConversational,
   };
 }

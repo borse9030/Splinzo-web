@@ -11,7 +11,6 @@ import {
   User,
   ArrowRight,
   ExternalLink,
-  Volume2,
   RefreshCw,
   X,
 } from "lucide-react";
@@ -77,7 +76,7 @@ export default function VoiceExpenseModal({
     const recognition = new SpeechRecognition();
     recognition.continuous = true;
     recognition.interimResults = true;
-    recognition.lang = "en-IN"; // Default to Indian English, handles Hinglish and English accents
+    recognition.lang = "en-IN"; // Supports Indian English, Hindi, and Hinglish accents
 
     recognition.onresult = (event: any) => {
       if (isManuallyStopped.current) return;
@@ -103,7 +102,7 @@ export default function VoiceExpenseModal({
 
     recognition.onend = () => {
       if (!isManuallyStopped.current && open) {
-        // Automatically restart if user was still in listening mode
+        // Continuous mode
       } else {
         setIsListening(false);
       }
@@ -118,7 +117,7 @@ export default function VoiceExpenseModal({
     };
   }, [group, appUser?.id, open]);
 
-  // When modal opens, auto-start listening after short transition
+  // When modal opens, auto-start listening
   useEffect(() => {
     if (open) {
       isManuallyStopped.current = false;
@@ -129,7 +128,7 @@ export default function VoiceExpenseModal({
 
       const timer = setTimeout(() => {
         startListening();
-      }, 350);
+      }, 300);
       return () => clearTimeout(timer);
     } else {
       stopListening();
@@ -154,7 +153,6 @@ export default function VoiceExpenseModal({
       recognitionRef.current.start();
       setIsListening(true);
     } catch (e) {
-      // Already running or permission needed
       setIsListening(true);
     }
   };
@@ -168,8 +166,12 @@ export default function VoiceExpenseModal({
     }
     setIsListening(false);
 
-    // If local parser couldn't find amount, trigger Gemini fallback
-    if (transcript.trim().length > 3 && (!parsed?.amount || parsed.amount <= 0)) {
+    // If local parser couldn't find amount, or if sentence is conversational / long, auto-refine with Gemini!
+    const words = transcript.trim().split(/\s+/);
+    if (
+      words.length >= 2 &&
+      (!parsed?.amount || parsed.amount <= 0 || parsed.isConversational || words.length >= 4)
+    ) {
       refineWithGemini(transcript, true);
     }
   };
@@ -306,20 +308,20 @@ export default function VoiceExpenseModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md p-5 bg-[#FFFFFF] dark:bg-[#1E1E1E] border border-amber-200 dark:border-amber-900/40 rounded-3xl shadow-2xl">
+      <DialogContent className="w-[calc(100vw-1.5rem)] max-w-md p-4 sm:p-5 bg-white dark:bg-zinc-900 border border-amber-200/90 dark:border-amber-800/60 rounded-3xl shadow-2xl max-h-[92vh] overflow-y-auto overflow-x-hidden z-[101]">
         <DialogHeader className="flex flex-row items-center justify-between pb-2 border-b border-gray-100 dark:border-gray-800">
           <div className="flex items-center gap-2">
             <div
-              className="h-8 w-8 rounded-full flex items-center justify-center"
+              className="h-8 w-8 rounded-full flex items-center justify-center shrink-0"
               style={{ background: "rgba(249, 185, 18, 0.2)" }}
             >
               <Mic className="h-4 w-4 text-amber-600" />
             </div>
-            <div>
-              <DialogTitle className="text-base font-extrabold text-gray-900 dark:text-gray-100">
+            <div className="min-w-0">
+              <DialogTitle className="text-base font-extrabold text-gray-900 dark:text-gray-100 truncate">
                 Voice to Expense
               </DialogTitle>
-              <p className="text-[11px] text-gray-400 font-medium">
+              <p className="text-[11px] text-gray-400 font-medium truncate">
                 Hands-free logging in Hindi, English & Hinglish
               </p>
             </div>
@@ -327,20 +329,22 @@ export default function VoiceExpenseModal({
         </DialogHeader>
 
         {/* Dancing Harmonic Soundwave Visualizer */}
-        <div className="py-2.5 flex items-center justify-center gap-1 h-12 bg-amber-50/60 dark:bg-amber-950/20 rounded-2xl border border-amber-100 dark:border-amber-900/30 overflow-hidden">
-          {Array.from({ length: 24 }).map((_, i) => {
-            const baseH = isListening
-              ? 8 + Math.sin((i / 24) * Math.PI) * 22 * (0.6 + Math.random() * 0.4)
-              : 5;
+        <div className="py-2.5 px-3 flex items-center justify-center gap-1.5 h-12 bg-amber-50/90 dark:bg-amber-950/40 rounded-2xl border border-amber-200/70 dark:border-amber-800/40 overflow-hidden w-full">
+          {Array.from({ length: 22 }).map((_, i) => {
+            const norm = i / 21;
+            const bell = Math.sin(norm * Math.PI);
+            const height = isListening
+              ? Math.max(6, Math.round(bell * 26 * (0.55 + ((i % 4) * 0.15))))
+              : Math.max(4, Math.round(bell * 12));
             return (
               <div
                 key={i}
-                className="w-1 rounded-full transition-all duration-150"
+                className="w-1 rounded-full transition-all duration-200 shrink-0"
                 style={{
-                  height: `${baseH}px`,
+                  height: `${height}px`,
                   background: isListening
                     ? "linear-gradient(to top, #F9B912, #D97706)"
-                    : "#E2E8F0",
+                    : "#CBD5E1",
                 }}
               />
             );
@@ -348,7 +352,7 @@ export default function VoiceExpenseModal({
         </div>
 
         {/* Live Editable Transcript */}
-        <div className="relative">
+        <div className="relative w-full">
           <textarea
             value={transcript}
             onChange={(e) => handleTranscriptChange(e.target.value)}
@@ -364,7 +368,7 @@ export default function VoiceExpenseModal({
             <button
               type="button"
               onClick={() => handleTranscriptChange("")}
-              className="absolute right-2.5 top-2.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-1"
+              className="absolute right-2.5 top-2.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-1 cursor-pointer"
             >
               <X className="h-3.5 w-3.5" />
             </button>
@@ -372,14 +376,14 @@ export default function VoiceExpenseModal({
         </div>
 
         {/* Quick Voice Suggestion Chips */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none w-full">
           <span className="text-[10px] font-bold text-gray-400 shrink-0">Try:</span>
           {quickVoiceExamples.map((ex) => (
             <button
               key={ex}
               type="button"
               onClick={() => handleTranscriptChange(ex)}
-              className="text-[10.5px] px-2.5 py-1 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 font-medium shrink-0 hover:bg-amber-100 dark:hover:bg-amber-900/40 hover:text-amber-900 transition-colors"
+              className="text-[10.5px] px-2.5 py-1 rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 font-medium shrink-0 hover:bg-amber-100 dark:hover:bg-amber-900/40 hover:text-amber-900 transition-colors cursor-pointer"
             >
               {ex}
             </button>
@@ -387,11 +391,11 @@ export default function VoiceExpenseModal({
         </div>
 
         {/* AI Loading State */}
-        {isAiRefining && !parsed && (
-          <div className="p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 flex items-center gap-2.5">
-            <RefreshCw className="h-4 w-4 text-amber-600 animate-spin" />
-            <span className="text-xs font-semibold text-amber-800 dark:text-amber-200">
-              Understanding with Gemini AI...
+        {isAiRefining && (
+          <div className="p-3 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 flex items-center gap-2.5 w-full">
+            <RefreshCw className="h-4 w-4 text-amber-600 animate-spin shrink-0" />
+            <span className="text-xs font-semibold text-amber-800 dark:text-amber-200 truncate">
+              Refining with Gemini AI...
             </span>
           </div>
         )}
@@ -399,15 +403,15 @@ export default function VoiceExpenseModal({
         {/* Live Detected Expense Card */}
         {parsed && (
           <div
-            className="p-3.5 rounded-2xl border transition-all"
+            className="p-3.5 rounded-2xl border transition-all w-full"
             style={{
               background: "#FFFDF5",
               borderColor: hasAmount ? "#FDE68A" : "#FCA5A5",
             }}
           >
             {/* Header: Status + AI Badges */}
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-1.5">
+            <div className="flex items-center justify-between gap-1.5 flex-wrap">
+              <div className="flex items-center gap-1.5 flex-wrap">
                 <span
                   className="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-md flex items-center gap-1"
                   style={{
@@ -428,15 +432,11 @@ export default function VoiceExpenseModal({
               </div>
 
               <div className="flex items-center gap-1.5">
-                {isAiRefining ? (
-                  <span className="text-[10px] font-semibold text-amber-600 flex items-center gap-1">
-                    <RefreshCw className="h-2.5 w-2.5 animate-spin" /> Refining...
-                  </span>
-                ) : (
+                {!isAiRefining && (
                   <button
                     type="button"
                     onClick={() => refineWithGemini(transcript, false)}
-                    className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-gray-100 hover:bg-gray-200 text-gray-700 flex items-center gap-1 transition-colors"
+                    className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-gray-100 hover:bg-gray-200 text-gray-700 flex items-center gap-1 transition-colors cursor-pointer"
                   >
                     <Sparkles className="h-2.5 w-2.5 text-amber-600" />
                     AI Refine
@@ -444,7 +444,7 @@ export default function VoiceExpenseModal({
                 )}
 
                 <span
-                  className="text-[10.5px] font-bold px-2 py-0.5 rounded-md"
+                  className="text-[10.5px] font-bold px-2 py-0.5 rounded-md shrink-0"
                   style={{ background: "#FEF3C7", color: "#D97706" }}
                 >
                   {parsed.category}
@@ -453,12 +453,12 @@ export default function VoiceExpenseModal({
             </div>
 
             {/* Title & Amount */}
-            <div className="flex items-baseline justify-between mt-2">
-              <span className="text-base font-extrabold text-gray-900 truncate pr-2">
+            <div className="flex items-start justify-between gap-2.5 mt-2.5">
+              <span className="text-sm sm:text-base font-extrabold text-gray-900 line-clamp-2 flex-1 break-words leading-tight">
                 {parsed.title}
               </span>
               <span
-                className="text-xl font-black shrink-0"
+                className="text-lg sm:text-xl font-black shrink-0 whitespace-nowrap"
                 style={{ color: hasAmount ? "#D97706" : "#EF4444" }}
               >
                 {hasAmount ? `${currencySymbol}${parsed.amount?.toLocaleString()}` : "No amount"}
@@ -467,14 +467,14 @@ export default function VoiceExpenseModal({
 
             {/* Meta: Payer & Split Info */}
             <div className="flex flex-wrap items-center justify-between gap-2 mt-2 pt-2 border-t border-amber-100 text-[11px] text-gray-600">
-              <span className="flex items-center gap-1 font-medium">
-                <User className="h-3 w-3 text-gray-400" />
-                Paid by <b className="text-gray-800">{parsed.payerName || "You"}</b>
+              <span className="flex items-center gap-1 font-medium truncate max-w-[50%]">
+                <User className="h-3 w-3 text-gray-400 shrink-0" />
+                Paid by <b className="text-gray-800 truncate">{parsed.payerName || "You"}</b>
               </span>
 
-              <span className="flex items-center gap-1 font-semibold text-amber-800">
-                <Users className="h-3 w-3 text-amber-600" />
-                {getSplitSummary()}
+              <span className="flex items-center gap-1 font-semibold text-amber-800 truncate max-w-[50%]">
+                <Users className="h-3 w-3 text-amber-600 shrink-0" />
+                <span className="truncate">{getSplitSummary()}</span>
               </span>
             </div>
           </div>
@@ -482,25 +482,25 @@ export default function VoiceExpenseModal({
 
         {/* Feedback / Error */}
         {errorMsg && (
-          <div className="text-xs font-semibold text-red-600 flex items-center gap-1">
-            <AlertCircle className="h-3.5 w-3.5" />
-            {errorMsg}
+          <div className="text-xs font-semibold text-red-600 flex items-center gap-1 w-full">
+            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">{errorMsg}</span>
           </div>
         )}
         {successMsg && (
-          <div className="text-xs font-semibold text-emerald-600 flex items-center gap-1">
-            <Check className="h-3.5 w-3.5" />
-            {successMsg}
+          <div className="text-xs font-semibold text-emerald-600 flex items-center gap-1 w-full">
+            <Check className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate">{successMsg}</span>
           </div>
         )}
 
-        {/* Action Buttons: Mic FAB + Log Primary Button */}
-        <div className="flex items-center gap-3 pt-2">
+        {/* Action Buttons: Mic FAB + Log Primary Button + Full Editor Button */}
+        <div className="flex items-center gap-2 sm:gap-2.5 pt-2 w-full">
           {/* Pulsing Mic FAB */}
           <button
             type="button"
             onClick={toggleListening}
-            className="h-12 w-12 rounded-full flex items-center justify-center shrink-0 transition-transform active:scale-95 shadow-md cursor-pointer"
+            className="h-11 w-11 sm:h-12 sm:w-12 rounded-full flex items-center justify-center shrink-0 transition-transform active:scale-95 shadow-md cursor-pointer"
             style={{
               background: isListening
                 ? "linear-gradient(135deg, #EF4444, #DC2626)"
@@ -508,30 +508,32 @@ export default function VoiceExpenseModal({
             }}
           >
             {isListening ? (
-              <Square className="h-5 w-5 text-white" />
+              <Square className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
             ) : (
-              <Mic className="h-5 w-5 text-slate-900" />
+              <Mic className="h-4 w-4 sm:h-5 sm:w-5 text-slate-900" />
             )}
           </button>
 
-          {/* Primary Save Button */}
+          {/* Primary Save Button (Guaranteed Never Cut Off on Mobile) */}
           <Button
             type="button"
             disabled={isSubmitting || !hasAmount}
             onClick={handleSaveExpense}
-            className="flex-1 h-12 rounded-2xl font-bold text-sm shadow-sm cursor-pointer"
+            className="flex-1 h-11 sm:h-12 px-3 rounded-2xl font-bold text-xs sm:text-sm shadow-sm cursor-pointer whitespace-nowrap min-w-0"
             style={{
               background: hasAmount ? AMBER : "var(--muted)",
               color: hasAmount ? "#111827" : "var(--muted-foreground)",
             }}
           >
             {isSubmitting ? (
-              <span className="flex items-center gap-1.5">
-                <RefreshCw className="h-4 w-4 animate-spin" /> Saving...
+              <span className="flex items-center justify-center gap-1.5 truncate">
+                <RefreshCw className="h-3.5 w-3.5 animate-spin shrink-0" />
+                <span className="truncate">Saving...</span>
               </span>
             ) : (
-              <span className="flex items-center justify-center gap-1.5">
-                Log Expense <ArrowRight className="h-4 w-4" />
+              <span className="flex items-center justify-center gap-1.5 truncate">
+                <span className="truncate">Log Expense</span>
+                <ArrowRight className="h-3.5 w-3.5 shrink-0" />
               </span>
             )}
           </Button>
@@ -541,7 +543,7 @@ export default function VoiceExpenseModal({
             type="button"
             onClick={handleOpenFullEditor}
             title="Open in full split editor"
-            className="h-12 w-12 rounded-2xl border border-gray-200 dark:border-gray-800 flex items-center justify-center text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors"
+            className="h-11 w-11 sm:h-12 sm:w-12 rounded-2xl border border-gray-200 dark:border-gray-800 flex items-center justify-center text-gray-500 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors shrink-0 cursor-pointer"
           >
             <ExternalLink className="h-4 w-4" />
           </button>
