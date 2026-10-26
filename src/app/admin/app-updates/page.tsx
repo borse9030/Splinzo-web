@@ -34,9 +34,9 @@ interface AppUpdateConfig {
 }
 
 const DEFAULT_CONFIG: AppUpdateConfig = {
-  latestVersionCode: 41,
-  latestVersionName: "1.0.38",
-  minSupportedVersionCode: 40,
+  latestVersionCode: 44,
+  latestVersionName: "1.0.41",
+  minSupportedVersionCode: 1,
   title: "New Update Available! 🚀",
   message: "A newer version of Splinzo is available on Google Play with new features and performance enhancements.",
   releaseNotes: [
