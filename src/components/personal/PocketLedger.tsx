@@ -5,6 +5,9 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { useGroups } from "@/hooks/useGroups";
 import { personalExpenseService, PersonalExpenseItem } from "@/services/personalExpenseService";
+import { sharedLedgerService } from "@/services/sharedLedgerService";
+import { SharedLedger } from "@/types/sharedLedger";
+import { QRCodeSVG } from "qrcode.react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   Plus, 
@@ -31,7 +34,14 @@ import {
   Smartphone,
   Banknote,
   Users,
-  Check
+  Check,
+  Copy,
+  ExternalLink,
+  Lock,
+  Eye,
+  QrCode,
+  ShieldCheck,
+  RefreshCw
 } from "lucide-react";
 
 const AMBER = "#FFB800";
@@ -105,6 +115,129 @@ export function PocketLedger() {
 
   // Split to Group Modal state
   const [splitItem, setSplitItem] = useState<PersonalExpenseItem | null>(null);
+
+  // Share Ledger Modal state
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [shareTab, setShareTab] = useState<"create" | "manage">("create");
+  const [shareTitle, setShareTitle] = useState("");
+  const [shareScope, setShareScope] = useState<"month" | "all">("month");
+  const [shareMaskNotes, setShareMaskNotes] = useState(false);
+  const [shareMaskAmounts, setShareMaskAmounts] = useState(false);
+  const [shareEnablePin, setShareEnablePin] = useState(false);
+  const [sharePin, setSharePin] = useState("");
+  const [shareExpiresDays, setShareExpiresDays] = useState<number>(0);
+  const [shareLiveSync, setShareLiveSync] = useState(true);
+  const [generatingShare, setGeneratingShare] = useState(false);
+  const [generatedLedger, setGeneratedLedger] = useState<SharedLedger | null>(null);
+  const [copiedLink, setCopiedLink] = useState(false);
+  const [userSharedLedgers, setUserSharedLedgers] = useState<SharedLedger[]>([]);
+  const [loadingSharedLedgers, setLoadingSharedLedgers] = useState(false);
+
+  const loadUserSharedLedgers = async () => {
+    if (!appUser?.id) return;
+    try {
+      setLoadingSharedLedgers(true);
+      const list = await sharedLedgerService.getUserSharedLedgers(appUser.id);
+      setUserSharedLedgers(list);
+    } catch (e) {
+      console.error("Failed to load user shared ledgers", e);
+    } finally {
+      setLoadingSharedLedgers(false);
+    }
+  };
+
+  const handleOpenShareModal = () => {
+    const currentMonthLabel = currentMonthDate.toLocaleDateString("en-IN", { month: "long", year: "numeric" });
+    setShareTitle(`${appUser?.displayName || "My"} Solo Ledger (${currentMonthLabel})`);
+    setShareScope("month");
+    setShareMaskNotes(false);
+    setShareMaskAmounts(false);
+    setShareEnablePin(false);
+    setSharePin("");
+    setShareExpiresDays(0);
+    setShareLiveSync(true);
+    setGeneratedLedger(null);
+    setShareTab("create");
+    setShowShareModal(true);
+    loadUserSharedLedgers();
+  };
+
+  const handleCreateShareLink = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!appUser?.id) return;
+
+    try {
+      setGeneratingShare(true);
+      const targetExpenses = shareScope === "month" ? monthExpenses : expenses;
+      const ym = `${currentMonthDate.getFullYear()}-${String(currentMonthDate.getMonth() + 1).padStart(2, "0")}`;
+
+      const created = await sharedLedgerService.createSharedLedger({
+        userId: appUser.id,
+        ownerName: appUser.displayName || "Splinzo User",
+        ownerEmail: appUser.email || undefined,
+        ownerPhotoUrl: appUser.photoUrl || (appUser as any).photoURL || undefined,
+        title: shareTitle.trim() || "Pocket Ledger",
+        filterScope: shareScope,
+        monthYear: shareScope === "month" ? ym : undefined,
+        maskNotes: shareMaskNotes,
+        maskAmounts: shareMaskAmounts,
+        pin: shareEnablePin && sharePin.trim().length >= 4 ? sharePin.trim() : undefined,
+        expiresInDays: shareExpiresDays > 0 ? shareExpiresDays : null,
+        isLiveSync: shareLiveSync,
+        items: targetExpenses.map(item => ({
+          id: item.id,
+          description: item.description,
+          amount: item.amount,
+          category: item.category,
+          date: item.date,
+          paymentMethod: item.paymentMethod,
+          notes: item.notes,
+        })),
+      });
+
+      setGeneratedLedger(created);
+      loadUserSharedLedgers();
+    } catch (err) {
+      console.error("Failed to generate share link", err);
+    } finally {
+      setGeneratingShare(false);
+    }
+  };
+
+  const handleToggleLedgerActive = async (shareId: string, currentActive: boolean) => {
+    try {
+      await sharedLedgerService.toggleSharedLedgerStatus(shareId, !currentActive);
+      setUserSharedLedgers(prev =>
+        prev.map(l => l.id === shareId ? { ...l, isActive: !currentActive } : l)
+      );
+      if (generatedLedger?.id === shareId) {
+        setGeneratedLedger(prev => prev ? { ...prev, isActive: !currentActive } : null);
+      }
+    } catch (e) {
+      console.error("Failed to toggle ledger active", e);
+    }
+  };
+
+  const handleDeleteLedger = async (shareId: string) => {
+    if (!confirm("Are you sure you want to delete this shared link? Anyone with the link will no longer be able to view it.")) return;
+    try {
+      await sharedLedgerService.deleteSharedLedger(shareId);
+      setUserSharedLedgers(prev => prev.filter(l => l.id !== shareId));
+      if (generatedLedger?.id === shareId) {
+        setGeneratedLedger(null);
+      }
+    } catch (e) {
+      console.error("Failed to delete shared ledger", e);
+    }
+  };
+
+  const copyUrl = (id: string) => {
+    const origin = typeof window !== "undefined" ? window.location.origin : "https://splinzo.in";
+    const url = `${origin}/ledger/${id}`;
+    navigator.clipboard.writeText(url);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2000);
+  };
 
   useEffect(() => {
     if (!appUser?.id) return;
@@ -461,6 +594,15 @@ export function PocketLedger() {
             </div>
 
             <div className="flex items-center gap-2.5 shrink-0">
+              <button
+                onClick={handleOpenShareModal}
+                className="h-12 px-4 rounded-2xl font-black text-sm flex items-center justify-center gap-2 transition-all hover:scale-105 active:scale-95 text-gray-950 shrink-0 bg-white/80 hover:bg-white shadow-md shadow-black/10 backdrop-blur-md"
+                title="Create a shareable link for your solo expense ledger"
+              >
+                <Share2 className="h-4 w-4 text-gray-950 stroke-[2.5]" />
+                <span className="hidden sm:inline">Share Ledger</span>
+              </button>
+
               <button
                 onClick={() => handleOpenAddModal()}
                 className="h-12 px-6 rounded-2xl font-black text-sm flex items-center justify-center gap-2 transition-all hover:scale-105 active:scale-95 text-white shrink-0 bg-gray-950 hover:bg-black shadow-lg shadow-black/20"
@@ -1094,6 +1236,441 @@ export function PocketLedger() {
                       <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:text-amber-500 transition-colors" />
                     </button>
                   ))}
+                </div>
+              )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ══ SHARE POCKET LEDGER MODAL ══ */}
+      <AnimatePresence>
+        {showShareModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="w-full max-w-lg rounded-3xl p-6 shadow-2xl relative max-h-[90vh] overflow-y-auto scrollbar-none"
+              style={{ background: "var(--card)", border: "1px solid var(--border)" }}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 rounded-xl bg-amber-500/15 text-amber-500">
+                    <Share2 className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black text-foreground">
+                      Share Pocket Ledger
+                    </h3>
+                    <p className="text-[11px] text-muted-foreground">
+                      Generate a live, interactive web link for anyone to view
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowShareModal(false)}
+                  className="h-8 w-8 rounded-full flex items-center justify-center text-muted-foreground hover:bg-muted"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              {/* Tabs */}
+              <div className="flex p-1 bg-muted rounded-2xl mb-5">
+                <button
+                  type="button"
+                  onClick={() => setShareTab("create")}
+                  className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all ${
+                    shareTab === "create"
+                      ? "bg-card text-foreground shadow-xs"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  Create New Link
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShareTab("manage")}
+                  className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 ${
+                    shareTab === "manage"
+                      ? "bg-card text-foreground shadow-xs"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  <span>Active Links</span>
+                  <span className="px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-500 text-[10px]">
+                    {userSharedLedgers.length}
+                  </span>
+                </button>
+              </div>
+
+              {/* Tab 1: Create New Link */}
+              {shareTab === "create" && (
+                <div>
+                  {generatedLedger ? (
+                    /* Success / Result View */
+                    <div className="space-y-4">
+                      <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-center">
+                        <div className="w-10 h-10 rounded-full bg-amber-500/20 text-amber-500 flex items-center justify-center mx-auto mb-2">
+                          <Check className="h-5 w-5 stroke-[3]" />
+                        </div>
+                        <h4 className="text-sm font-black text-foreground">
+                          Shared Ledger Link Ready!
+                        </h4>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Anyone with this link can view this ledger in real-time.
+                        </p>
+                      </div>
+
+                      {/* URL Box */}
+                      <div className="p-3 rounded-2xl bg-muted/60 border border-border flex items-center justify-between gap-2">
+                        <span className="text-xs font-mono text-muted-foreground truncate select-all">
+                          {typeof window !== "undefined"
+                            ? `${window.location.origin}/ledger/${generatedLedger.id}`
+                            : `https://splinzo.in/ledger/${generatedLedger.id}`}
+                        </span>
+                        <button
+                          onClick={() => copyUrl(generatedLedger.id)}
+                          className="px-3 py-1.5 rounded-xl bg-amber-500 text-black font-bold text-xs flex items-center gap-1 hover:bg-amber-400 transition-colors shrink-0"
+                        >
+                          {copiedLink ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                          <span>{copiedLink ? "Copied" : "Copy"}</span>
+                        </button>
+                      </div>
+
+                      {/* QR Code */}
+                      <div className="flex flex-col items-center justify-center p-4 rounded-2xl bg-white border border-zinc-200">
+                        <QRCodeSVG
+                          value={
+                            typeof window !== "undefined"
+                              ? `${window.location.origin}/ledger/${generatedLedger.id}`
+                              : `https://splinzo.in/ledger/${generatedLedger.id}`
+                          }
+                          size={130}
+                        />
+                        <span className="text-[10px] text-zinc-500 font-semibold mt-2">
+                          Scan with any phone camera
+                        </span>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          onClick={() => {
+                            const url = `${typeof window !== "undefined" ? window.location.origin : "https://splinzo.in"}/ledger/${generatedLedger.id}`;
+                            window.open(
+                              `https://api.whatsapp.com/send?text=${encodeURIComponent(
+                                `Hey! Here is my expense ledger breakdown on Splinzo:\n${url}`
+                              )}`,
+                              "_blank"
+                            );
+                          }}
+                          className="py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-colors"
+                        >
+                          <Share2 className="h-3.5 w-3.5" />
+                          Share on WhatsApp
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            window.open(`/ledger/${generatedLedger.id}`, "_blank");
+                          }}
+                          className="py-2.5 rounded-xl border border-border bg-card hover:bg-muted text-foreground font-bold text-xs flex items-center justify-center gap-1.5 transition-colors"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" />
+                          Open Public Page
+                        </button>
+                      </div>
+
+                      <button
+                        onClick={() => setGeneratedLedger(null)}
+                        className="w-full text-center text-xs text-amber-500 font-semibold hover:underline pt-2"
+                      >
+                        + Create Another Link
+                      </button>
+                    </div>
+                  ) : (
+                    /* Creation Form */
+                    <form onSubmit={handleCreateShareLink} className="space-y-4">
+                      {/* Title */}
+                      <div>
+                        <label className="block text-xs font-bold text-foreground mb-1">
+                          Ledger Title
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={shareTitle}
+                          onChange={e => setShareTitle(e.target.value)}
+                          placeholder="e.g. October 2026 Solo Expenses"
+                          className="w-full h-11 px-3.5 rounded-xl text-xs font-semibold bg-muted border border-border text-foreground focus:outline-none focus:ring-2 focus:ring-amber-400"
+                        />
+                      </div>
+
+                      {/* Scope Selector */}
+                      <div>
+                        <label className="block text-xs font-bold text-foreground mb-1.5">
+                          Expense Scope
+                        </label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setShareScope("month")}
+                            className={`p-3 rounded-xl border text-left transition-all ${
+                              shareScope === "month"
+                                ? "border-amber-400 bg-amber-400/10 text-foreground"
+                                : "border-border bg-card text-muted-foreground hover:bg-muted"
+                            }`}
+                          >
+                            <div className="text-xs font-bold">Current Month</div>
+                            <div className="text-[10px] text-muted-foreground mt-0.5">
+                              {monthExpenses.length} items ({monthLabel})
+                            </div>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setShareScope("all")}
+                            className={`p-3 rounded-xl border text-left transition-all ${
+                              shareScope === "all"
+                                ? "border-amber-400 bg-amber-400/10 text-foreground"
+                                : "border-border bg-card text-muted-foreground hover:bg-muted"
+                            }`}
+                          >
+                            <div className="text-xs font-bold">All Time</div>
+                            <div className="text-[10px] text-muted-foreground mt-0.5">
+                              {expenses.length} total logged items
+                            </div>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Privacy Toggles */}
+                      <div className="p-3.5 rounded-2xl bg-muted/50 border border-border space-y-3">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block">
+                          Privacy & Masking
+                        </span>
+
+                        <label className="flex items-center justify-between cursor-pointer">
+                          <div>
+                            <div className="text-xs font-bold text-foreground">Mask Notes & Remarks</div>
+                            <div className="text-[10px] text-muted-foreground">Hide private merchant remarks from public view</div>
+                          </div>
+                          <input
+                            type="checkbox"
+                            checked={shareMaskNotes}
+                            onChange={e => setShareMaskNotes(e.target.checked)}
+                            className="w-4 h-4 rounded text-amber-500 accent-amber-500 cursor-pointer"
+                          />
+                        </label>
+
+                        <label className="flex items-center justify-between cursor-pointer">
+                          <div>
+                            <div className="text-xs font-bold text-foreground">Mask Exact Amounts</div>
+                            <div className="text-[10px] text-muted-foreground">Show category distribution & charts without net ₹</div>
+                          </div>
+                          <input
+                            type="checkbox"
+                            checked={shareMaskAmounts}
+                            onChange={e => setShareMaskAmounts(e.target.checked)}
+                            className="w-4 h-4 rounded text-amber-500 accent-amber-500 cursor-pointer"
+                          />
+                        </label>
+                      </div>
+
+                      {/* PIN Protection */}
+                      <div className="p-3.5 rounded-2xl bg-muted/50 border border-border space-y-2">
+                        <label className="flex items-center justify-between cursor-pointer">
+                          <div className="flex items-center gap-1.5">
+                            <Lock className="w-3.5 h-3.5 text-amber-500" />
+                            <span className="text-xs font-bold text-foreground">Protect with 4-Digit PIN</span>
+                          </div>
+                          <input
+                            type="checkbox"
+                            checked={shareEnablePin}
+                            onChange={e => setShareEnablePin(e.target.checked)}
+                            className="w-4 h-4 rounded text-amber-500 accent-amber-500 cursor-pointer"
+                          />
+                        </label>
+
+                        {shareEnablePin && (
+                          <div className="pt-2">
+                            <input
+                              type="password"
+                              maxLength={6}
+                              placeholder="Enter 4-digit passcode (e.g. 1234)"
+                              value={sharePin}
+                              onChange={e => setSharePin(e.target.value.replace(/\D/g, ""))}
+                              className="w-full h-10 px-3 rounded-xl text-xs font-mono bg-card border border-border text-foreground tracking-widest focus:ring-2 focus:ring-amber-400"
+                            />
+                            <p className="text-[10px] text-muted-foreground mt-1">
+                              Viewers must enter this PIN before the ledger unlocks.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Expiry & Live Sync */}
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-[11px] font-bold text-foreground mb-1">
+                            Link Expiration
+                          </label>
+                          <select
+                            value={shareExpiresDays}
+                            onChange={e => setShareExpiresDays(Number(e.target.value))}
+                            className="w-full h-10 px-3 rounded-xl text-xs font-semibold bg-muted border border-border text-foreground focus:outline-none"
+                          >
+                            <option value={0}>Never Expires</option>
+                            <option value={7}>7 Days</option>
+                            <option value={30}>30 Days</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-bold text-foreground mb-1">
+                            Live Sync
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => setShareLiveSync(!shareLiveSync)}
+                            className={`w-full h-10 px-3 rounded-xl text-xs font-bold border flex items-center justify-center gap-1.5 transition-all ${
+                              shareLiveSync
+                                ? "bg-emerald-500/10 border-emerald-500/40 text-emerald-600"
+                                : "bg-muted border-border text-muted-foreground"
+                            }`}
+                          >
+                            <span className={`w-2 h-2 rounded-full ${shareLiveSync ? "bg-emerald-500 animate-pulse" : "bg-zinc-400"}`} />
+                            <span>{shareLiveSync ? "Live Synced" : "Static Snapshot"}</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Submit */}
+                      <button
+                        type="submit"
+                        disabled={generatingShare || (shareEnablePin && sharePin.length < 4)}
+                        className="w-full h-12 rounded-2xl font-black text-sm text-gray-950 transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 disabled:opacity-50"
+                        style={{ background: `linear-gradient(135deg, ${AMBER}, ${AMBER_DARK})` }}
+                      >
+                        {generatingShare ? (
+                          <div className="w-4 h-4 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <>
+                            <Share2 className="h-4 w-4 stroke-[2.5]" />
+                            <span>Generate Shareable Link</span>
+                          </>
+                        )}
+                      </button>
+                    </form>
+                  )}
+                </div>
+              )}
+
+              {/* Tab 2: Active Links */}
+              {shareTab === "manage" && (
+                <div className="space-y-3">
+                  {loadingSharedLedgers ? (
+                    <div className="py-8 text-center text-xs text-muted-foreground">
+                      <div className="w-5 h-5 border-2 border-amber-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+                      Loading active links...
+                    </div>
+                  ) : userSharedLedgers.length === 0 ? (
+                    <div className="py-8 text-center text-xs text-muted-foreground">
+                      <Share2 className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                      <p>You haven&apos;t shared any expense ledgers yet.</p>
+                      <button
+                        type="button"
+                        onClick={() => setShareTab("create")}
+                        className="mt-2 text-xs text-amber-500 font-bold hover:underline"
+                      >
+                        Create your first link
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
+                      {userSharedLedgers.map(l => (
+                        <div
+                          key={l.id}
+                          className="p-3 rounded-2xl bg-muted/40 border border-border flex items-center justify-between gap-3"
+                        >
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <h5 className="text-xs font-bold text-foreground truncate">
+                                {l.title || "Solo Ledger"}
+                              </h5>
+                              <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-bold ${
+                                l.isActive ? "bg-emerald-500/10 text-emerald-600" : "bg-zinc-500/10 text-zinc-500"
+                              }`}>
+                                {l.isActive ? "Active" : "Paused"}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center gap-2 text-[10px] text-muted-foreground mt-1">
+                              <span className="flex items-center gap-0.5">
+                                <Eye className="w-3 h-3" />
+                                {l.viewCount || 0} views
+                              </span>
+                              <span>•</span>
+                              <span>{l.items?.length || 0} items</span>
+                              {l.hasPin && (
+                                <>
+                                  <span>•</span>
+                                  <span className="flex items-center gap-0.5 text-amber-500">
+                                    <Lock className="w-3 h-3" /> PIN
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => copyUrl(l.id)}
+                              title="Copy Link"
+                              className="p-1.5 rounded-lg bg-card border border-border text-muted-foreground hover:text-foreground"
+                            >
+                              <Copy className="w-3.5 h-3.5" />
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => window.open(`/ledger/${l.id}`, "_blank")}
+                              title="Open in new tab"
+                              className="p-1.5 rounded-lg bg-card border border-border text-muted-foreground hover:text-foreground"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleToggleLedgerActive(l.id, l.isActive)}
+                              title={l.isActive ? "Deactivate link" : "Activate link"}
+                              className={`p-1.5 rounded-lg border text-xs font-bold ${
+                                l.isActive
+                                  ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-600 hover:bg-emerald-500/20"
+                                  : "bg-muted border-border text-muted-foreground hover:text-foreground"
+                              }`}
+                            >
+                              <RefreshCw className="w-3.5 h-3.5" />
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteLedger(l.id)}
+                              title="Delete link permanently"
+                              className="p-1.5 rounded-lg bg-card border border-border text-red-500 hover:bg-red-500/10"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </motion.div>

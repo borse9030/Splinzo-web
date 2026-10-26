@@ -1,6 +1,8 @@
 import { collection, doc, setDoc, updateDoc, deleteDoc, getDocs, getDoc, query, orderBy, Timestamp, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase/config";
 
+import { sharedLedgerService } from "@/services/sharedLedgerService";
+
 export interface PersonalExpenseItem {
   id: string;
   description: string;
@@ -43,6 +45,12 @@ export const personalExpenseService = {
       createdAt: serverTimestamp(),
     };
     await setDoc(ref, data);
+
+    // Auto-sync active shared ledgers in background
+    this.getPersonalExpenses(userId).then(all => {
+      sharedLedgerService.syncActiveSharedLedgers(userId, all);
+    }).catch(e => console.warn("Sync ledger notice:", e));
+
     return { id: ref.id, ...data };
   },
 
@@ -65,11 +73,22 @@ export const personalExpenseService = {
       updatedAt: serverTimestamp(),
     };
     await updateDoc(ref, data);
+
+    // Auto-sync active shared ledgers in background
+    this.getPersonalExpenses(userId).then(all => {
+      sharedLedgerService.syncActiveSharedLedgers(userId, all);
+    }).catch(e => console.warn("Sync ledger notice:", e));
+
     return { id: expenseId, ...data };
   },
 
   async deletePersonalExpense(userId: string, expenseId: string) {
     await deleteDoc(doc(db, `users/${userId}/personal_expenses`, expenseId));
+
+    // Auto-sync active shared ledgers in background
+    this.getPersonalExpenses(userId).then(all => {
+      sharedLedgerService.syncActiveSharedLedgers(userId, all);
+    }).catch(e => console.warn("Sync ledger notice:", e));
   },
 
   async getMonthlyBudget(userId: string): Promise<number> {
