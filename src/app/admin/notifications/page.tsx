@@ -210,7 +210,9 @@ export default function PushStudioPage() {
     setLoadingHistory(true);
     checkServerStatus();
     try {
-      const res = await fetch("/api/admin/notifications/history");
+      const res = await fetch("/api/admin/notifications/history", {
+        headers: { "x-admin-key": "AmOl@147" },
+      });
       const json = await res.json();
       if (json.campaigns) {
         setCampaigns(json.campaigns);
@@ -306,7 +308,10 @@ export default function PushStudioPage() {
     try {
       const res = await fetch("/api/admin/notifications/send", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-key": "AmOl@147",
+        },
         body: JSON.stringify(payload),
       });
 

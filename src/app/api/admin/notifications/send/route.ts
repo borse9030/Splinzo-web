@@ -1,18 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { sendMulticastChunked, pruneStaleTokens, hasFirebaseAdminCredentials, MulticastResult } from "@/lib/firebaseAdmin";
-import { getServerDb } from "@/lib/firebase/serverDb";
 import {
-  collection,
-  getDocs,
-  doc,
-  getDoc,
-  addDoc,
-  serverTimestamp,
-  writeBatch,
-  query,
-  where,
-  documentId,
-} from "firebase/firestore";
+  sendMulticastChunked,
+  pruneStaleTokens,
+  hasFirebaseAdminCredentials,
+  MulticastResult,
+  getFirebaseAdmin,
+} from "@/lib/firebaseAdmin";
+import { FieldValue } from "firebase-admin/firestore";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,7 +14,7 @@ export const dynamic = "force-dynamic";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, x-admin-key",
 };
 
 export async function OPTIONS() {
@@ -51,7 +45,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const db = getServerDb();
+    const { db } = getFirebaseAdmin();
     let targetTokens: string[] = [];
     const targetedUids: string[] = [];
 
@@ -73,15 +67,17 @@ export async function POST(req: NextRequest) {
     }
 
     async function fetchUsersInChunks(uids: string[]) {
-      if (!uids || uids.length === 0) return [];
+      if (!uids || uids.length === 0 || !db) return [];
       const unique = Array.from(new Set(uids.filter(Boolean)));
-      const docs: any[] = [];
-      const CHUNK_SIZE = 30; // Firestore limit for 'in' filter is 30
+      const docs: FirebaseFirestore.DocumentSnapshot[] = [];
+      const CHUNK_SIZE = 100;
       for (let i = 0; i < unique.length; i += CHUNK_SIZE) {
         const chunk = unique.slice(i, i + CHUNK_SIZE);
-        const q = query(collection(db, "users"), where(documentId(), "in", chunk));
-        const snap = await getDocs(q);
-        snap.forEach((d) => docs.push(d));
+        const refs = chunk.map((id) => db.collection("users").doc(id));
+        const snaps = await db.getAll(...refs);
+        snaps.forEach((d) => {
+          if (d.exists) docs.push(d);
+        });
       }
       return docs;
     }
@@ -106,14 +102,16 @@ export async function POST(req: NextRequest) {
         );
       }
     } else if (targetType === "all") {
-      const snap = await getDocs(collection(db, "users"));
-      snap.forEach((userDoc) => {
-        targetedUids.push(userDoc.id);
-        const uTokens = extractUserTokens(userDoc.data());
-        if (uTokens.length > 0) {
-          targetTokens.push(...uTokens);
-        }
-      });
+      if (db) {
+        const snap = await db.collection("users").get();
+        snap.forEach((userDoc) => {
+          targetedUids.push(userDoc.id);
+          const uTokens = extractUserTokens(userDoc.data());
+          if (uTokens.length > 0) {
+            targetTokens.push(...uTokens);
+          }
+        });
+      }
     } else if (targetType === "users") {
       if (!Array.isArray(targetUserIds) || targetUserIds.length === 0) {
         return NextResponse.json(
@@ -136,8 +134,14 @@ export async function POST(req: NextRequest) {
           { status: 400, headers: corsHeaders }
         );
       }
-      const groupDoc = await getDoc(doc(db, "groups", targetGroupId));
-      if (!groupDoc.exists()) {
+      if (!db) {
+        return NextResponse.json(
+          { error: "Database not configured." },
+          { status: 500, headers: corsHeaders }
+        );
+      }
+      const groupDoc = await db.collection("groups").doc(targetGroupId).get();
+      if (!groupDoc.exists) {
         return NextResponse.json(
           { error: "Selected group does not exist." },
           { status: 404, headers: corsHeaders }
@@ -269,42 +273,43 @@ export async function POST(req: NextRequest) {
 
     // ── 4. RECORD CAMPAIGN AUDIT LOG ──
     let campaignId = "";
-    try {
-      const campaignRef = await addDoc(collection(db, "notification_campaigns"), {
-        title: title.trim(),
-        body: messageBody.trim(),
-        imageUrl: cleanImageUrl || null,
-        targetType,
-        targetGroupId: targetGroupId || null,
-        targetCount: uniqueUids.length || result.totalTargeted,
-        successCount: result.successCount,
-        pushCount: result.successCount,
-        inboxCount: uniqueUids.length,
-        failureCount: result.failureCount,
-        openedCount: 0,
-        actionType,
-        actionData: actionData || {},
-        bannerStyle,
-        sentBy: staffSession,
-        createdAt: serverTimestamp(),
-      });
-      campaignId = campaignRef.id;
-    } catch (e) {
-      console.warn("[send/route] Could not write to notification_campaigns:", e);
+    if (db) {
+      try {
+        const campaignRef = await db.collection("notification_campaigns").add({
+          title: title.trim(),
+          body: messageBody.trim(),
+          imageUrl: cleanImageUrl || null,
+          targetType,
+          targetGroupId: targetGroupId || null,
+          targetCount: uniqueUids.length || result.totalTargeted,
+          successCount: result.successCount,
+          pushCount: result.successCount,
+          inboxCount: uniqueUids.length,
+          failureCount: result.failureCount,
+          openedCount: 0,
+          actionType,
+          actionData: actionData || {},
+          bannerStyle,
+          sentBy: staffSession,
+          createdAt: FieldValue.serverTimestamp(),
+        });
+        campaignId = campaignRef.id;
+      } catch (e) {
+        console.warn("[send/route] Could not write to notification_campaigns:", e);
+      }
     }
 
     // ── 5. RECORD IN-APP INBOX ENTRY (For all targeted users) ──
-    if (uniqueUids.length > 0) {
+    if (db && uniqueUids.length > 0) {
       try {
-        // Process in batches of 450 to stay well under Firestore's 500 operations per batch limit
         const CHUNK_SIZE = 450;
         for (let i = 0; i < uniqueUids.length; i += CHUNK_SIZE) {
           const chunk = uniqueUids.slice(i, i + CHUNK_SIZE);
-          const batch = writeBatch(db);
+          const batch = db.batch();
           chunk.forEach((uid) => {
-            const notifDoc = doc(collection(db, "users", uid, "notifications"));
-            batch.set(notifDoc, {
-              id: notifDoc.id,
+            const notifRef = db.collection("users").doc(uid).collection("notifications").doc();
+            batch.set(notifRef, {
+              id: notifRef.id,
               title: title.trim(),
               body: messageBody.trim(),
               imageUrl: cleanImageUrl || null,
@@ -315,7 +320,7 @@ export async function POST(req: NextRequest) {
               isRead: false,
               read: false,
               campaignId: campaignId || "",
-              createdAt: serverTimestamp(),
+              createdAt: FieldValue.serverTimestamp(),
             });
           });
           await batch.commit();

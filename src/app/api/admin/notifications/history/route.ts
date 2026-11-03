@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerDb } from "@/lib/firebase/serverDb";
-import { collection, getDocs, query, orderBy, limit } from "firebase/firestore";
+import { getFirebaseAdmin } from "@/lib/firebaseAdmin";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, x-admin-key",
 };
 
 export async function OPTIONS() {
@@ -14,20 +16,23 @@ export async function OPTIONS() {
 
 export async function GET(req: NextRequest) {
   try {
-    const db = getServerDb();
-    const q = query(
-      collection(db, "notification_campaigns"),
-      orderBy("createdAt", "desc"),
-      limit(30)
-    );
-    const snap = await getDocs(q);
+    const { db } = getFirebaseAdmin();
+    if (!db) {
+      return NextResponse.json({ success: true, campaigns: [] }, { headers: corsHeaders });
+    }
+
+    const snap = await db
+      .collection("notification_campaigns")
+      .orderBy("createdAt", "desc")
+      .limit(30)
+      .get();
 
     const campaigns = snap.docs.map((doc) => {
       const data = doc.data();
       return {
         id: doc.id,
         ...data,
-        createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : null,
+        createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : (data.createdAt || null),
       };
     });
 
