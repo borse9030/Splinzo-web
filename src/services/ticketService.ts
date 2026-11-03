@@ -111,13 +111,20 @@ export const ticketService = {
    * Real-time listener for a single ticket
    */
   subscribeToTicket(ticketId: string, callback: (ticket: SupportTicket | null) => void) {
-    return onSnapshot(doc(db, "support_tickets", ticketId), (snap) => {
-      if (snap.exists()) {
-        callback({ id: snap.id, ...snap.data() } as SupportTicket);
-      } else {
+    return onSnapshot(
+      doc(db, "support_tickets", ticketId),
+      (snap) => {
+        if (snap.exists()) {
+          callback({ id: snap.id, ...snap.data() } as SupportTicket);
+        } else {
+          callback(null);
+        }
+      },
+      (error) => {
+        console.warn("[ticketService] subscribeToTicket error:", error.message);
         callback(null);
       }
-    });
+    );
   },
 
   /**
@@ -125,13 +132,20 @@ export const ticketService = {
    */
   subscribeToAllTickets(callback: (tickets: SupportTicket[]) => void) {
     const q = query(collection(db, "support_tickets"), orderBy("updatedAt", "desc"));
-    return onSnapshot(q, (snap) => {
-      const tickets: SupportTicket[] = [];
-      snap.forEach((doc) => {
-        tickets.push({ id: doc.id, ...doc.data() } as SupportTicket);
-      });
-      callback(tickets);
-    });
+    return onSnapshot(
+      q,
+      (snap) => {
+        const tickets: SupportTicket[] = [];
+        snap.forEach((doc) => {
+          tickets.push({ id: doc.id, ...doc.data() } as SupportTicket);
+        });
+        callback(tickets);
+      },
+      (error) => {
+        console.warn("[ticketService] subscribeToAllTickets error:", error.message);
+        callback([]);
+      }
+    );
   },
 
   /**
@@ -142,15 +156,22 @@ export const ticketService = {
       collection(db, "support_tickets"),
       where("userId", "==", userId)
     );
-    return onSnapshot(q, (snap) => {
-      const tickets: SupportTicket[] = [];
-      snap.forEach((doc) => {
-        tickets.push({ id: doc.id, ...doc.data() } as SupportTicket);
-      });
-      // Sort client-side by updatedAt to avoid complex composite indexing
-      tickets.sort((a, b) => (b.updatedAt?.toMillis?.() || 0) - (a.updatedAt?.toMillis?.() || 0));
-      callback(tickets);
-    });
+    return onSnapshot(
+      q,
+      (snap) => {
+        const tickets: SupportTicket[] = [];
+        snap.forEach((doc) => {
+          tickets.push({ id: doc.id, ...doc.data() } as SupportTicket);
+        });
+        // Sort client-side by updatedAt to avoid complex composite indexing
+        tickets.sort((a, b) => (b.updatedAt?.toMillis?.() || 0) - (a.updatedAt?.toMillis?.() || 0));
+        callback(tickets);
+      },
+      (error) => {
+        console.warn("[ticketService] subscribeToUserTickets error:", error.message);
+        callback([]);
+      }
+    );
   },
 
   /**
@@ -161,13 +182,20 @@ export const ticketService = {
       collection(db, `support_tickets/${ticketId}/messages`),
       orderBy("createdAt", "asc")
     );
-    return onSnapshot(q, (snap) => {
-      const msgs: TicketMessage[] = [];
-      snap.forEach((doc) => {
-        msgs.push({ id: doc.id, ...doc.data() } as TicketMessage);
-      });
-      callback(msgs);
-    });
+    return onSnapshot(
+      q,
+      (snap) => {
+        const msgs: TicketMessage[] = [];
+        snap.forEach((doc) => {
+          msgs.push({ id: doc.id, ...doc.data() } as TicketMessage);
+        });
+        callback(msgs);
+      },
+      (error) => {
+        console.warn("[ticketService] subscribeToMessages error:", error.message);
+        callback([]);
+      }
+    );
   },
 
   /**

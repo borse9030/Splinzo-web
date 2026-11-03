@@ -23,11 +23,34 @@ export default function AdminDashboardPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let isMounted = true;
+    async function loadInitialTickets() {
+      try {
+        const staffKey = typeof window !== "undefined" ? sessionStorage.getItem("splinzo_staff_session_key") || "" : "";
+        const res = await fetch("/api/admin/tickets", {
+          headers: { "x-admin-key": staffKey },
+        });
+        const data = await res.json();
+        if (isMounted && data.success && Array.isArray(data.tickets) && data.tickets.length > 0) {
+          setTickets(data.tickets);
+          setLoading(false);
+        }
+      } catch (_) {}
+    }
+    loadInitialTickets();
+
     const unsub = ticketService.subscribeToAllTickets((allTickets) => {
-      setTickets(allTickets);
-      setLoading(false);
+      if (isMounted) {
+        if (allTickets && allTickets.length > 0) {
+          setTickets(allTickets);
+        }
+        setLoading(false);
+      }
     });
-    return () => unsub();
+    return () => {
+      isMounted = false;
+      unsub();
+    };
   }, []);
 
   // Compute Metrics

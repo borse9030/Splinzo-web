@@ -1,8 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { collection, query, getDocs, limit, doc, updateDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase/config";
+import { useState, useEffect, useCallback } from "react";
 import { AppUser } from "@/types/user";
 import {
   Users,
@@ -14,46 +12,73 @@ import {
   CheckCircle2,
   Calendar,
   ExternalLink,
+  RefreshCw,
+  AlertCircle,
 } from "lucide-react";
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<AppUser[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [updatingUid, setUpdatingUid] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function loadUsers() {
-      setLoading(true);
-      try {
-        const q = query(collection(db, "users"), limit(50));
-        const snap = await getDocs(q);
-        const list: AppUser[] = [];
-        snap.forEach((d) => {
-          list.push({ id: d.id, ...d.data() } as AppUser);
-        });
-        setUsers(list);
-      } catch (err) {
-        console.error("Failed to load users:", err);
-      } finally {
-        setLoading(false);
+  const loadUsers = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const staffKey = typeof window !== "undefined" ? sessionStorage.getItem("splinzo_staff_session_key") || "" : "";
+      const res = await fetch("/api/admin/users?limit=250", {
+        headers: {
+          "x-admin-key": staffKey,
+        },
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to load users from admin API");
       }
+
+      setUsers(data.users || []);
+    } catch (err: any) {
+      console.error("Failed to load users:", err);
+      setError(err?.message || "Failed to load user directory.");
+    } finally {
+      setLoading(false);
     }
-    loadUsers();
   }, []);
+
+  useEffect(() => {
+    loadUsers();
+  }, [loadUsers]);
 
   const handleRoleChange = async (userId: string, newRole: "user" | "support_staff" | "admin") => {
     setUpdatingUid(userId);
     try {
-      await updateDoc(doc(db, "users", userId), {
-        role: newRole,
+      const staffKey = typeof window !== "undefined" ? sessionStorage.getItem("splinzo_staff_session_key") || "" : "";
+      const res = await fetch("/api/admin/users", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-key": staffKey,
+        },
+        body: JSON.stringify({
+          userId,
+          role: newRole,
+        }),
       });
-      setUsers(prev =>
-        prev.map(u => (u.id === userId ? { ...u, role: newRole } : u))
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to update role");
+      }
+
+      setUsers((prev) =>
+        prev.map((u) => (u.id === userId ? { ...u, role: newRole } : u))
       );
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to update role:", err);
-      alert("Failed to update role.");
+      alert(err?.message || "Failed to update role.");
     } finally {
       setUpdatingUid(null);
     }
@@ -71,6 +96,18 @@ export default function AdminUsersPage() {
     );
   });
 
+  const formatDate = (createdAt: any) => {
+    if (!createdAt) return "Recent";
+    try {
+      if (typeof createdAt?.toDate === "function") {
+        return createdAt.toDate().toLocaleDateString();
+      }
+      return new Date(createdAt).toLocaleDateString();
+    } catch {
+      return "Recent";
+    }
+  };
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       {/* ── HEADER ── */}
@@ -78,10 +115,40 @@ export default function AdminUsersPage() {
         <div>
           <h1 className="text-2xl font-black tracking-tight text-gray-900">User Directory & Investigation</h1>
           <p className="text-xs text-gray-500 mt-0.5">
-            Inspect user profiles, registered UPI IDs, and manage staff privileges.
+            Inspect live user profiles, registered UPI IDs, and manage staff privileges.
           </p>
         </div>
+
+        <div className="flex items-center gap-3">
+          <div className="text-xs font-mono font-bold text-gray-500 bg-white px-3 py-1.5 rounded-xl border border-gray-200">
+            {users.length} {users.length === 1 ? "User" : "Users"}
+          </div>
+          <button
+            onClick={() => loadUsers()}
+            disabled={loading}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-white text-gray-700 border border-gray-200 hover:bg-gray-50 transition-colors shadow-sm disabled:opacity-50"
+          >
+            <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
+            <span>Refresh</span>
+          </button>
+        </div>
       </div>
+
+      {/* ── ERROR ALERT IF ANY ── */}
+      {error && (
+        <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 flex items-start gap-3 text-rose-900 text-xs">
+          <AlertCircle size={16} className="text-rose-500 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <span className="font-bold">Error loading directory:</span> {error}
+          </div>
+          <button
+            onClick={() => loadUsers()}
+            className="underline font-bold text-rose-700 hover:text-rose-900"
+          >
+            Retry
+          </button>
+        </div>
+      )}
 
       {/* ── SEARCH BAR ── */}
       <div className="p-4 rounded-3xl bg-white border border-gray-200/80 shadow-sm">
@@ -91,7 +158,7 @@ export default function AdminUsersPage() {
             type="text"
             placeholder="Search by name, email, phone number, registered UPI ID, or UID…"
             value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
+            onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-gray-50 border border-gray-200 text-gray-900 text-xs outline-none focus:border-amber-400 focus:bg-white transition-colors"
           />
         </div>
@@ -170,7 +237,7 @@ export default function AdminUsersPage() {
                       <select
                         disabled={updatingUid === u.id}
                         value={u.role || "user"}
-                        onChange={e => handleRoleChange(u.id, e.target.value as any)}
+                        onChange={(e) => handleRoleChange(u.id, e.target.value as any)}
                         className={`px-2.5 py-1 rounded-xl text-xs font-bold outline-none border transition-colors cursor-pointer ${
                           u.role === "admin"
                             ? "bg-[#F9B912] text-gray-950 border-amber-400"
@@ -187,7 +254,7 @@ export default function AdminUsersPage() {
 
                     {/* Date */}
                     <td className="py-3 px-4 text-right text-gray-500 font-mono whitespace-nowrap">
-                      {u.createdAt?.toDate ? u.createdAt.toDate().toLocaleDateString() : "Recent"}
+                      {formatDate(u.createdAt)}
                     </td>
                   </tr>
                 ))}

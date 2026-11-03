@@ -1,6 +1,6 @@
-import { initializeApp, getApps, cert, App } from "firebase-admin/app";
-import { getFirestore, Firestore, FieldValue } from "firebase-admin/firestore";
-import { getMessaging, Messaging, MulticastMessage, BatchResponse } from "firebase-admin/messaging";
+import { initializeApp, getApps, cert, type App } from "firebase-admin/app";
+import { getFirestore, type Firestore, FieldValue } from "firebase-admin/firestore";
+import { getMessaging, type Messaging, type MulticastMessage, type BatchResponse } from "firebase-admin/messaging";
 
 let adminApp: App | null = null;
 let adminDb: Firestore | null = null;
@@ -63,6 +63,16 @@ export function getFirebaseAdmin(): { db: Firestore | null; messaging: Messaging
     return { db: adminDb, messaging: adminMessaging, isConfigured: true };
   }
 
+  const existingApps = getApps();
+  if (existingApps.length > 0) {
+    adminApp = existingApps[0];
+    adminDb = adminDb || getFirestore(adminApp);
+    try {
+      adminMessaging = adminMessaging || getMessaging(adminApp);
+    } catch (_) {}
+    return { db: adminDb, messaging: adminMessaging, isConfigured: true };
+  }
+
   const serviceAccountKey =
     getRuntimeEnv("FIREBASE_SERVICE_ACCOUNT_KEY") ||
     getRuntimeEnv("NEXT_PUBLIC_FIREBASE_SERVICE_ACCOUNT_KEY") ||
@@ -110,7 +120,8 @@ export function getFirebaseAdmin(): { db: Firestore | null; messaging: Messaging
           .replace(/-----BEGIN[ _]PRIVATE[ _]KEY-----/g, "-----BEGIN PRIVATE KEY-----")
           .replace(/-----END[ _]PRIVATE[ _]KEY-----/g, "-----END PRIVATE KEY-----");
       }
-      adminApp = initializeApp({
+      const currentApps = getApps();
+      adminApp = currentApps.length > 0 ? currentApps[0] : initializeApp({
         credential: cert(parsed),
         projectId: parsed.project_id || projectId,
       });
@@ -135,7 +146,8 @@ export function getFirebaseAdmin(): { db: Firestore | null; messaging: Messaging
         .replace(/\\n/g, "\n")
         .replace(/-----BEGIN[ _]PRIVATE[ _]KEY-----/g, "-----BEGIN PRIVATE KEY-----")
         .replace(/-----END[ _]PRIVATE[ _]KEY-----/g, "-----END PRIVATE KEY-----");
-      adminApp = initializeApp({
+      const currentApps = getApps();
+      adminApp = currentApps.length > 0 ? currentApps[0] : initializeApp({
         credential: cert({
           projectId,
           clientEmail,

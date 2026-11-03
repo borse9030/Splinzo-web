@@ -27,11 +27,34 @@ export default function AdminTicketsPage() {
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
 
   useEffect(() => {
+    let isMounted = true;
+    async function loadInitialTickets() {
+      try {
+        const staffKey = typeof window !== "undefined" ? sessionStorage.getItem("splinzo_staff_session_key") || "" : "";
+        const res = await fetch("/api/admin/tickets", {
+          headers: { "x-admin-key": staffKey },
+        });
+        const data = await res.json();
+        if (isMounted && data.success && Array.isArray(data.tickets) && data.tickets.length > 0) {
+          setTickets(data.tickets);
+          setLoading(false);
+        }
+      } catch (_) {}
+    }
+    loadInitialTickets();
+
     const unsub = ticketService.subscribeToAllTickets((all) => {
-      setTickets(all);
-      setLoading(false);
+      if (isMounted) {
+        if (all && all.length > 0) {
+          setTickets(all);
+        }
+        setLoading(false);
+      }
     });
-    return () => unsub();
+    return () => {
+      isMounted = false;
+      unsub();
+    };
   }, []);
 
   const filteredTickets = useMemo(() => {

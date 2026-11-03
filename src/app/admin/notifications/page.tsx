@@ -1,8 +1,6 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { collection, query, getDocs, limit, orderBy } from "firebase/firestore";
-import { db } from "@/lib/firebase/config";
 import { getCurrentStaffSession } from "@/lib/adminAuth";
 import { DeviceSimulator } from "@/components/admin/DeviceSimulator";
 import { storageService } from "@/services/storageService";
@@ -158,42 +156,34 @@ export default function PushStudioPage() {
     async function loadData() {
       setLoadingData(true);
       try {
-        // Load users
-        const uSnap = await getDocs(query(collection(db, "users"), limit(100)));
-        const users: UserOption[] = [];
-        uSnap.forEach((d) => {
-          const data = d.data();
-          const hasDeviceToken = Boolean(
-            (data.fcmToken && typeof data.fcmToken === "string" && data.fcmToken.trim().length > 10) ||
-            (Array.isArray(data.fcmTokens) && data.fcmTokens.some((t: any) => typeof t === "string" && t.trim().length > 10))
-          );
-          const resolvedToken = data.fcmToken || (Array.isArray(data.fcmTokens) ? data.fcmTokens[0] : "");
-          users.push({
-            id: d.id,
-            name: data.displayName || data.name || "Anonymous User",
-            email: data.email || "",
-            phone: data.phone || data.phoneNumber || "",
-            fcmToken: resolvedToken || "",
-            fcmTokens: Array.isArray(data.fcmTokens) ? data.fcmTokens : [],
-            fcmPlatform: data.fcmPlatform || (hasDeviceToken ? "app" : "web"),
-            hasDeviceToken,
-          });
+        // Load users from Admin API
+        const staffKey = typeof window !== "undefined" ? sessionStorage.getItem("splinzo_staff_session_key") || "" : "";
+        const uRes = await fetch("/api/admin/users?limit=250", {
+          headers: { "x-admin-key": staffKey },
         });
-        setUsersList(users);
+        const uData = await uRes.json();
+        if (uData.success && Array.isArray(uData.users)) {
+          const users: UserOption[] = uData.users.map((u: any) => ({
+            id: u.id,
+            name: u.displayName || u.name || "Anonymous User",
+            email: u.email || "",
+            phone: u.phone || u.phoneNumber || "",
+            fcmToken: u.fcmToken || "",
+            fcmTokens: u.fcmTokens || [],
+            fcmPlatform: u.fcmPlatform || (u.hasDeviceToken ? "app" : "web"),
+            hasDeviceToken: Boolean(u.hasDeviceToken),
+          }));
+          setUsersList(users);
+        }
 
-        // Load groups
-        const gSnap = await getDocs(query(collection(db, "groups"), limit(50)));
-        const groups: GroupOption[] = [];
-        gSnap.forEach((d) => {
-          const data = d.data();
-          groups.push({
-            id: d.id,
-            name: data.name || "Unnamed Group",
-            memberIds: data.memberIds || [],
-            members: data.members || [],
-          });
+        // Load groups from Admin API
+        const gRes = await fetch("/api/admin/groups", {
+          headers: { "x-admin-key": staffKey },
         });
-        setGroupsList(groups);
+        const gData = await gRes.json();
+        if (gData.success && Array.isArray(gData.groups)) {
+          setGroupsList(gData.groups);
+        }
       } catch (err) {
         console.error("Failed to load users or groups:", err);
       } finally {
