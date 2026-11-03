@@ -62,25 +62,28 @@ export default function AdminAppUpdatesPage() {
     async function loadConfig() {
       try {
         setLoading(true);
-        const ref = doc(db, "app_config", "app_updates");
-        const snap = await getDoc(ref);
-        if (snap.exists()) {
-          const data = snap.data() as AppUpdateConfig;
+        const staffKey = typeof window !== "undefined" ? sessionStorage.getItem("splinzo_staff_session_key") || "" : "";
+        const res = await fetch("/api/admin/app-updates", {
+          headers: { "x-admin-key": staffKey },
+        });
+        const data = await res.json();
+        if (data.success && data.config) {
+          const cfg = data.config as AppUpdateConfig;
           setConfig({
-            latestVersionCode: data.latestVersionCode ?? 41,
-            latestVersionName: data.latestVersionName || "1.0.38",
-            minSupportedVersionCode: data.minSupportedVersionCode ?? 40,
-            title: data.title || "New Update Available! 🚀",
-            message: data.message || "",
-            releaseNotes: Array.isArray(data.releaseNotes) ? data.releaseNotes : [],
-            isForceUpdate: Boolean(data.isForceUpdate),
-            playStoreUrl: data.playStoreUrl || "market://details?id=com.splinzo.splinzo",
-            webPlayStoreUrl: data.webPlayStoreUrl || "https://play.google.com/store/apps/details?id=com.splinzo.splinzo",
-            enabled: data.enabled !== false,
+            latestVersionCode: cfg.latestVersionCode ?? 46,
+            latestVersionName: cfg.latestVersionName || "1.0.43",
+            minSupportedVersionCode: cfg.minSupportedVersionCode ?? 40,
+            title: cfg.title || "New Update Available! 🚀",
+            message: cfg.message || "",
+            releaseNotes: Array.isArray(cfg.releaseNotes) ? cfg.releaseNotes : [],
+            isForceUpdate: Boolean(cfg.isForceUpdate),
+            playStoreUrl: cfg.playStoreUrl || "market://details?id=com.splinzo.splinzo",
+            webPlayStoreUrl: cfg.webPlayStoreUrl || "https://play.google.com/store/apps/details?id=com.splinzo.splinzo",
+            enabled: cfg.enabled !== false,
           });
         }
       } catch (err: any) {
-        console.error("Error loading update config:", err);
+        console.warn("Notice loading update config via API, using defaults:", err?.message);
       } finally {
         setLoading(false);
       }
@@ -95,17 +98,24 @@ export default function AdminAppUpdatesPage() {
     setStatusMessage(null);
 
     try {
-      const ref = doc(db, "app_config", "app_updates");
-      await setDoc(
-        ref,
-        {
+      const staffKey = typeof window !== "undefined" ? sessionStorage.getItem("splinzo_staff_session_key") || "" : "";
+      const res = await fetch("/api/admin/app-updates", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-key": staffKey,
+        },
+        body: JSON.stringify({
           ...config,
           latestVersionCode: Number(config.latestVersionCode),
           minSupportedVersionCode: Number(config.minSupportedVersionCode),
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true }
-      );
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to save configuration via admin API");
+      }
 
       setStatusMessage({
         type: "success",

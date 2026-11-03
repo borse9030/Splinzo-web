@@ -66,13 +66,27 @@ export function CreateStaffModal({ isOpen, onClose, onSuccess }: CreateStaffModa
         throw new Error("Please complete all required fields.");
       }
 
-      await staffService.createStaffMember({
-        name: name.trim(),
-        username: username.trim().toLowerCase(),
-        email: email.trim().toLowerCase() || `${username.trim().toLowerCase()}@splinzo.in`,
-        password: password.trim(),
-        department,
+      const staffKey = typeof window !== "undefined" ? sessionStorage.getItem("splinzo_staff_session_key") || "" : "";
+      const res = await fetch("/api/admin/staff", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-key": staffKey,
+        },
+        body: JSON.stringify({
+          name: name.trim(),
+          username: username.trim().toLowerCase(),
+          email: email.trim().toLowerCase() || `${username.trim().toLowerCase()}@splinzo.in`,
+          password: password.trim(),
+          department,
+          departmentLabel: DEPARTMENT_LABELS[department],
+        }),
       });
+
+      const resData = await res.json();
+      if (!res.ok || !resData.success) {
+        throw new Error(resData.error || "Failed to create staff member.");
+      }
 
       setCreatedCredentials({
         name: name.trim(),

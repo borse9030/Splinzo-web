@@ -36,9 +36,30 @@ export default function AdminStaffPage() {
   const [editingStaffId, setEditingStaffId] = useState<string | null>(null);
   const [newPasswordInput, setNewPasswordInput] = useState("");
 
+  const loadStaff = async () => {
+    try {
+      setLoading(true);
+      const staffKey = typeof window !== "undefined" ? sessionStorage.getItem("splinzo_staff_session_key") || "" : "";
+      const res = await fetch("/api/admin/staff", {
+        headers: { "x-admin-key": staffKey },
+      });
+      const data = await res.json();
+      if (data.success && Array.isArray(data.staff)) {
+        setStaffList(data.staff);
+      }
+    } catch (e) {
+      console.warn("Notice loading staff via API:", e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
+    loadStaff();
     const unsub = staffService.subscribeToAllStaff((staff) => {
-      setStaffList(staff);
+      if (staff && staff.length > 0) {
+        setStaffList(staff);
+      }
       setLoading(false);
     });
     return () => unsub();
@@ -46,7 +67,18 @@ export default function AdminStaffPage() {
 
   const handleToggleStatus = async (staff: StaffMember) => {
     try {
-      await staffService.updateStaffStatus(staff.id, !staff.isActive);
+      const staffKey = typeof window !== "undefined" ? sessionStorage.getItem("splinzo_staff_session_key") || "" : "";
+      await fetch("/api/admin/staff", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-key": staffKey,
+        },
+        body: JSON.stringify({ id: staff.id, isActive: !staff.isActive }),
+      });
+      setStaffList((prev) =>
+        prev.map((s) => (s.id === staff.id ? { ...s, isActive: !s.isActive } : s))
+      );
     } catch (err) {
       console.error(err);
     }
@@ -55,7 +87,12 @@ export default function AdminStaffPage() {
   const handleDeleteStaff = async (id: string, name: string) => {
     if (confirm(`Are you sure you want to remove staff member "${name}"?`)) {
       try {
-        await staffService.deleteStaffMember(id);
+        const staffKey = typeof window !== "undefined" ? sessionStorage.getItem("splinzo_staff_session_key") || "" : "";
+        await fetch(`/api/admin/staff?id=${encodeURIComponent(id)}`, {
+          method: "DELETE",
+          headers: { "x-admin-key": staffKey },
+        });
+        setStaffList((prev) => prev.filter((s) => s.id !== id));
       } catch (err) {
         console.error(err);
       }
@@ -65,7 +102,18 @@ export default function AdminStaffPage() {
   const handleSavePassword = async (id: string) => {
     if (!newPasswordInput.trim()) return;
     try {
-      await staffService.updateStaffPassword(id, newPasswordInput.trim());
+      const staffKey = typeof window !== "undefined" ? sessionStorage.getItem("splinzo_staff_session_key") || "" : "";
+      await fetch("/api/admin/staff", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "x-admin-key": staffKey,
+        },
+        body: JSON.stringify({ id, password: newPasswordInput.trim() }),
+      });
+      setStaffList((prev) =>
+        prev.map((s) => (s.id === id ? { ...s, password: newPasswordInput.trim() } : s))
+      );
       setEditingStaffId(null);
       setNewPasswordInput("");
     } catch (err) {

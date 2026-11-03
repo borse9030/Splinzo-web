@@ -86,7 +86,9 @@ export const staffService = {
         callback(staffList);
       },
       (error) => {
-        console.error("Error subscribing to staff members:", error);
+        if (error?.code !== "permission-denied") {
+          console.warn("[staffService] Error subscribing to staff members:", error.message);
+        }
         callback([]);
       }
     );
