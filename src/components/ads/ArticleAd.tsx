@@ -17,6 +17,10 @@ export function ArticleAd({ className }: ArticleAdProps) {
       className={className}
       style={{
         width: "100%",
+        maxWidth: "100%",
+        minWidth: 0,
+        boxSizing: "border-box",
+        overflow: "hidden",
         margin: "32px 0",
         padding: "16px 0",
         borderTop: "1px solid var(--border, #F1F5F9)",

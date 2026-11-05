@@ -29,20 +29,33 @@ export function AdsterraBanner({
   const mounted = useIsMounted();
 
   useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
     const updateScale = () => {
-      if (containerRef.current) {
-        const clientWidth = containerRef.current.clientWidth;
-        if (clientWidth > 0 && clientWidth < width) {
-          setScale(clientWidth / width);
-        } else {
-          setScale(1);
-        }
+      const clientWidth = el.clientWidth;
+      if (clientWidth > 0 && clientWidth < width) {
+        setScale(clientWidth / width);
+      } else {
+        setScale(1);
       }
     };
 
     updateScale();
     window.addEventListener("resize", updateScale);
-    return () => window.removeEventListener("resize", updateScale);
+
+    let ro: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== "undefined") {
+      ro = new ResizeObserver(() => {
+        updateScale();
+      });
+      ro.observe(el);
+    }
+
+    return () => {
+      window.removeEventListener("resize", updateScale);
+      ro?.disconnect();
+    };
   }, [width]);
 
   if (!mounted) {
@@ -99,6 +112,8 @@ export function AdsterraBanner({
       style={{
         width: "100%",
         maxWidth: "100%",
+        minWidth: 0,
+        boxSizing: "border-box",
         display: "flex",
         justifyContent: "center",
         alignItems: "center",

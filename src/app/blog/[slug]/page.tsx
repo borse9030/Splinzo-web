@@ -1,7 +1,8 @@
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Clock, User } from "lucide-react";
+import Image from "next/image";
+import { ArrowLeft, Clock, User, Calendar, ArrowRight } from "lucide-react";
 import { blogs } from "@/data/blogs";
 import { ArticleAd } from "@/components/ads/ArticleAd";
 import { BlogArticleSchema, BreadcrumbSchema } from "@/components/seo/JsonLd";
@@ -66,7 +67,7 @@ export default async function BlogPostPage({ params }: Props) {
   }
 
   return (
-    <div className="py-14 px-5 bg-white min-h-full">
+    <div className="min-h-screen bg-white text-gray-900 flex flex-col w-full max-w-full overflow-x-clip">
       <BlogArticleSchema
         title={blog.title}
         summary={blog.summary}
@@ -81,54 +82,110 @@ export default async function BlogPostPage({ params }: Props) {
           { name: blog.title, url: `/blog/${blog.slug}` },
         ]}
       />
-      <article className="max-w-3xl mx-auto">
-        <Link href="/blog" className="inline-flex items-center gap-2 text-sm font-bold text-gray-400 hover:text-gray-900 transition-colors mb-10">
-          <ArrowLeft size={16} />
-          Back to Blog
-        </Link>
-        
-        <header className="mb-12">
-          <div className="flex flex-wrap items-center gap-4 mb-6">
-            <span className="px-3 py-1 rounded-full text-xs font-bold"
-                  style={{ background: "#FFF8E1", color: "#F9A825" }}>
-              {blog.category}
-            </span>
-            <div className="flex items-center gap-4 text-sm font-medium text-gray-500">
-              <span className="flex items-center gap-1.5"><Clock size={14} /> {blog.readTime}</span>
-              <span className="flex items-center gap-1.5"><User size={14} /> {blog.author}</span>
-              <span>{blog.date}</span>
-            </div>
-          </div>
-          
-          <h1 className="text-4xl md:text-5xl font-black tracking-tight text-gray-900 leading-[1.1] mb-6">
-            {blog.title}
-          </h1>
-          
-          <p className="text-xl text-gray-500 leading-relaxed font-medium">
-            {blog.summary}
-          </p>
-        </header>
 
-        {/* Prose Content */}
-        <div 
-          className="prose prose-lg max-w-none prose-headings:font-black prose-headings:tracking-tight prose-a:text-amber-500 hover:prose-a:text-amber-600 prose-img:rounded-3xl prose-img:shadow-xl prose-hr:border-gray-100"
-          dangerouslySetInnerHTML={{ __html: blog.content }}
-        />
-
-        {/* In-article ad after content — max 2 per article (IAB compliant) */}
-        <ArticleAd />
-        
-        <hr className="my-16 border-gray-100" />
-        
-        <div className="bg-gray-50 rounded-3xl p-8 text-center">
-          <h3 className="text-2xl font-black text-gray-900 mb-3">Ready to stop splitting headaches?</h3>
-          <p className="text-gray-500 mb-6">Join thousands of users sharing expenses the smart way.</p>
-          <Link href="/signup" className="inline-flex items-center justify-center h-12 px-8 rounded-full font-bold text-gray-900 transition-transform hover:-translate-y-0.5 shadow-lg shadow-amber-500/20"
-                style={{ background: AMBER }}>
-            Get Started Free
+      {/* ── Top Header Navigation ────────────────────────────────────────── */}
+      <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-gray-100 shadow-xs">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+          <Link href="/" className="flex items-center gap-2.5 group">
+            <Image 
+              src="/logo.png" 
+              alt="Splinzo" 
+              width={34} 
+              height={34} 
+              className="rounded-xl shadow-xs group-hover:scale-105 transition-transform" 
+            />
+            <span className="text-xl font-black text-gray-900 tracking-tight">Splinzo</span>
           </Link>
+
+          <div className="flex items-center gap-3 sm:gap-4">
+            <Link 
+              href="/blog" 
+              className="text-xs sm:text-sm font-semibold text-gray-500 hover:text-gray-900 transition-colors flex items-center gap-1"
+            >
+              <ArrowLeft size={14} /> Back to Blog
+            </Link>
+            <Link 
+              href="/dashboard" 
+              className="px-4 py-2 rounded-full text-xs sm:text-sm font-bold transition-all shadow-xs hover:shadow-md hover:scale-105"
+              style={{ background: AMBER, color: "#111827" }}
+            >
+              Open App
+            </Link>
+          </div>
         </div>
-      </article>
+      </header>
+
+      {/* ── Main Article ─────────────────────────────────────────────────── */}
+      <main className="w-full max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-12 md:py-14 flex-1">
+        <article className="w-full min-w-0 max-w-full">
+          <header className="mb-8 sm:mb-12">
+            <div className="flex flex-wrap items-center gap-2.5 sm:gap-4 mb-4 sm:mb-6">
+              <span className="px-3 py-1 rounded-full text-xs font-bold"
+                    style={{ background: "#FFF8E1", color: "#F9A825" }}>
+                {blog.category}
+              </span>
+              <div className="flex flex-wrap items-center gap-3 text-xs sm:text-sm font-medium text-gray-500">
+                <span className="flex items-center gap-1.5"><Clock size={13} /> {blog.readTime}</span>
+                <span className="flex items-center gap-1.5"><User size={13} /> {blog.author}</span>
+                <span className="flex items-center gap-1.5"><Calendar size={13} /> {blog.date}</span>
+              </div>
+            </div>
+            
+            <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-black tracking-tight text-gray-900 leading-[1.15] mb-4 sm:mb-6 break-words">
+              {blog.title}
+            </h1>
+            
+            <p className="text-base sm:text-lg md:text-xl text-gray-600 leading-relaxed font-medium break-words">
+              {blog.summary}
+            </p>
+          </header>
+
+          {/* Prose Content */}
+          <div 
+            className="prose prose-base sm:prose-lg max-w-none prose-headings:font-black prose-headings:tracking-tight prose-a:text-amber-500 hover:prose-a:text-amber-600 prose-img:rounded-3xl prose-img:shadow-xl prose-hr:border-gray-100 break-words overflow-hidden"
+            dangerouslySetInnerHTML={{ __html: blog.content }}
+          />
+
+          {/* In-article ad after content */}
+          <ArticleAd />
+          
+          <hr className="my-10 sm:my-14 border-gray-100" />
+          
+          <div className="bg-gray-50 rounded-2xl sm:rounded-3xl p-6 sm:p-10 text-center border border-gray-100 shadow-xs">
+            <h3 className="text-xl sm:text-2xl font-black text-gray-900 mb-2.5">
+              Ready to stop splitting headaches?
+            </h3>
+            <p className="text-sm sm:text-base text-gray-500 max-w-md mx-auto mb-6">
+              Join thousands of users sharing expenses the smart, automated way.
+            </p>
+            <Link 
+              href="/signup" 
+              className="inline-flex items-center justify-center h-12 px-8 rounded-full font-bold text-sm text-gray-900 transition-transform hover:-translate-y-0.5 shadow-lg shadow-amber-500/20"
+              style={{ background: AMBER }}
+            >
+              Get Started Free <ArrowRight size={16} className="ml-2" />
+            </Link>
+          </div>
+        </article>
+      </main>
+
+      {/* ── Footer ──────────────────────────────────────────────────────── */}
+      <footer className="border-t border-gray-200/60 bg-white py-8 px-4 sm:px-6 w-full max-w-full overflow-hidden">
+        <div className="max-w-4xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4 text-xs sm:text-sm text-gray-400">
+          <div className="flex items-center gap-2">
+            <Image src="/logo.png" alt="Splinzo" width={20} height={20} className="rounded-md" />
+            <span>&copy; {new Date().getFullYear()} Splinzo. All rights reserved.</span>
+          </div>
+          <div className="flex flex-wrap justify-center gap-4 sm:gap-6">
+            <Link href="/" className="hover:text-gray-700 transition-colors">Home</Link>
+            <Link href="/about" className="hover:text-gray-700 transition-colors">About Us</Link>
+            <Link href="/blog" className="hover:text-gray-700 transition-colors">Blog</Link>
+            <Link href="/privacy-policy" className="hover:text-gray-700 transition-colors">Privacy</Link>
+            <Link href="/terms" className="hover:text-gray-700 transition-colors">Terms</Link>
+            <Link href="/contact" className="hover:text-gray-700 transition-colors">Contact</Link>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

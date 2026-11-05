@@ -17,6 +17,9 @@ export function InFeedAd({ className }: InFeedAdProps) {
       className={className}
       style={{
         width: "100%",
+        maxWidth: "100%",
+        minWidth: 0,
+        boxSizing: "border-box",
         background: "var(--card, #FFFFFF)",
         borderRadius: "24px",
         border: "1px solid var(--border, #F1F5F9)",
@@ -51,7 +54,7 @@ export function InFeedAd({ className }: InFeedAdProps) {
         Sponsored
       </div>
 
-      <div style={{ width: "100%", display: "flex", justifyContent: "center" }}>
+      <div style={{ width: "100%", maxWidth: "100%", minWidth: 0, overflow: "hidden", display: "flex", justifyContent: "center" }}>
         <AdsterraBanner
           adKey="ae9d16cc9abc184e693997fd2e0102fb"
           width={728}

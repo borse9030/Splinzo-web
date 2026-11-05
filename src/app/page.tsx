@@ -812,16 +812,16 @@ export default function Home() {
             </Link>
           </div>
           
-          <div className="grid md:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8 w-full max-w-full min-w-0">
             {blogs.slice(0, 3).map((blog) => (
-              <motion.div key={blog.slug} whileHover={{ y: -8 }} transition={{ duration: 0.2 }}>
-                <Link href={`/blog/${blog.slug}`} className="block group">
-                  <article className="bg-gray-50 rounded-3xl p-6 h-full flex flex-col border border-gray-100 hover:border-amber-200 hover:shadow-xl hover:shadow-amber-500/5 transition-all">
+              <motion.div key={blog.slug} whileHover={{ y: -8 }} transition={{ duration: 0.2 }} className="w-full min-w-0 max-w-full">
+                <Link href={`/blog/${blog.slug}`} className="block group h-full">
+                  <article className="bg-gray-50 rounded-2xl sm:rounded-3xl p-5 sm:p-6 h-full flex flex-col border border-gray-100 hover:border-amber-200 hover:shadow-xl hover:shadow-amber-500/5 transition-all overflow-hidden">
                     <span className="text-xs font-bold text-amber-500 mb-3">{blog.category}</span>
-                    <h3 className="text-lg font-black text-gray-900 mb-3 group-hover:text-amber-500 transition-colors leading-snug">
+                    <h3 className="text-lg font-black text-gray-900 mb-3 group-hover:text-amber-500 transition-colors leading-snug break-words">
                       {blog.title}
                     </h3>
-                    <p className="text-sm text-gray-500 line-clamp-3 mb-6 flex-1 leading-relaxed">
+                    <p className="text-sm text-gray-500 line-clamp-3 mb-6 flex-1 leading-relaxed break-words">
                       {blog.summary}
                     </p>
                     <div className="flex items-center text-xs font-bold text-gray-400 group-hover:text-amber-500 transition-colors gap-1">
